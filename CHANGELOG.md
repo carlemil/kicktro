@@ -15,6 +15,11 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.76.2] — 2026-09-06
+
+### Changed
+- The **Noise** filter is now **per pixel**: every pixel's brightness is nudged by its own random value, with no Scale or Speed. **Seed** is *Static* (one pattern, identical every frame) or *Random* (re-rolled every frame).
+
 ## [1.76.1] — 2026-09-04
 
 ### Changed

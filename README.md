@@ -534,11 +534,10 @@ the layers blend together.
   generalised to a kaleidoscope, available to every effect.
 - **Slice glitch** — tear horizontal slices sideways at random. Arm **Amount** to
   a beat and the picture rips on the hit.
-- **Noise** — push the colour with a field of smooth noise: brightness swells and
-  sinks in soft patches and black stays black (**Amount** / **Scale** / **Speed**).
-  **Seed** picks the field: *Static* freezes one (the same every frame), *Drift*
-  slides it at **Speed**, *Random* re-rolls it every frame for a shimmer. Arm
-  **Amount** to a beat for a flash on the hit.
+- **Noise** — push the colour with per-pixel noise: every pixel's brightness is
+  nudged up or down by its own random value, black stays black (**Amount**).
+  **Seed** keeps one pattern (*Static*, identical every frame) or re-rolls it every
+  frame (*Random*). Arm **Amount** to a beat for a flash on the hit.
 - **Pixelate** — snap the picture to a coarse grid. **Block** is the cell size.
 - **Hex pixelate** — the same idea on a honeycomb: the picture snaps to hexagons instead
   of squares. **Cell** is the hex size.

@@ -123,16 +123,14 @@
       gl: src => postPass("glitch", src, u => {
         gl.uniform1f(u.uAmount, glitchAmt); gl.uniform1f(u.uRows, glitchRows); gl.uniform1f(u.uTime, postTime);
       }) },
-    // Seed: Static freezes ONE field (the same displacement every frame, so a still scene stays
-    // still and only the picture under it moves), Drift slides it at Speed, Random draws a fresh
-    // field every frame -- each frame lands on its own integer lattice layer (z steps of 1000,
-    // so no two frames share a corner), which reads as a shimmer rather than a wobble.
-    { id: "noise", cpuOk: false, name: "Noise", stage: "post", params: ["noise", "noisescale", "noiseseed", "noisespeed"],
-      help: "Push the colour with a field of smooth noise — brightness swells and sinks in soft patches, black stays black. Seed picks whether the field is frozen, drifts at Speed, or is re-rolled every frame. Arm Amount to a beat for a flash on the hit.",
-      defaults: { noise: [0.4, 0.4], noisescale: [4, 4], noiseseed: [1, 1], noisespeed: [0.5, 0.5] },
+    // Seed: Static is ONE pattern, identical every frame (a still scene stays still); Random
+    // re-rolls every pixel every frame. No scale -- the noise is per pixel by request.
+    { id: "noise", cpuOk: false, name: "Noise", stage: "post", params: ["noise", "noiseseed"],
+      help: "Push the colour with per-pixel noise — every pixel's brightness is nudged up or down by its own random value, black stays black. Seed keeps one pattern or re-rolls it every frame. Arm Amount to a beat for a flash on the hit.",
+      defaults: { noise: [0.4, 0.4], noiseseed: [1, 1] },
       gl: src => postPass("noise", src, u => {
-        const t = noiseSeedMode === 0 ? 0 : noiseSeedMode === 2 ? (noiseFrame = (noiseFrame + 1) % 65536) * 1000 : postTime * noiseSpeed;
-        gl.uniform1f(u.uAmount, noiseAmt); gl.uniform1f(u.uScale, noiseScale); gl.uniform1f(u.uTime, t);
+        gl.uniform1f(u.uAmount, noiseAmt);
+        gl.uniform1f(u.uTime, noiseSeedMode === 0 ? 0 : (noiseFrame = (noiseFrame + 1) % 65536));
       }) },
     { id: "pixelate", cpuOk: false, name: "Pixelate", stage: "post", params: ["pixel"],
       help: "Snap the image to a coarse grid of blocks.",

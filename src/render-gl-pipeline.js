@@ -324,33 +324,24 @@
       p.x /= asp;
       o = vec4(texture(uSrc, clamp(p + 0.5, 0.0, 1.0)).rgb, 1.0);
     }`;
-    // Noise: a smooth value-noise field pushes each pixel's COLOUR, not its position --
-    // brightness is scaled by (1 + Amount * n), so black stays black and lit areas breathe
-    // with the field. (It displaced pixels first; asked for as a colour push.) Two octaves.
-    // The lattice hash is INTEGER arithmetic, never fract(sin()) -- see the driver-build rule
-    // in CLAUDE.md -- and the field is scaled by aspect so the blobs are round on screen.
-    // Scale is cells across the width, Speed slides the field.
+    // Noise: PER-PIXEL white noise pushes each pixel's COLOUR -- brightness is scaled by
+    // (1 + Amount * n), n in [-1, 1] hashed from the pixel's own coordinate, so black stays
+    // black and there is no scale to it: one value per screen pixel. (It was a smooth field
+    // first, then a smooth colour push; asked for as per-pixel.) The hash is INTEGER
+    // arithmetic, never fract(sin()) -- see the driver-build rule in CLAUDE.md -- keyed by
+    // uTime, which is 0 for a Static seed (the identical pattern every frame) and a fresh
+    // frame number for Random.
     const FS_NOISE = `#version 300 es
     precision highp float;
-    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uAmount; uniform float uScale;
-    uniform float uTime;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uAmount; uniform float uTime;
     in vec2 vUv; out vec4 o;
     float nh(ivec3 p){
       uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
       h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
       return float(h & 0xffffffu) / 16777215.0;
     }
-    float vnoise(vec3 p){
-      vec3 i = floor(p), f = p - i; f = f * f * (3.0 - 2.0 * f);
-      ivec3 c = ivec3(i);
-      float a = mix(nh(c), nh(c + ivec3(1,0,0)), f.x), b = mix(nh(c + ivec3(0,1,0)), nh(c + ivec3(1,1,0)), f.x);
-      float d = mix(nh(c + ivec3(0,0,1)), nh(c + ivec3(1,0,1)), f.x), e = mix(nh(c + ivec3(0,1,1)), nh(c + ivec3(1,1,1)), f.x);
-      return mix(mix(a, b, f.y), mix(d, e, f.y), f.z) * 2.0 - 1.0;
-    }
     void main(){
-      float asp = uSize.x / uSize.y;
-      vec3 p = vec3(vUv.x * asp, vUv.y, uTime) * vec3(uScale, uScale, 1.0) + vec3(100.0);
-      float n = vnoise(p) + 0.5 * vnoise(p * 2.0 + 37.0);      // [-1.5, 1.5]
+      float n = nh(ivec3(ivec2(gl_FragCoord.xy), int(uTime)) + ivec3(7)) * 2.0 - 1.0;
       o = vec4(clamp(texture(uSrc, vUv).rgb * (1.0 + uAmount * n), 0.0, 1.0), 1.0);
     }`;
     // Horizontal slice displacement. Rows are bucketed into slices, each slice hashed
@@ -892,7 +883,7 @@
     glProg.twist = makeProg(VS_QUAD, FS_TWIST, ["uSrc", "uSize", "uAmount"]);
     glProg.wedge = makeProg(VS_QUAD, FS_WEDGE, ["uSrc", "uSize", "uSeg", "uRot"]);
     glProg.glitch = makeProg(VS_QUAD, FS_GLITCH, ["uSrc", "uSize", "uAmount", "uRows", "uTime"]);
-    glProg.noise = makeProg(VS_QUAD, FS_NOISE, ["uSrc", "uSize", "uAmount", "uScale", "uTime"]);
+    glProg.noise = makeProg(VS_QUAD, FS_NOISE, ["uSrc", "uSize", "uAmount", "uTime"]);
     glProg.halftone = makeProg(VS_QUAD, FS_HALFTONE, ["uSrc", "uSize", "uDot", "uAmount"]);
     glProg.thresh = makeProg(VS_QUAD, FS_THRESH, ["uSrc", "uLevel", "uAmount"]);
     glProg.chroma = makeProg(VS_QUAD, FS_CHROMA, ["uSrc", "uAmount"]);

@@ -2629,7 +2629,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.76.1",
+    version: "1.76.2",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -3042,7 +3042,7 @@
     zfbScale = 1.02, zfbKeep = 0.94, swirlSpin = 2, swirlKeep = 0.94,
     diffRad = 1, diffKeep = 0.97;
   // Post warps / colour
-  let noiseAmt = 0.06, noiseScale = 4, noiseSpeed = 0.5, noiseSeedMode = 1, noiseFrame = 0;
+  let noiseAmt = 0.4, noiseSeedMode = 1, noiseFrame = 0;
   let twistAmt = 1.2, wedgeSeg = 6, wedgeRot = 0, glitchAmt = 0.05, glitchRows = 8,
     halfDot = 4, halfAmt = 0.8, threshLevel = 0.5, threshAmt = 0.8, chromaAmt = 1;
   // Screen stage (after the glow, at display resolution)
@@ -7351,33 +7351,24 @@
       p.x /= asp;
       o = vec4(texture(uSrc, clamp(p + 0.5, 0.0, 1.0)).rgb, 1.0);
     }`;
-    // Noise: a smooth value-noise field pushes each pixel's COLOUR, not its position --
-    // brightness is scaled by (1 + Amount * n), so black stays black and lit areas breathe
-    // with the field. (It displaced pixels first; asked for as a colour push.) Two octaves.
-    // The lattice hash is INTEGER arithmetic, never fract(sin()) -- see the driver-build rule
-    // in CLAUDE.md -- and the field is scaled by aspect so the blobs are round on screen.
-    // Scale is cells across the width, Speed slides the field.
+    // Noise: PER-PIXEL white noise pushes each pixel's COLOUR -- brightness is scaled by
+    // (1 + Amount * n), n in [-1, 1] hashed from the pixel's own coordinate, so black stays
+    // black and there is no scale to it: one value per screen pixel. (It was a smooth field
+    // first, then a smooth colour push; asked for as per-pixel.) The hash is INTEGER
+    // arithmetic, never fract(sin()) -- see the driver-build rule in CLAUDE.md -- keyed by
+    // uTime, which is 0 for a Static seed (the identical pattern every frame) and a fresh
+    // frame number for Random.
     const FS_NOISE = `#version 300 es
     precision highp float;
-    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uAmount; uniform float uScale;
-    uniform float uTime;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uAmount; uniform float uTime;
     in vec2 vUv; out vec4 o;
     float nh(ivec3 p){
       uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
       h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
       return float(h & 0xffffffu) / 16777215.0;
     }
-    float vnoise(vec3 p){
-      vec3 i = floor(p), f = p - i; f = f * f * (3.0 - 2.0 * f);
-      ivec3 c = ivec3(i);
-      float a = mix(nh(c), nh(c + ivec3(1,0,0)), f.x), b = mix(nh(c + ivec3(0,1,0)), nh(c + ivec3(1,1,0)), f.x);
-      float d = mix(nh(c + ivec3(0,0,1)), nh(c + ivec3(1,0,1)), f.x), e = mix(nh(c + ivec3(0,1,1)), nh(c + ivec3(1,1,1)), f.x);
-      return mix(mix(a, b, f.y), mix(d, e, f.y), f.z) * 2.0 - 1.0;
-    }
     void main(){
-      float asp = uSize.x / uSize.y;
-      vec3 p = vec3(vUv.x * asp, vUv.y, uTime) * vec3(uScale, uScale, 1.0) + vec3(100.0);
-      float n = vnoise(p) + 0.5 * vnoise(p * 2.0 + 37.0);      // [-1.5, 1.5]
+      float n = nh(ivec3(ivec2(gl_FragCoord.xy), int(uTime)) + ivec3(7)) * 2.0 - 1.0;
       o = vec4(clamp(texture(uSrc, vUv).rgb * (1.0 + uAmount * n), 0.0, 1.0), 1.0);
     }`;
     // Horizontal slice displacement. Rows are bucketed into slices, each slice hashed
@@ -7919,7 +7910,7 @@
     glProg.twist = makeProg(VS_QUAD, FS_TWIST, ["uSrc", "uSize", "uAmount"]);
     glProg.wedge = makeProg(VS_QUAD, FS_WEDGE, ["uSrc", "uSize", "uSeg", "uRot"]);
     glProg.glitch = makeProg(VS_QUAD, FS_GLITCH, ["uSrc", "uSize", "uAmount", "uRows", "uTime"]);
-    glProg.noise = makeProg(VS_QUAD, FS_NOISE, ["uSrc", "uSize", "uAmount", "uScale", "uTime"]);
+    glProg.noise = makeProg(VS_QUAD, FS_NOISE, ["uSrc", "uSize", "uAmount", "uTime"]);
     glProg.halftone = makeProg(VS_QUAD, FS_HALFTONE, ["uSrc", "uSize", "uDot", "uAmount"]);
     glProg.thresh = makeProg(VS_QUAD, FS_THRESH, ["uSrc", "uLevel", "uAmount"]);
     glProg.chroma = makeProg(VS_QUAD, FS_CHROMA, ["uSrc", "uAmount"]);
@@ -14680,9 +14671,7 @@
     { key: "wedgerot", host: "filter", group: "f_wedge", type: "dual", label: "Spin", valId: "vWedgeRot", min: 0, max: 360, step: 1, lo: 0, hi: 0, fmt: v => sig3(v) + "°", apply: v => wedgeRot = v, durScale: 10 },
     { key: "glitch", host: "filter", group: "f_glitch", type: "dual", label: "Amount", valId: "vGlitch", min: 0, max: 0.5, step: 0.005, lo: 0.22, hi: 0.22, fmt: v => sig3(v * 100) + "%", apply: v => glitchAmt = v, durScale: 10 },
     { key: "noise", host: "filter", group: "f_noise", type: "dual", label: "Amount", valId: "vNoise", min: 0, max: 1, step: 0.01, lo: 0.4, hi: 0.4, fmt: v => sig3(v * 100) + "%", apply: v => noiseAmt = v, durScale: 10 },
-    { key: "noisescale", host: "filter", group: "f_noise", type: "dual", label: "Scale", valId: "vNoiseScale", min: 1, max: 24, step: 0.1, lo: 4, hi: 4, fmt: v => sig3(v), apply: v => noiseScale = v, durScale: 10 },
-    { key: "noiseseed", host: "filter", group: "f_noise", type: "dual", single: true, label: "Seed", valId: "vNoiseSeed", min: 0, max: 2, step: 1, lo: 1, hi: 1, fmt: v => ["Static", "Drift", "Random"][Math.round(v)] || "Drift", apply: v => noiseSeedMode = Math.round(v), durScale: 10 },
-    { key: "noisespeed", host: "filter", group: "f_noise", type: "dual", label: "Speed", valId: "vNoiseSpeed", min: 0, max: 4, step: 0.05, lo: 0.5, hi: 0.5, fmt: v => sig3(v), apply: v => noiseSpeed = v, durScale: 10 },
+    { key: "noiseseed", host: "filter", group: "f_noise", type: "dual", single: true, label: "Seed", valId: "vNoiseSeed", min: 0, max: 1, step: 1, lo: 1, hi: 1, fmt: v => ["Static", "Random"][Math.round(v)] || "Random", apply: v => noiseSeedMode = Math.round(v), durScale: 10 },
     { key: "glitchrows", host: "filter", group: "f_glitch", type: "dual", label: "Slice height", valId: "vGlitchRows", min: 1, max: 40, step: 1, lo: 10, hi: 10, fmt: v => sig3(v) + "px", apply: v => glitchRows = v, durScale: 10 },
     { key: "pixel", host: "filter", group: "f_pixelate", type: "dual", label: "Block", valId: "vPixel", min: 2, max: 40, step: 1, lo: 14, hi: 14, fmt: v => sig3(v) + "px", apply: v => pixelBlock = v, durScale: 10 },
     { key: "hexsize", host: "filter", group: "f_hexpix", type: "dual", label: "Cell", valId: "vHexSize", min: 3, max: 48, step: 1, lo: 20, hi: 20, fmt: v => sig3(v) + "px", apply: v => hexSize = v, durScale: 10 },
@@ -18537,16 +18526,14 @@
       gl: src => postPass("glitch", src, u => {
         gl.uniform1f(u.uAmount, glitchAmt); gl.uniform1f(u.uRows, glitchRows); gl.uniform1f(u.uTime, postTime);
       }) },
-    // Seed: Static freezes ONE field (the same displacement every frame, so a still scene stays
-    // still and only the picture under it moves), Drift slides it at Speed, Random draws a fresh
-    // field every frame -- each frame lands on its own integer lattice layer (z steps of 1000,
-    // so no two frames share a corner), which reads as a shimmer rather than a wobble.
-    { id: "noise", cpuOk: false, name: "Noise", stage: "post", params: ["noise", "noisescale", "noiseseed", "noisespeed"],
-      help: "Push the colour with a field of smooth noise — brightness swells and sinks in soft patches, black stays black. Seed picks whether the field is frozen, drifts at Speed, or is re-rolled every frame. Arm Amount to a beat for a flash on the hit.",
-      defaults: { noise: [0.4, 0.4], noisescale: [4, 4], noiseseed: [1, 1], noisespeed: [0.5, 0.5] },
+    // Seed: Static is ONE pattern, identical every frame (a still scene stays still); Random
+    // re-rolls every pixel every frame. No scale -- the noise is per pixel by request.
+    { id: "noise", cpuOk: false, name: "Noise", stage: "post", params: ["noise", "noiseseed"],
+      help: "Push the colour with per-pixel noise — every pixel's brightness is nudged up or down by its own random value, black stays black. Seed keeps one pattern or re-rolls it every frame. Arm Amount to a beat for a flash on the hit.",
+      defaults: { noise: [0.4, 0.4], noiseseed: [1, 1] },
       gl: src => postPass("noise", src, u => {
-        const t = noiseSeedMode === 0 ? 0 : noiseSeedMode === 2 ? (noiseFrame = (noiseFrame + 1) % 65536) * 1000 : postTime * noiseSpeed;
-        gl.uniform1f(u.uAmount, noiseAmt); gl.uniform1f(u.uScale, noiseScale); gl.uniform1f(u.uTime, t);
+        gl.uniform1f(u.uAmount, noiseAmt);
+        gl.uniform1f(u.uTime, noiseSeedMode === 0 ? 0 : (noiseFrame = (noiseFrame + 1) % 65536));
       }) },
     { id: "pixelate", cpuOk: false, name: "Pixelate", stage: "post", params: ["pixel"],
       help: "Snap the image to a coarse grid of blocks.",

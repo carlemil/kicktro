@@ -178,7 +178,7 @@
     zfbScale = 1.02, zfbKeep = 0.94, swirlSpin = 2, swirlKeep = 0.94,
     diffRad = 1, diffKeep = 0.97;
   // Post warps / colour
-  let noiseAmt = 0.06, noiseScale = 4, noiseSpeed = 0.5, noiseSeedMode = 1, noiseFrame = 0;
+  let noiseAmt = 0.4, noiseSeedMode = 1, noiseFrame = 0;
   let twistAmt = 1.2, wedgeSeg = 6, wedgeRot = 0, glitchAmt = 0.05, glitchRows = 8,
     halfDot = 4, halfAmt = 0.8, threshLevel = 0.5, threshAmt = 0.8, chromaAmt = 1;
   // Screen stage (after the glow, at display resolution)
