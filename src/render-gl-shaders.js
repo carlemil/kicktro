@@ -3143,4 +3143,54 @@
       float v = texture(uState, clamp(uv, 0.0, 1.0)).g;
       o = vec4(clamp(v*uGain*2.6, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
+    // Cellular automata (Life-like B/S rules) -- the Reaction-diffusion arrangement on a
+    // COARSE grid: the state is its own RGBA8 NEAREST/REPEAT pair (glTex.ca, `Cells` across,
+    // rows by aspect) so a cell is a crisp square and the field is a torus; alive in .r,
+    // a linearly fading AGE in .g. Linear, not multiplicative: age*0.99 in 8 bits rounds
+    // back to itself below ~0.2 and a ghost would never fade out. Rain births cells from an
+    // INTEGER hash (fract(sin()) is a driver-build detector) so Life never settles for good.
+    const FS_CASTEP = `#version 300 es
+    precision highp float;
+    uniform sampler2D uPrev; uniform vec2 uSize; uniform int uBirth; uniform int uSurvive;
+    uniform float uRain; uniform float uSalt; uniform float uFade;
+    in vec2 vUv; out vec4 o;
+    float nh(ivec3 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    void main(){
+      vec2 px = 1.0/uSize;
+      int n = 0;
+      for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+        if (i == 0 && j == 0) continue;
+        n += int(step(0.5, texture(uPrev, vUv + vec2(float(i), float(j))*px).r));
+      }
+      vec2 c = texture(uPrev, vUv).rg;
+      bool next = ((c.r > 0.5 ? uSurvive : uBirth) >> n & 1) == 1;
+      if (!next && nh(ivec3(ivec2(gl_FragCoord.xy), int(uSalt))) < uRain) next = true;
+      o = vec4(next ? 1.0 : 0.0, next ? 1.0 : max(0.0, c.g - uFade), 0.0, 1.0);
+    }`;
+    const FS_CASEED = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uSalt;
+    in vec2 vUv; out vec4 o;
+    float nh(ivec3 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    void main(){
+      float a = step(0.7, nh(ivec3(ivec2(gl_FragCoord.xy), int(uSalt)) + ivec3(3)));
+      o = vec4(a, a, 0.0, 1.0);
+    }`;
+    const FS_CASHOW = `#version 300 es
+    precision highp float;
+    uniform sampler2D uState; uniform vec2 uSize; uniform float uGain; uniform float uZoom;
+    out vec4 o;
+    void main(){
+      vec2 uv = (gl_FragCoord.xy/uSize - 0.5)/uZoom + 0.5;
+      vec2 s = texture(uState, uv).rg;
+      o = vec4(clamp(max(s.r*0.85, s.g*0.7)*uGain, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // heat → palette colour (fire-oriented, no flip yet)

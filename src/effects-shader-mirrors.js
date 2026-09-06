@@ -576,6 +576,61 @@
     for (let i = 0; i < fw * fh; i++) fire[i] = Math.min(1, rdCpuV[i] * s.gain * 2.6) * 255;
   }
 
+  // ---- Cellular automata (Life-like B/S rules) -- CPU sim mirror --------------------
+  // Bitmask per rule: bit n set = that neighbour count births (b) / survives (s).
+  // Names live in the Rule control's fmt (controls-schema loads first; a TDZ otherwise).
+  const CA_RULES = [
+    { b: 8, s: 12 },      // Life        B3 / S23
+    { b: 72, s: 12 },     // HighLife    B36 / S23
+    { b: 456, s: 472 },   // Day & Night B3678 / S34678
+    { b: 4, s: 0 },       // Seeds       B2 / S
+    { b: 8, s: 62 },      // Maze        B3 / S12345
+    { b: 8, s: 496 },     // Coral       B3 / S45678
+  ];
+  let caRuleI = 0, caCols = 120, caSpeedV = 12, caRain = 0.002, caTrail = 12, caGain = 1;
+  let caAcc = 0, caCpuA = null, caCpuB = null, caCpuAge = null, caCpuW = 0, caCpuH = 0, caCpuSeed = true, caCpuRule = -1;
+  function caSeedFn(dt) {
+    // generations per SECOND, accumulated from dt (real-time whatever the frame rate),
+    // capped per frame with a bounded backlog so a backgrounded tab does not run 1000 steps
+    caAcc = Math.min(caAcc + caSpeedV * dt, 16);
+    const steps = Math.min(8, Math.floor(caAcc)); caAcc -= steps;
+    const r = CA_RULES[caRuleI] || CA_RULES[0];
+    return { steps, cols: caCols, birth: r.b, survive: r.s, rain: caRain, fade: 1 / Math.max(1, caTrail), rule: caRuleI, gain: caGain, zoom };
+  }
+  function caCPU(s) {
+    const w = s.cols, h = Math.max(4, Math.round(s.cols * fh / fw)), N = w * h;
+    if (w !== caCpuW || h !== caCpuH) { caCpuW = w; caCpuH = h; caCpuA = new Uint8Array(N); caCpuB = new Uint8Array(N); caCpuAge = new Float32Array(N); caCpuSeed = true; }
+    if (s.rule !== caCpuRule) { caCpuRule = s.rule; caCpuSeed = true; }
+    if (caCpuSeed) {
+      caCpuSeed = false; caSalt = (caSalt + 1) % 65536;
+      for (let i = 0; i < N; i++) { caCpuA[i] = sunH21(i % w + caSalt, (i / w | 0) + caSalt) > 0.7 ? 1 : 0; caCpuAge[i] = caCpuA[i]; }
+    }
+    for (let k = 0; k < s.steps; k++) {
+      caSalt = (caSalt + 1) % 65536;
+      for (let y = 0; y < h; y++) {
+        const ym = ((y + h - 1) % h) * w, y0 = y * w, yp = ((y + 1) % h) * w;
+        for (let x = 0; x < w; x++) {
+          const xm = (x + w - 1) % w, xp = (x + 1) % w;
+          const n = caCpuA[ym + xm] + caCpuA[ym + x] + caCpuA[ym + xp] + caCpuA[y0 + xm] + caCpuA[y0 + xp] + caCpuA[yp + xm] + caCpuA[yp + x] + caCpuA[yp + xp];
+          const i = y0 + x;
+          let next = ((caCpuA[i] ? s.survive : s.birth) >> n) & 1;
+          if (!next && sunH21(x + caSalt * 0.37, y + caSalt * 0.61) < s.rain) next = 1;
+          caCpuB[i] = next;
+          caCpuAge[i] = next ? 1 : Math.max(0, caCpuAge[i] - s.fade);
+        }
+      }
+      const t = caCpuA; caCpuA = caCpuB; caCpuB = t;
+    }
+    // display: nearest cell per fire pixel, every cell written (zoom/camera skipped, like rdCPU)
+    for (let y = 0; y < fh; y++) {
+      const cy = Math.min(h - 1, (y * h / fh) | 0) * w;
+      for (let x = 0; x < fw; x++) {
+        const i = cy + Math.min(w - 1, (x * w / fw) | 0);
+        fire[y * fw + x] = Math.min(1, Math.max(caCpuA[i] * 0.85, caCpuAge[i] * 0.7) * s.gain) * 255;
+      }
+    }
+  }
+
   // ---- Sun surface: boiling solar granulation via animated Voronoi (shader effect) ----
   // Clock starts at 0, not unix time (float32 uTime — same trap plasmaTime documents).
   // The mirror is look-equivalent, not bit-identical: sites are cached per frame per CELL

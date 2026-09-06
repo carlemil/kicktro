@@ -63,6 +63,7 @@ const EXPECT = [
   "mbcount", "ksegments", "cbcount", "cosides", "bncount", "bnmix", "sdcount",
   "sdmix", "kfbars", "twcols", "ltbolts", "bpdetail", "flvar", "aucurtains", "rdspeed",
   "mgiter", "wedgeseg", "poster", "mirror", "pxdir", "cellstates", "kuwrad", "qjdetail",
+  "carule", "cacells",   // Cellular automata: a rule enum and a grid width
   "noiseseed",   // Noise warp: Static / Drift / Random is a mode, not a quantity
   "vbcount", "vbshape", "gxarms", "gosurf",
   // Doughnut: both are single because the flute pattern cos(flute·(ang + twist·arc))

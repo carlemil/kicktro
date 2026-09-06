@@ -865,6 +865,9 @@
     glProg.rdstep = makeProg(VS_QUAD, FS_RDSTEP, ["uPrev", "uSize", "uFeed", "uKill"]);
     glProg.rdseed = makeProg(VS_QUAD, FS_RDSEED, ["uSize", "uSalt"]);
     glProg.rdshow = camProg(VS_QUAD, FS_RDSHOW, ["uState", "uSize", "uGain", "uZoom"]);
+    glProg.castep = makeProg(VS_QUAD, FS_CASTEP, ["uPrev", "uSize", "uBirth", "uSurvive", "uRain", "uSalt", "uFade"]);
+    glProg.caseed = makeProg(VS_QUAD, FS_CASEED, ["uSize", "uSalt"]);
+    glProg.cashow = camProg(VS_QUAD, FS_CASHOW, ["uState", "uSize", "uGain", "uZoom"]);
     glProg.pixelate = makeProg(VS_QUAD, FS_PIXELATE, ["uSrc", "uSize", "uBlock"]);
     glProg.posterize = makeProg(VS_QUAD, FS_POSTERIZE, ["uSrc", "uLevels"]);
     glProg.hexpix = makeProg(VS_QUAD, FS_HEXPIX, ["uSrc", "uSize", "uSize2"]);
@@ -956,6 +959,12 @@
       createTex(rdI, gl.RGBA, rdT, gl.LINEAR, gl.CLAMP_TO_EDGE),
     ];
     glFbo.rd = [createFbo(glTex.rd[0]), createFbo(glTex.rd[1])];
+    // Cellular automata grid: sized by glCATick from the Cells slider, REPEAT = torus.
+    glTex.ca = [
+      createTex(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.REPEAT),
+      createTex(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.REPEAT),
+    ];
+    glFbo.ca = [createFbo(glTex.ca[0]), createFbo(glTex.ca[1])];
     // Per-layer state for multi-layer stacks (see the frame loop / glLayerBeginHeat).
     // Each slot gets its own persistent heat pair (so it retains its own fire/feedback),
     // its own 256×1 palette LUT, so every stacked effect keeps its own colours. The
@@ -2263,6 +2272,38 @@
         }
       }
       if (dead) rdNeedSeed = true;
+    }
+  }
+  // Cellular automata driver, glRDTick's shape: (re)size the grid to the Cells slider,
+  // seed on demand (entering the effect, a resize, a rule change), then `steps` generations
+  // ping-ponging the pair. `caCur` names the freshest buffer; the effect's draw samples it.
+  let caCur = 0, caW = 0, caH = 0, caLastRule = -1;
+  function glCATick(s) {
+    const w = s.cols, h = Math.max(4, Math.round(s.cols * fh / fw));
+    if (w !== caW || h !== caH) { caW = w; caH = h; resizeTex(glTex.ca[0], w, h); resizeTex(glTex.ca[1], w, h); caNeedSeed = true; }
+    if (s.rule !== caLastRule) { caLastRule = s.rule; caNeedSeed = true; }
+    if (caNeedSeed) {
+      caNeedSeed = false;
+      caSalt = (caSalt + 1) % 65536;
+      bindFbo(glFbo.ca[0], w, h);
+      gl.useProgram(glProg.caseed.p);
+      gl.uniform2f(glProg.caseed.u.uSize, w, h);
+      gl.uniform1f(glProg.caseed.u.uSalt, caSalt);
+      drawQuad();
+      caCur = 0;
+    }
+    for (let k = 0; k < s.steps; k++) {
+      const dst = 1 - caCur;
+      caSalt = (caSalt + 1) % 65536;         // fresh rain every generation
+      bindFbo(glFbo.ca[dst], w, h);
+      const P = glProg.castep;
+      gl.useProgram(P.p);
+      bindTexUnit(0, glTex.ca[caCur]); gl.uniform1i(P.u.uPrev, 0);
+      gl.uniform2f(P.u.uSize, w, h);
+      gl.uniform1i(P.u.uBirth, s.birth); gl.uniform1i(P.u.uSurvive, s.survive);
+      gl.uniform1f(P.u.uRain, s.rain); gl.uniform1f(P.u.uSalt, caSalt); gl.uniform1f(P.u.uFade, s.fade);
+      drawQuad();
+      caCur = dst;
     }
   }
   // ---- THE ASCII MOSAIC'S GLYPH SETS ---------------------------------------------------

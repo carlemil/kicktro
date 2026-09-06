@@ -2629,7 +2629,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.76.2",
+    version: "1.77.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -3058,6 +3058,7 @@
   // the effect code) marks the dish for re-seeding when the grid reallocates. rdIsFloat
   // is a var on purpose — initGL assigns it while later slices' lets are still in TDZ.
   let rdNeedSeed = true, rdSalt = 1;
+  let caNeedSeed = true, caSalt = 1;      // Cellular automata: same arrangement, its own grid
   var rdIsFloat = false;
   // Wall time for the post/screen passes that animate on their own (Slice glitch,
   // Grain). Accumulated from the frame loop's dt, never read off performance.now(),
@@ -7024,6 +7025,56 @@
       float v = texture(uState, clamp(uv, 0.0, 1.0)).g;
       o = vec4(clamp(v*uGain*2.6, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
+    // Cellular automata (Life-like B/S rules) -- the Reaction-diffusion arrangement on a
+    // COARSE grid: the state is its own RGBA8 NEAREST/REPEAT pair (glTex.ca, `Cells` across,
+    // rows by aspect) so a cell is a crisp square and the field is a torus; alive in .r,
+    // a linearly fading AGE in .g. Linear, not multiplicative: age*0.99 in 8 bits rounds
+    // back to itself below ~0.2 and a ghost would never fade out. Rain births cells from an
+    // INTEGER hash (fract(sin()) is a driver-build detector) so Life never settles for good.
+    const FS_CASTEP = `#version 300 es
+    precision highp float;
+    uniform sampler2D uPrev; uniform vec2 uSize; uniform int uBirth; uniform int uSurvive;
+    uniform float uRain; uniform float uSalt; uniform float uFade;
+    in vec2 vUv; out vec4 o;
+    float nh(ivec3 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    void main(){
+      vec2 px = 1.0/uSize;
+      int n = 0;
+      for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+        if (i == 0 && j == 0) continue;
+        n += int(step(0.5, texture(uPrev, vUv + vec2(float(i), float(j))*px).r));
+      }
+      vec2 c = texture(uPrev, vUv).rg;
+      bool next = ((c.r > 0.5 ? uSurvive : uBirth) >> n & 1) == 1;
+      if (!next && nh(ivec3(ivec2(gl_FragCoord.xy), int(uSalt))) < uRain) next = true;
+      o = vec4(next ? 1.0 : 0.0, next ? 1.0 : max(0.0, c.g - uFade), 0.0, 1.0);
+    }`;
+    const FS_CASEED = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uSalt;
+    in vec2 vUv; out vec4 o;
+    float nh(ivec3 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    void main(){
+      float a = step(0.7, nh(ivec3(ivec2(gl_FragCoord.xy), int(uSalt)) + ivec3(3)));
+      o = vec4(a, a, 0.0, 1.0);
+    }`;
+    const FS_CASHOW = `#version 300 es
+    precision highp float;
+    uniform sampler2D uState; uniform vec2 uSize; uniform float uGain; uniform float uZoom;
+    out vec4 o;
+    void main(){
+      vec2 uv = (gl_FragCoord.xy/uSize - 0.5)/uZoom + 0.5;
+      vec2 s = texture(uState, uv).rg;
+      o = vec4(clamp(max(s.r*0.85, s.g*0.7)*uGain, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // heat → palette colour (fire-oriented, no flip yet)
     // ---- post-FX passes. All RGB, all read the palette-mapped image, so they
     // behave as named (an Edge in palette-INDEX space would find edges where there
@@ -7892,6 +7943,9 @@
     glProg.rdstep = makeProg(VS_QUAD, FS_RDSTEP, ["uPrev", "uSize", "uFeed", "uKill"]);
     glProg.rdseed = makeProg(VS_QUAD, FS_RDSEED, ["uSize", "uSalt"]);
     glProg.rdshow = camProg(VS_QUAD, FS_RDSHOW, ["uState", "uSize", "uGain", "uZoom"]);
+    glProg.castep = makeProg(VS_QUAD, FS_CASTEP, ["uPrev", "uSize", "uBirth", "uSurvive", "uRain", "uSalt", "uFade"]);
+    glProg.caseed = makeProg(VS_QUAD, FS_CASEED, ["uSize", "uSalt"]);
+    glProg.cashow = camProg(VS_QUAD, FS_CASHOW, ["uState", "uSize", "uGain", "uZoom"]);
     glProg.pixelate = makeProg(VS_QUAD, FS_PIXELATE, ["uSrc", "uSize", "uBlock"]);
     glProg.posterize = makeProg(VS_QUAD, FS_POSTERIZE, ["uSrc", "uLevels"]);
     glProg.hexpix = makeProg(VS_QUAD, FS_HEXPIX, ["uSrc", "uSize", "uSize2"]);
@@ -7983,6 +8037,12 @@
       createTex(rdI, gl.RGBA, rdT, gl.LINEAR, gl.CLAMP_TO_EDGE),
     ];
     glFbo.rd = [createFbo(glTex.rd[0]), createFbo(glTex.rd[1])];
+    // Cellular automata grid: sized by glCATick from the Cells slider, REPEAT = torus.
+    glTex.ca = [
+      createTex(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.REPEAT),
+      createTex(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.REPEAT),
+    ];
+    glFbo.ca = [createFbo(glTex.ca[0]), createFbo(glTex.ca[1])];
     // Per-layer state for multi-layer stacks (see the frame loop / glLayerBeginHeat).
     // Each slot gets its own persistent heat pair (so it retains its own fire/feedback),
     // its own 256×1 palette LUT, so every stacked effect keeps its own colours. The
@@ -9290,6 +9350,38 @@
         }
       }
       if (dead) rdNeedSeed = true;
+    }
+  }
+  // Cellular automata driver, glRDTick's shape: (re)size the grid to the Cells slider,
+  // seed on demand (entering the effect, a resize, a rule change), then `steps` generations
+  // ping-ponging the pair. `caCur` names the freshest buffer; the effect's draw samples it.
+  let caCur = 0, caW = 0, caH = 0, caLastRule = -1;
+  function glCATick(s) {
+    const w = s.cols, h = Math.max(4, Math.round(s.cols * fh / fw));
+    if (w !== caW || h !== caH) { caW = w; caH = h; resizeTex(glTex.ca[0], w, h); resizeTex(glTex.ca[1], w, h); caNeedSeed = true; }
+    if (s.rule !== caLastRule) { caLastRule = s.rule; caNeedSeed = true; }
+    if (caNeedSeed) {
+      caNeedSeed = false;
+      caSalt = (caSalt + 1) % 65536;
+      bindFbo(glFbo.ca[0], w, h);
+      gl.useProgram(glProg.caseed.p);
+      gl.uniform2f(glProg.caseed.u.uSize, w, h);
+      gl.uniform1f(glProg.caseed.u.uSalt, caSalt);
+      drawQuad();
+      caCur = 0;
+    }
+    for (let k = 0; k < s.steps; k++) {
+      const dst = 1 - caCur;
+      caSalt = (caSalt + 1) % 65536;         // fresh rain every generation
+      bindFbo(glFbo.ca[dst], w, h);
+      const P = glProg.castep;
+      gl.useProgram(P.p);
+      bindTexUnit(0, glTex.ca[caCur]); gl.uniform1i(P.u.uPrev, 0);
+      gl.uniform2f(P.u.uSize, w, h);
+      gl.uniform1i(P.u.uBirth, s.birth); gl.uniform1i(P.u.uSurvive, s.survive);
+      gl.uniform1f(P.u.uRain, s.rain); gl.uniform1f(P.u.uSalt, caSalt); gl.uniform1f(P.u.uFade, s.fade);
+      drawQuad();
+      caCur = dst;
     }
   }
   // ---- THE ASCII MOSAIC'S GLYPH SETS ---------------------------------------------------
@@ -10891,6 +10983,61 @@
     // display: heat from V, EVERY cell written (zoom/camera skipped on the fallback dish —
     // the sim grid IS the picture, exactly like the fire sim itself)
     for (let i = 0; i < fw * fh; i++) fire[i] = Math.min(1, rdCpuV[i] * s.gain * 2.6) * 255;
+  }
+
+  // ---- Cellular automata (Life-like B/S rules) -- CPU sim mirror --------------------
+  // Bitmask per rule: bit n set = that neighbour count births (b) / survives (s).
+  // Names live in the Rule control's fmt (controls-schema loads first; a TDZ otherwise).
+  const CA_RULES = [
+    { b: 8, s: 12 },      // Life        B3 / S23
+    { b: 72, s: 12 },     // HighLife    B36 / S23
+    { b: 456, s: 472 },   // Day & Night B3678 / S34678
+    { b: 4, s: 0 },       // Seeds       B2 / S
+    { b: 8, s: 62 },      // Maze        B3 / S12345
+    { b: 8, s: 496 },     // Coral       B3 / S45678
+  ];
+  let caRuleI = 0, caCols = 120, caSpeedV = 12, caRain = 0.002, caTrail = 12, caGain = 1;
+  let caAcc = 0, caCpuA = null, caCpuB = null, caCpuAge = null, caCpuW = 0, caCpuH = 0, caCpuSeed = true, caCpuRule = -1;
+  function caSeedFn(dt) {
+    // generations per SECOND, accumulated from dt (real-time whatever the frame rate),
+    // capped per frame with a bounded backlog so a backgrounded tab does not run 1000 steps
+    caAcc = Math.min(caAcc + caSpeedV * dt, 16);
+    const steps = Math.min(8, Math.floor(caAcc)); caAcc -= steps;
+    const r = CA_RULES[caRuleI] || CA_RULES[0];
+    return { steps, cols: caCols, birth: r.b, survive: r.s, rain: caRain, fade: 1 / Math.max(1, caTrail), rule: caRuleI, gain: caGain, zoom };
+  }
+  function caCPU(s) {
+    const w = s.cols, h = Math.max(4, Math.round(s.cols * fh / fw)), N = w * h;
+    if (w !== caCpuW || h !== caCpuH) { caCpuW = w; caCpuH = h; caCpuA = new Uint8Array(N); caCpuB = new Uint8Array(N); caCpuAge = new Float32Array(N); caCpuSeed = true; }
+    if (s.rule !== caCpuRule) { caCpuRule = s.rule; caCpuSeed = true; }
+    if (caCpuSeed) {
+      caCpuSeed = false; caSalt = (caSalt + 1) % 65536;
+      for (let i = 0; i < N; i++) { caCpuA[i] = sunH21(i % w + caSalt, (i / w | 0) + caSalt) > 0.7 ? 1 : 0; caCpuAge[i] = caCpuA[i]; }
+    }
+    for (let k = 0; k < s.steps; k++) {
+      caSalt = (caSalt + 1) % 65536;
+      for (let y = 0; y < h; y++) {
+        const ym = ((y + h - 1) % h) * w, y0 = y * w, yp = ((y + 1) % h) * w;
+        for (let x = 0; x < w; x++) {
+          const xm = (x + w - 1) % w, xp = (x + 1) % w;
+          const n = caCpuA[ym + xm] + caCpuA[ym + x] + caCpuA[ym + xp] + caCpuA[y0 + xm] + caCpuA[y0 + xp] + caCpuA[yp + xm] + caCpuA[yp + x] + caCpuA[yp + xp];
+          const i = y0 + x;
+          let next = ((caCpuA[i] ? s.survive : s.birth) >> n) & 1;
+          if (!next && sunH21(x + caSalt * 0.37, y + caSalt * 0.61) < s.rain) next = 1;
+          caCpuB[i] = next;
+          caCpuAge[i] = next ? 1 : Math.max(0, caCpuAge[i] - s.fade);
+        }
+      }
+      const t = caCpuA; caCpuA = caCpuB; caCpuB = t;
+    }
+    // display: nearest cell per fire pixel, every cell written (zoom/camera skipped, like rdCPU)
+    for (let y = 0; y < fh; y++) {
+      const cy = Math.min(h - 1, (y * h / fh) | 0) * w;
+      for (let x = 0; x < fw; x++) {
+        const i = cy + Math.min(w - 1, (x * w / fw) | 0);
+        fire[y * fw + x] = Math.min(1, Math.max(caCpuA[i] * 0.85, caCpuAge[i] * 0.7) * s.gain) * 255;
+      }
+    }
   }
 
   // ---- Sun surface: boiling solar granulation via animated Voronoi (shader effect) ----
@@ -14536,6 +14683,12 @@
     { key: "rdkill", host: "fx", group: "rd", type: "dual", label: "Kill", valId: "vRdKill", min: 0.04, max: 0.075, step: 0.0005, lo: 0.062, hi: 0.062, fmt: v => sig3(v), apply: v => rdKill = v, durScale: 10 },
     { key: "rdspeed", host: "fx", group: "rd", type: "dual", single: true, label: "Sim speed", valId: "vRdSpeed", min: 1, max: 16, step: 1, lo: 8, hi: 8, fmt: v => sig3(Math.round(v)) + "/f", apply: v => rdSpeedV = Math.round(v), durScale: 10 },
     { key: "rdgain", host: "fx", group: "rd", type: "dual", label: "Brightness", valId: "vRdGain", min: 0.4, max: 2, step: 0.02, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => rdGain = v, durScale: 10 },
+    { key: "carule", host: "fx", group: "ca", type: "dual", single: true, label: "Rule", valId: "vCaRule", min: 0, max: 5, step: 1, lo: 0, hi: 0, fmt: v => ["Life", "HighLife", "Day & Night", "Seeds", "Maze", "Coral"][Math.round(v)] || "Life", apply: v => caRuleI = Math.round(v), durScale: 10 },
+    { key: "cacells", host: "fx", group: "ca", type: "dual", single: true, label: "Cells", valId: "vCaCells", min: 40, max: 400, step: 1, lo: 120, hi: 120, fmt: v => sig3(Math.round(v)) + " across", apply: v => caCols = Math.round(v), durScale: 10 },
+    { key: "caspeed", host: "fx", group: "ca", type: "dual", label: "Speed", valId: "vCaSpeed", min: 1, max: 60, step: 1, lo: 12, hi: 12, fmt: v => sig3(v) + " gen/s", apply: v => caSpeedV = v, durScale: 10 },
+    { key: "carain", host: "fx", group: "ca", type: "dual", label: "Rain", valId: "vCaRain", min: 0, max: 0.05, step: 0.0005, lo: 0.002, hi: 0.002, fmt: v => sig3(v * 100) + "%", apply: v => caRain = v, durScale: 10 },
+    { key: "catrail", host: "fx", group: "ca", type: "dual", label: "Trail", valId: "vCaTrail", min: 0, max: 200, step: 1, lo: 12, hi: 12, fmt: v => sig3(Math.round(v)) + " gens", apply: v => caTrail = v, durScale: 10 },
+    { key: "cagain", host: "fx", group: "ca", type: "dual", label: "Brightness", valId: "vCaGain", min: 0.4, max: 1.5, step: 0.02, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => caGain = v, durScale: 10 },
     { key: "gxarms", host: "fx", group: "galaxy", type: "dual", single: true, label: "Arms", valId: "vGxArms", min: 1, max: 6, step: 1, lo: 2, hi: 2, fmt: v => sig3(Math.round(v)), apply: v => gxArms = Math.round(v), durScale: 10 },
     { key: "gxtwist", host: "fx", group: "galaxy", type: "dual", label: "Twist", valId: "vGxTwist", min: 0.15, max: 1.6, step: 0.01, lo: 0.55, hi: 0.55, fmt: v => sig3(v), apply: v => gxTwist = v, durScale: 10 },
     { key: "gxspin", host: "fx", group: "galaxy", type: "dual", label: "Spin", valId: "vGxSpin", min: -2, max: 2, step: 0.02, lo: 0.5, hi: 0.5, fmt: v => sig3(v) + "×", apply: v => gxSpin = v, durScale: 10 },
@@ -15440,7 +15593,7 @@
     attractor: "Attractor", physarum: "Slime mould", curl: "Curl flow", clouds: "Volumetric clouds", godray: "God rays", terrain: "Terrain", apollo: "Apollonian gasket", mbox: "Mandelbox", gyroid: "Gyroid", voronoi: "Voronoi cells", warpnoise: "Flow noise", truchet: "Truchet tiles", shapegrid: "Shape grid", concentric: "Concentric rings", bounce: "Bouncing shapes",
     solids: "Bouncing solids", sun: "Sun surface", kefrens: "Kefrens bars", twister: "Twister",
     chladni: "Cymatics", storm: "Lightning storm", bulb: "Mandelbulb", flames: "Fractal flames",
-    stars: "Starfield", aurora: "Aurora", rd: "Reaction-diffusion", menger: "Menger sponge",
+    stars: "Starfield", aurora: "Aurora", rd: "Reaction-diffusion", ca: "Cellular automata", menger: "Menger sponge",
     boids: "Boids", galaxy: "Galaxy", harmo: "Harmonograph", vballs: "Vector balls", ocean: "Ocean",
     torus: "Doughnut", trees: "Trees", ribbons: "Flying ribbons", glass: "Glass ball", world: "Shared 3D world",
     bhole: "Black hole", qjulia: "Quaternion Julia",
@@ -17735,6 +17888,13 @@
       onEnter: () => { rdNeedSeed = true; rdCpuSeed = true; },
       draw: dt => { const s = rdSeedFn(dt); if (useGL) { glRDTick(s.steps, s.feed, s.kill); glShaderDraw("rdshow", u => { bindTexUnit(0, glTex.rd[rdCur]); gl.uniform1i(u.uState, 0); gl.uniform1f(u.uGain, s.gain); gl.uniform1f(u.uZoom, s.zoom); }); } else rdCPU(s); },
       defaults: { palcycle: [0, 0], palhold: [0, 0], rdfeed: [0.03, 0.03], rdkill: [0.062, 0.062], rdspeed: [8, 8], rdgain: [1, 1], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
+      beat: {}, extras: { palette: "2", morph: false, showBox: true, randSeed: true } },
+    { id: "automata", name: "Cellular automata", subtitle: "Life-like automata · B/S rules on a torus",
+      help: "Conway's Game of Life and its relatives, run on a grid of cells that wraps at every edge. Rule picks the family: Life (gliders and still lifes), HighLife (replicators), Day & Night (boiling fronts), Seeds (explosive), Maze and Coral (slow growth). Rain sprinkles new cells every generation so the grid never settles for good — arm its chips and every beat is a shower of new life. Trail lets a dead cell fade over that many generations, Cells sets the grid, Speed the generations per second. One shared grid; changing Rule or entering the effect re-seeds it.",
+      params: ["carule", "cacells", "caspeed", "carain", "catrail", "cagain", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "ca", "band"], bakesOwnZoom: true,
+      onEnter: () => { caNeedSeed = true; caCpuSeed = true; },
+      draw: dt => { const s = caSeedFn(dt); if (useGL) { glCATick(s); glShaderDraw("cashow", u => { bindTexUnit(0, glTex.ca[caCur]); gl.uniform1i(u.uState, 0); gl.uniform1f(u.uGain, s.gain); gl.uniform1f(u.uZoom, s.zoom); }); } else caCPU(s); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], carule: [0, 0], cacells: [120, 120], caspeed: [12, 12], carain: [0.002, 0.002], catrail: [12, 12], cagain: [1, 1], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
       beat: {}, extras: { palette: "2", morph: false, showBox: true, randSeed: true } },
     { id: "menger", name: "Menger sponge", subtitle: "Menger · fractal city drive",
       help: "An endless lattice of Menger sponges — the 3D Sierpiński carpet — raymarched while the camera drives the streets between them, turning at intersections and swooping down to thread the carved tunnels straight through the sponges, on a wandering route that never repeats. Dive speed is the flight, Detail the fractal depth (and the GPU bill), Glow lights the canyon walls. Kin to Sierpiński: this is what its carpet looks like grown into a solid.",
@@ -26198,6 +26358,11 @@
       { n: "Kill", w: "rd", t: "Reaction-diffusion only — how fast chemical V dies off. Tiny nudges against Feed cross into whole new pattern families." },
       { n: "Sim speed", w: "rd", t: "Reaction-diffusion only — chemistry steps per frame. More is faster evolution, not a different pattern." },
       { n: "Brightness", w: "rd", t: "Reaction-diffusion only — scales the culture up or down the palette ramp." },
+      { n: "Rule", w: "ca", t: "Cellular automata only — which birth/survival rule the grid runs: Life, HighLife, Day & Night, Seeds, Maze or Coral. Changing it re-seeds the grid." },
+      { n: "Cells", w: "ca", t: "Cellular automata only — how many cells across the grid is. Fewer is chunkier; more is finer and busier." },
+      { n: "Speed", w: "ca", t: "Cellular automata only — generations per second." },
+      { n: "Rain", w: "ca", t: "Cellular automata only — the chance each dead cell is born anyway, every generation, so the grid never settles. Arm its chips and each beat is a shower of new cells." },
+      { n: "Trail", w: "ca", t: "Cellular automata only — how many generations a dead cell takes to fade out. 0 is a hard blink." },
       { n: "Dive speed", w: "menger", t: "Menger sponge only — how fast the camera drives the streets of the lattice. 0 parks at the kerb." },
       { n: "Roll", w: "menger", t: "Menger sponge only — the slow barrel roll (and vertical bob) of the drive." },
       { n: "Detail", w: "menger", t: "Menger sponge only — fractal recursion depth. Each step cubes the holes and multiplies the GPU cost." },

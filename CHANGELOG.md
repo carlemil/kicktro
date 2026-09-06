@@ -15,6 +15,11 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.77.0] — 2026-09-06
+
+### Added
+- **Cellular automata** — a new effect: Conway's Game of Life and five of its relatives (**Rule**: Life, HighLife, Day & Night, Seeds, Maze, Coral) on a grid that wraps at every edge. **Rain** sprinkles new cells every generation so the grid never settles — arm its chips and each beat is a shower of new life; **Trail** fades dead cells over that many generations; **Cells** sets the grid, **Speed** the generations per second. Changing Rule or entering the effect re-seeds the grid.
+
 ## [1.76.2] — 2026-09-06
 
 ### Changed

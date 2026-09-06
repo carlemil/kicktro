@@ -36,7 +36,7 @@ The whole thing burns, flickers, and morphs continuously — and every effect ca
 ## Effects
 
 Every row in the panel's **Layers** box carries an **Effect** chooser, switching that layer
-between fifty-two visuals that share the same palette, glow and music-reactivity pipeline —
+between fifty-three visuals that share the same palette, glow and music-reactivity pipeline —
 but each is an independent "scene" that remembers its own settings (see Controls). You can
 **stack up to four of them at once**, each with its own palette and filters — see Layers
 below:
@@ -101,6 +101,7 @@ below:
   - **Starfield** — a 3D starfield flying past on six parallax depths. Arm **Warp**'s beat chips and the kick punches to hyperspace, every star smearing into a radial streak.
   - **Aurora** — curtains of light hanging from the top of the sky, swaying and shimmering over a faint horizon glow. Ice, Electric and Verdant palettes were made for it.
   - **Reaction-diffusion** — a Gray–Scott dish: two chemicals feeding and killing each other into spots, stripes, coral and mazes that never repeat. **Feed**/**Kill** choose the regime — arm Feed's chips and the beat pushes the culture into a new life. One shared dish; it re-seeds each time you enter the effect.
+  - **Cellular automata** — Conway's Life and five of its relatives (**Rule**) on a grid that wraps at every edge. **Rain** sprinkles new cells every generation so it never settles — arm its chips and each beat is a shower of new life; **Trail** fades the dead over that many generations.
   - **Menger sponge** — an endless lattice of Menger sponges (the 3D Sierpiński carpet), raymarched while the camera dives through the holes with a slow roll.
   - **Boids** — a murmuration: cohesion, alignment and separation, nothing else. Each bird trails a streak through the shipped Fade filter; arm **Scatter**'s chips and every beat is a hawk.
   - **Slime mould** — thousands of agents each doing one stupid thing: look ahead-left, ahead and ahead-right at the trail everyone has left behind, turn toward whichever smells strongest, step, deposit. Nothing instructs them to build anything — the veins, loops, junctions and pruning are all **emergent**, which is why it looks alive in a way a particle system never does. **Sense** is how far ahead they look (short gives fine felted mats, long gives bold highways), **Turn** how sharply they steer, **Trail life** how long a deposit survives. **Scatter** is what keeps it alive: without it the network settles into an even mesh at the same density everywhere and stops going anywhere.

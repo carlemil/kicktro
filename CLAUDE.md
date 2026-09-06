@@ -24,7 +24,10 @@ count. Add an effect ⇒ add it here and there, in the same commit.
 - **Shader pattern** — Plasma, Tunnel, Metaballs, Kaleidoscope, Rotozoomer, Moiré, Munching
   Squares, Copper Bars, Sun surface, Kefrens bars, Twister, Cymatics, Lightning storm,
   Starfield, Aurora, Reaction-diffusion, Voronoi cells (`voronoi`), Flow noise (`warpnoise`,
-  domain-warped fbm), Truchet tiles (`truchet`), God rays (`godray`).
+  domain-warped fbm), Truchet tiles (`truchet`), God rays (`godray`), Cellular automata
+  (`automata`, Life-like B/S rules on its own coarse state pair — `glTex.ca`, the
+  Reaction-diffusion arrangement; a torus via REPEAT; age fades LINEARLY because 8-bit
+  multiplicative decay never reaches zero).
 - **Shader SDF** — Polygon, Shape grid, Concentric rings, Bouncing shapes, Bouncing solids,
   Mandelbulb, Menger sponge, Apollonian gasket (`apollo`, built by **inversion**, not by
   iterating a power), Mandelbox (`mbox`, **box folds** — hard-edged where the bulb is organic),
