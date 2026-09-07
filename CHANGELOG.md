@@ -15,6 +15,11 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.79.0] — 2026-09-07
+
+### Changed
+- **Smooth CSG** now rolls its own cast instead of the three fixed studies: **Seed** picks a random set of spheres, boxes, tori and capsules with their own sizes, homes, looping paths and spins, some of them carving cavities through the others instead of adding; **Objects** sets how many (1–8). The same seed always builds the same scene, on every machine.
+
 ## [1.78.0] — 2026-09-07
 
 ### Added

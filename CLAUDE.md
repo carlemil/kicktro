@@ -33,7 +33,8 @@ count. Add an effect ⇒ add it here and there, in the same commit.
   iterating a power), Mandelbox (`mbox`, **box folds** — hard-edged where the bulb is organic),
   Gyroid (`gyroid`, a triply-periodic minimal surface, NOT a fractal and the cheapest 3D effect
   here), Smooth CSG (`csg`, IQ smooth union/subtraction over (brightness, distance) pairs so
-  the tone melts across a join as the surface does — after the godotshaders demo), Terrain (`terrain`, a height field with Ocean's distance-scaled step law), Volumetric
+  the tone melts across a join as the surface does — after the godotshaders demo; the cast is
+  HASHED ON THE CPU from Seed/Objects and shipped as uniform arrays, never a GPU hash), Terrain (`terrain`, a height field with Ocean's distance-scaled step law), Volumetric
   clouds (`clouds`, the one that integrates **density** along the ray rather than looking for a
   surface) — everything from Bouncing solids on is 3D raymarched.
 

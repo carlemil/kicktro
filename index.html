@@ -2629,7 +2629,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.78.0",
+    version: "1.79.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -4801,9 +4801,10 @@
       heat += uGlow * 0.45 * exp(-halo * 16.0);
       o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
-    // SMOOTH CSG. After the godotshaders 'Fullscreen SDF raymarching with smooth CSG' demo:
-    // three studies in a row -- a sphere smooth-UNIONED into a box, a spinning torus kept
-    // separate, and a box with a sphere smooth-SUBTRACTED out of it. The operators carry
+    // SMOOTH CSG. After the godotshaders 'Fullscreen SDF raymarching with smooth CSG' demo,
+    // generalised: a hash-seeded cast of spheres, boxes, tori and capsules, each on its own
+    // Lissajous path and spin, smooth-UNIONED together, with some of them CARVING (smooth
+    // subtraction) instead of adding. The operators carry
     // (brightness, distance) pairs and blend BOTH with the same IQ smooth-min factor, so the
     // tone melts across a join exactly as the surface does -- the original blends colours the
     // same way; here the palette owns colour, so brightness is the seam. Plastic lighting:
@@ -4811,7 +4812,11 @@
     const FS_CSG = `#version 300 es
     precision highp float;
     uniform vec2 uSize; uniform float uTime; uniform float uOrbit; uniform float uBlend;
-    uniform float uShine; uniform float uWidth; uniform float uZoom;
+    uniform float uShine; uniform float uWidth; uniform float uZoom; uniform float uCount;
+    uniform vec4 uObj[8];    // home xyz, size
+    uniform vec4 uPath[8];   // Lissajous amplitude xyz, rate
+    uniform vec4 uSpin[8];   // spin deg/s xyz; kind in .w (0 sphere 1 box 2 torus 3 capsule, +10 = carver)
+    uniform vec4 uPhase[8];  // path phase xyz, tone
     out vec4 o;
     ${SH_ORBIT}
     float sdSphere(vec3 p, float r){ return length(p) - r; }
@@ -4834,26 +4839,43 @@
       float h = clamp(0.5 - 0.5*(d + a.y)/k, 0.0, 1.0);
       return vec2(a.x, mix(a.y, -d, h) + k*h*(1.0 - h));
     }
+    float sdCapsule(vec3 p, float h, float r){ p.y -= clamp(p.y, -h, h); return length(p) - r; }
+    float sdKind(vec3 p, int kind, float s){
+      if (kind == 0) return sdSphere(p, s);
+      if (kind == 1) return sdBox(p, vec3(s * 0.8));
+      if (kind == 2) return sdTorus(p, vec2(s, s * 0.35));
+      return sdCapsule(p, s * 0.8, s * 0.45);
+    }
+    // THE SCENE IS HASHED ON THE CPU (csgBuild) and arrives as uniforms: count, kinds,
+    // sizes, homes, paths and spins all come from the Seed slider, so a scene renders the
+    // same on every machine and every frame. Adders smooth-union in order, then the carvers
+    // smooth-subtract from the result, so a carver only ever shows as a cavity.
+    vec3 objAt(int i, float t){ return uObj[i].xyz + uPath[i].xyz * sin(t * uPath[i].w + uPhase[i].xyz); }
     vec2 map(vec3 p, float t, float k){
-      // left: a sphere bobbing into a slowly rocking box, smooth union
-      vec2 left = vec2(0.85, sdSphere(p - vec3(-1.9 + 0.35*sin(t*0.7), 0.35*sin(t*1.6), 0.0), 0.5));
-      vec3 lb = rotE(p - vec3(-0.77, -0.02, 0.02), vec3(8.0, -12.0 + 12.0*sin(t), -10.0));
-      left = sUnion(left, sdBox(lb, vec3(0.43)), 0.55, k*0.8);
-      // centre: an independent torus, hard union
-      vec3 ring = rotE(p - vec3(0.57, 0.02, 0.0), vec3(72.0, t*18.0, 8.0));
-      vec2 mid = vec2(0.95, sdTorus(ring, vec2(0.55, 0.15)));
-      // right: a box with a wandering spherical cavity, smooth subtraction
-      vec3 rb = rotE(p - vec3(1.9, 0.0, 0.0), vec3(6.0, -8.0, 8.0));
-      vec2 right = vec2(0.45, sdBox(rb, vec3(0.5)));
-      vec3 cav = vec3(1.9 - 0.18 + 0.25*sin(t*1.2), 0.12 + 0.15*cos(t*0.9), 0.42);
-      right = sSub(right, sdSphere(p - cav, 0.3), k*0.45);
-      vec2 r = mid.y < left.y ? mid : left;
-      return right.y < r.y ? right : r;
+      vec2 acc = vec2(0.0, 1e9);
+      int n = int(uCount);
+      for (int i = 0; i < 8; i++) {
+        if (i >= n) break;
+        int kind = int(uSpin[i].w);
+        if (kind >= 10) continue;
+        vec3 q = rotE(p - objAt(i, t), uSpin[i].xyz * t);
+        acc = sUnion(acc, sdKind(q, kind, uObj[i].w), uPhase[i].w, k);
+      }
+      for (int i = 0; i < 8; i++) {
+        if (i >= n) break;
+        int kind = int(uSpin[i].w);
+        if (kind < 10) continue;
+        vec3 q = rotE(p - objAt(i, t), uSpin[i].xyz * t);
+        acc = sSub(acc, sdKind(q, kind - 10, uObj[i].w), k * 0.6);
+      }
+      return acc;
     }
     void main(){
       vec2 uv = (gl_FragCoord.xy - 0.5 * uSize) / uSize.y / uZoom;
       vec3 ro; mat3 b; orbitCam(0.55 * sin(uOrbit * 0.25), 6.2, 0.6, ro, b);   // sways about the front
-      vec3 rd = normalize(b * vec3(-uv.x, uv.y, 1.5));   // orbit basis puts +x on the left; the demo reads sphere-box-torus-cavity
+      // orbit basis puts +x on the left, and the heat buffer is Y-flipped against the screen:
+      // both axes negated so the light lands on TOP of the objects and the demo reads left-to-right
+      vec3 rd = normalize(b * vec3(-uv.x, -uv.y, 1.5));
       float k = uBlend;
       float t = 0.0, heat = 0.0;
       for (int i = 0; i < 96; i++) {
@@ -7968,7 +7990,7 @@
     glProg.apollo = camProg(VS_QUAD, FS_APOLLO, ["uSize", "uTime", "uScale", "uIter", "uGlow", "uZoom", "uThin"]);
     glProg.mbox = camProg(VS_QUAD, FS_MBOX, ["uSize", "uTime", "uScale", "uIter", "uGlow", "uZoom", "uFold"]);
     glProg.gyroid = camProg(VS_QUAD, FS_GYROID, ["uSize", "uTime", "uFreq", "uThick", "uGlow", "uZoom", "uWarp"]);
-    glProg.csg = camProg(VS_QUAD, FS_CSG, ["uSize", "uTime", "uOrbit", "uBlend", "uShine", "uWidth", "uZoom"]);
+    glProg.csg = camProg(VS_QUAD, FS_CSG, ["uSize", "uTime", "uOrbit", "uBlend", "uShine", "uWidth", "uZoom", "uCount", "uObj", "uPath", "uSpin", "uPhase"]);
     glProg.voronoi = camProg(VS_QUAD, FS_VORONOI, ["uSize", "uTime", "uCells", "uEdge", "uJit", "uZoom"]);
     glProg.warpnoise = camProg(VS_QUAD, FS_WARPNOISE, ["uSize", "uTime", "uScale", "uWarp", "uOct", "uZoom"]);
     glProg.truchet = camProg(VS_QUAD, FS_TRUCHET, ["uSize", "uTime", "uCells", "uWidth", "uFlip", "uZoom"]);
@@ -12439,30 +12461,90 @@
       return Math.max((Math.abs(g) - s.thick) / (f * 1.7), Math.hypot(x, y, z) - 1.7);
     }, 4.6, 0, s.t * 0.15, s.zoom, 30);
   }
-  // Smooth CSG: two clocks (animation, camera sway); the mirror marches the same three
-  // studies through bMarch's lambert, minus the smooth blends' tone seam and the plastic
-  // highlight -- the shape of the thing, not a copy of it (the Ocean rule).
+  // Smooth CSG: two clocks (animation, camera sway) and a HASHED CAST. csgBuild rolls the
+  // scene from (Seed, Objects) once and caches it: kind, size, home, Lissajous path, spin
+  // and tone per object, ~30% of them carvers parked on an adder's path so the cavity
+  // wanders through a solid rather than through empty space. gbHashJS on the CPU, never a
+  // GPU hash -- the scene must be the same on every frame and every driver build.
   let csgBlend = 0.35, csgSpeed = 1, csgOrbit = 1, csgShine = 1.25, csgWidth = 0.21, csgTime = 0, csgOrbT = 0;
-  function csgSeed(dt) { csgTime += dt * csgSpeed * 0.7; csgOrbT += dt * csgOrbit; return { t: csgTime, orbit: csgOrbT, blend: csgBlend, shine: csgShine, width: csgWidth, zoom }; }
+  let csgSeedV = 1, csgCount = 5, csgKey = "";
+  const csgObj = new Float32Array(32), csgPath = new Float32Array(32), csgSpin = new Float32Array(32), csgPhase = new Float32Array(32);
+  function csgBuild() {
+    const key = csgSeedV + "/" + csgCount;
+    if (key === csgKey) return;
+    csgKey = key;
+    const H = (i, k) => gbHashJS(csgSeedV * 7.31 + i * 1.17 + k * 0.53);
+    const n = csgCount, adders = [], home = [];
+    for (let i = 0; i < n; i++) {
+      home.push([(H(i, 4) - 0.5) * 4.4, (H(i, 5) - 0.5) * 2.0, (H(i, 6) - 0.5) * 1.6]);
+      if (i === 0 || H(i, 2) >= 0.3) adders.push(i);
+    }
+    // centre the adders on the origin -- the camera's look-at -- so a cast never piles
+    // up in one corner of the frame
+    let mx = 0, my = 0;
+    for (const i of adders) { mx += home[i][0]; my += home[i][1]; }
+    mx /= adders.length; my /= adders.length;
+    for (let i = 0; i < 8; i++) {
+      const o = i * 4;
+      if (i >= n) { csgObj.fill(0, o, o + 4); csgPath.fill(0, o, o + 4); csgSpin.fill(0, o, o + 4); csgPhase.fill(0, o, o + 4); continue; }
+      const carve = !adders.includes(i);
+      let kind = Math.floor(H(i, 1) * 4) % 4;
+      let size = 0.3 + 0.45 * H(i, 3);
+      let hx = home[i][0] - mx, hy = home[i][1] - my, hz = home[i][2];
+      let ax = H(i, 7) * 0.9, ay = H(i, 8) * 0.7, az = H(i, 9) * 0.5, rate = 0.4 + 1.2 * H(i, 10);
+      let px = H(i, 14) * 6.2832, py = H(i, 15) * 6.2832, pz = H(i, 16) * 6.2832;
+      if (carve) {
+        // ride an adder: its home, path and rate, offset so the cavity sits in its flank
+        const j = adders[Math.floor(H(i, 18) * adders.length) % adders.length], jo = j * 4;
+        const hs = csgObj[jo + 3];
+        kind = H(i, 19) < 0.7 ? 0 : 1; size = hs * 0.55;
+        hx = csgObj[jo] + (H(i, 20) - 0.5) * hs * 1.4; hy = csgObj[jo + 1] + (H(i, 21) - 0.5) * hs * 1.4; hz = csgObj[jo + 2] + hs * 0.5;
+        ax = csgPath[jo]; ay = csgPath[jo + 1]; az = csgPath[jo + 2]; rate = csgPath[jo + 3];
+        px = csgPhase[jo] + (H(i, 22) - 0.5) * 0.8; py = csgPhase[jo + 1] + (H(i, 23) - 0.5) * 0.8; pz = csgPhase[jo + 2];
+        kind += 10;
+      }
+      csgObj.set([hx, hy, hz, size], o);
+      csgPath.set([ax, ay, az, rate], o);
+      csgSpin.set([(H(i, 11) - 0.5) * 60, (H(i, 12) - 0.5) * 60, (H(i, 13) - 0.5) * 60, kind], o);
+      csgPhase.set([px, py, pz, 0.45 + 0.5 * H(i, 17)], o);
+    }
+  }
+  function csgSeed(dt) {
+    csgTime += dt * csgSpeed * 0.7; csgOrbT += dt * csgOrbit; csgBuild();
+    return { t: csgTime, orbit: csgOrbT, blend: csgBlend, shine: csgShine, width: csgWidth, zoom,
+             count: csgCount, obj: csgObj, path: csgPath, spin: csgSpin, phase: csgPhase };
+  }
+  // CPU mirror: the same cast on bMarch's lambert, unrotated -- the shape of the thing, not
+  // a copy of it (the Ocean rule).
   function csgCPU(s) {
-    const t = s.t, k = Math.max(1e-4, s.blend);
+    const t = s.t, k = Math.max(1e-4, s.blend), n = s.count;
     const box = (x, y, z, b) => { const qx = Math.abs(x) - b, qy = Math.abs(y) - b, qz = Math.abs(z) - b;
       return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0); };
-    const smin = (a, b, kk) => { const h = Math.max(0, Math.min(1, 0.5 + 0.5 * (b - a) / kk)); return b + (a - b) * h - kk * h * (1 - h); };
-    const sx = -1.9 + 0.35 * Math.sin(t * 0.7), sy = 0.35 * Math.sin(t * 1.6);
-    const ry = t * 18 * Math.PI / 180, cr = Math.cos(ry), sr = Math.sin(ry);
-    const cx = 1.9 - 0.18 + 0.25 * Math.sin(t * 1.2), cy = 0.12 + 0.15 * Math.cos(t * 0.9);
+    const sd = (x, y, z, kind, r) => kind === 0 ? Math.hypot(x, y, z) - r : kind === 1 ? box(x, y, z, r * 0.8)
+      : kind === 2 ? Math.hypot(Math.hypot(x, z) - r, y) - r * 0.35 : Math.hypot(x, y - Math.max(-r * 0.8, Math.min(r * 0.8, y)), z) - r * 0.45;
+    const cx = new Float32Array(8), cy = new Float32Array(8), cz = new Float32Array(8);
+    for (let i = 0; i < n; i++) {
+      const o = i * 4;
+      cx[i] = s.obj[o] + s.path[o] * Math.sin(t * s.path[o + 3] + s.phase[o]);
+      cy[i] = s.obj[o + 1] + s.path[o + 1] * Math.sin(t * s.path[o + 3] + s.phase[o + 1]);
+      cz[i] = s.obj[o + 2] + s.path[o + 2] * Math.sin(t * s.path[o + 3] + s.phase[o + 2]);
+    }
     bMarch(fw, fh, (x, y, z) => {
-      x = -x;   // the shader flips uv.x; bMarch does not, so flip the world instead
-      let d = smin(Math.hypot(x - sx, y - sy, z) - 0.5, box(x + 0.77, y + 0.02, z - 0.02, 0.43), k * 0.8);
-      // torus tilted 72 deg about x, spinning about its own axis
-      const px = x - 0.57, py = y - 0.02, pz = z;
-      const ty = 0.309 * py - 0.951 * pz, tz = 0.951 * py + 0.309 * pz;
-      const qx = cr * px + sr * tz, qz = -sr * px + cr * tz;
-      d = Math.min(d, Math.hypot(Math.hypot(qx, qz) - 0.55, ty) - 0.15);
-      const rb = box(x - 1.9, y, z, 0.5), cav = Math.hypot(x - cx, y - cy, z - 0.42) - 0.3;
-      const h = Math.max(0, Math.min(1, 0.5 - 0.5 * (cav + rb) / (k * 0.45)));
-      return Math.min(d, rb + (-cav - rb) * h + k * 0.45 * h * (1 - h));
+      x = -x; y = -y;   // the shader flips both uv axes; bMarch does not, so flip the world instead
+      let a = 1e9;
+      for (let i = 0; i < n; i++) {
+        const kind = s.spin[i * 4 + 3]; if (kind >= 10) continue;
+        const d = sd(x - cx[i], y - cy[i], z - cz[i], kind, s.obj[i * 4 + 3]);
+        const h = Math.max(0, Math.min(1, 0.5 + 0.5 * (d - a) / k));
+        a = a + (d - a) * (1 - h) - k * h * (1 - h);
+      }
+      for (let i = 0; i < n; i++) {
+        const kind = s.spin[i * 4 + 3]; if (kind < 10) continue;
+        const d = sd(x - cx[i], y - cy[i], z - cz[i], kind - 10, s.obj[i * 4 + 3]), kk = k * 0.6;
+        const h = Math.max(0, Math.min(1, 0.5 - 0.5 * (d + a) / kk));
+        a = a + (-d - a) * h + kk * h * (1 - h);
+      }
+      return a;
     }, 6.2, 0.6, 0.55 * Math.sin(s.orbit * 0.25), s.zoom, 40);
   }
   // ---- Batch A: the three noise/pattern effects, and the CPU value-noise they share ----
@@ -14698,6 +14780,8 @@
     { key: "gywarp", host: "fx", group: "gyroid", type: "dual", label: "Drift", valId: "vGyWarp", min: 0, max: 3, step: 0.01, lo: 0.6, hi: 0.6, fmt: v => sig3(v), apply: v => gyWarp = v, durScale: 10 },
     { key: "gyglow", host: "fx", group: "gyroid", type: "dual", label: "Glow", valId: "vGyGlow", min: 0, max: 2, step: 0.01, lo: 0.5, hi: 0.5, fmt: v => sig3(v), apply: v => gyGlow = v, durScale: 10 },
     { key: "gyspeed", host: "fx", group: "gyroid", type: "dual", label: "Orbit speed", valId: "vGySpeed", min: 0, max: 3, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => gySpeed = v, durScale: 10 },
+    { key: "csgcount", host: "fx", group: "csg", type: "dual", single: true, label: "Objects", valId: "vCsgCount", min: 1, max: 8, step: 1, lo: 5, hi: 5, fmt: v => sig3(Math.round(v)), apply: v => csgCount = Math.round(v), durScale: 10 },
+    { key: "csgseed", host: "fx", group: "csg", type: "dual", single: true, label: "Seed", valId: "vCsgSeed", min: 1, max: 99, step: 1, lo: 1, hi: 1, fmt: v => "#" + Math.round(v), apply: v => csgSeedV = Math.round(v), durScale: 10 },
     { key: "csgblend", host: "fx", group: "csg", type: "dual", label: "Blend", valId: "vCsgBlend", min: 0, max: 1.5, step: 0.01, lo: 0.35, hi: 0.35, fmt: v => sig3(v), apply: v => csgBlend = v, durScale: 10 },
     { key: "csgspeed", host: "fx", group: "csg", type: "dual", label: "Speed", valId: "vCsgSpeed", min: 0, max: 3, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => csgSpeed = v, durScale: 10 },
     { key: "csgorbit", host: "fx", group: "csg", type: "dual", label: "Orbit speed", valId: "vCsgOrbit", min: 0, max: 3, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => csgOrbit = v, durScale: 10 },
@@ -17881,10 +17965,10 @@
       defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], gyfreq: [2.2, 2.2], gythick: [0.35, 0.35], gywarp: [0.6, 0.6], gyglow: [0.5, 0.5], gyspeed: [1, 1] },
       beat: {}, extras: { palette: "5", morph: false } },
     { id: "csg", name: "Smooth CSG", subtitle: "CSG · smooth-blended solids",
-      help: "Three studies in constructive solid geometry, raymarched as one scene: a sphere bobbing in and out of a box and MELTING into it where they meet (smooth union), a torus spinning on its own, and a box with a spherical cavity wandering through it (smooth subtraction). Blend is the melt radius — arm its chips and every beat fuses the sphere and box into one blob before they pull apart again. Shine and Highlight width set the plastic gloss: tight and bright, or broad and soft. The camera sways about the front so the cavity stays in view.",
-      params: ["csgblend", "csgspeed", "csgorbit", "csgshine", "csgwidth", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "band"], bakesOwnZoom: true,
-      draw: dt => { const s = csgSeed(dt); if (useGL) glShaderDraw("csg", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uOrbit, s.orbit); gl.uniform1f(u.uBlend, s.blend); gl.uniform1f(u.uShine, s.shine); gl.uniform1f(u.uWidth, s.width); gl.uniform1f(u.uZoom, s.zoom); }); else csgCPU(s); },
-      defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], csgblend: [0.35, 0.35], csgspeed: [1, 1], csgorbit: [1, 1], csgshine: [1.25, 1.25], csgwidth: [0.21, 0.21] },
+      help: "Constructive solid geometry raymarched as one scene: a cast of spheres, boxes, tori and capsules, each on its own looping path and spin, MELTING into each other where they meet (smooth union) — and some of them carving cavities that wander through the others instead (smooth subtraction). Seed rolls a new cast: how many of each kind, their sizes, homes and paths; Objects sets the head count. Blend is the melt radius — arm its chips and every beat fuses the whole cast into one blob before it pulls apart again. Shine and Highlight width set the plastic gloss: tight and bright, or broad and soft.",
+      params: ["csgcount", "csgseed", "csgblend", "csgspeed", "csgorbit", "csgshine", "csgwidth", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "band"], bakesOwnZoom: true,
+      draw: dt => { const s = csgSeed(dt); if (useGL) glShaderDraw("csg", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uOrbit, s.orbit); gl.uniform1f(u.uBlend, s.blend); gl.uniform1f(u.uShine, s.shine); gl.uniform1f(u.uWidth, s.width); gl.uniform1f(u.uZoom, s.zoom); gl.uniform1f(u.uCount, s.count); gl.uniform4fv(u.uObj, s.obj); gl.uniform4fv(u.uPath, s.path); gl.uniform4fv(u.uSpin, s.spin); gl.uniform4fv(u.uPhase, s.phase); }); else csgCPU(s); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], csgcount: [5, 5], csgseed: [1, 1], csgblend: [0.35, 0.35], csgspeed: [1, 1], csgorbit: [1, 1], csgshine: [1.25, 1.25], csgwidth: [0.21, 0.21] },
       beat: {}, extras: { palette: "5", morph: false } },
     { id: "voronoi", name: "Voronoi cells", subtitle: "Voronoi · cracked cellular field",
       help: "A cellular field: space is divided between wandering seed points, and every pixel is coloured by how far it is from the nearest one. **Edge** is the character knob — at 0 you get soft blobs (distance to the nearest seed), at 1 the crack BETWEEN cells (the gap between nearest and second-nearest), which is the shattered-glass look. Cells sets how many, Wander how far each seed drifts from its home, Speed how fast. Nothing else here measures cellular distance — Reaction-diffusion is a chemical simulation and Cellular automaton is a filter over heat.",

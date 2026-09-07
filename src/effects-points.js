@@ -363,30 +363,90 @@
       return Math.max((Math.abs(g) - s.thick) / (f * 1.7), Math.hypot(x, y, z) - 1.7);
     }, 4.6, 0, s.t * 0.15, s.zoom, 30);
   }
-  // Smooth CSG: two clocks (animation, camera sway); the mirror marches the same three
-  // studies through bMarch's lambert, minus the smooth blends' tone seam and the plastic
-  // highlight -- the shape of the thing, not a copy of it (the Ocean rule).
+  // Smooth CSG: two clocks (animation, camera sway) and a HASHED CAST. csgBuild rolls the
+  // scene from (Seed, Objects) once and caches it: kind, size, home, Lissajous path, spin
+  // and tone per object, ~30% of them carvers parked on an adder's path so the cavity
+  // wanders through a solid rather than through empty space. gbHashJS on the CPU, never a
+  // GPU hash -- the scene must be the same on every frame and every driver build.
   let csgBlend = 0.35, csgSpeed = 1, csgOrbit = 1, csgShine = 1.25, csgWidth = 0.21, csgTime = 0, csgOrbT = 0;
-  function csgSeed(dt) { csgTime += dt * csgSpeed * 0.7; csgOrbT += dt * csgOrbit; return { t: csgTime, orbit: csgOrbT, blend: csgBlend, shine: csgShine, width: csgWidth, zoom }; }
+  let csgSeedV = 1, csgCount = 5, csgKey = "";
+  const csgObj = new Float32Array(32), csgPath = new Float32Array(32), csgSpin = new Float32Array(32), csgPhase = new Float32Array(32);
+  function csgBuild() {
+    const key = csgSeedV + "/" + csgCount;
+    if (key === csgKey) return;
+    csgKey = key;
+    const H = (i, k) => gbHashJS(csgSeedV * 7.31 + i * 1.17 + k * 0.53);
+    const n = csgCount, adders = [], home = [];
+    for (let i = 0; i < n; i++) {
+      home.push([(H(i, 4) - 0.5) * 4.4, (H(i, 5) - 0.5) * 2.0, (H(i, 6) - 0.5) * 1.6]);
+      if (i === 0 || H(i, 2) >= 0.3) adders.push(i);
+    }
+    // centre the adders on the origin -- the camera's look-at -- so a cast never piles
+    // up in one corner of the frame
+    let mx = 0, my = 0;
+    for (const i of adders) { mx += home[i][0]; my += home[i][1]; }
+    mx /= adders.length; my /= adders.length;
+    for (let i = 0; i < 8; i++) {
+      const o = i * 4;
+      if (i >= n) { csgObj.fill(0, o, o + 4); csgPath.fill(0, o, o + 4); csgSpin.fill(0, o, o + 4); csgPhase.fill(0, o, o + 4); continue; }
+      const carve = !adders.includes(i);
+      let kind = Math.floor(H(i, 1) * 4) % 4;
+      let size = 0.3 + 0.45 * H(i, 3);
+      let hx = home[i][0] - mx, hy = home[i][1] - my, hz = home[i][2];
+      let ax = H(i, 7) * 0.9, ay = H(i, 8) * 0.7, az = H(i, 9) * 0.5, rate = 0.4 + 1.2 * H(i, 10);
+      let px = H(i, 14) * 6.2832, py = H(i, 15) * 6.2832, pz = H(i, 16) * 6.2832;
+      if (carve) {
+        // ride an adder: its home, path and rate, offset so the cavity sits in its flank
+        const j = adders[Math.floor(H(i, 18) * adders.length) % adders.length], jo = j * 4;
+        const hs = csgObj[jo + 3];
+        kind = H(i, 19) < 0.7 ? 0 : 1; size = hs * 0.55;
+        hx = csgObj[jo] + (H(i, 20) - 0.5) * hs * 1.4; hy = csgObj[jo + 1] + (H(i, 21) - 0.5) * hs * 1.4; hz = csgObj[jo + 2] + hs * 0.5;
+        ax = csgPath[jo]; ay = csgPath[jo + 1]; az = csgPath[jo + 2]; rate = csgPath[jo + 3];
+        px = csgPhase[jo] + (H(i, 22) - 0.5) * 0.8; py = csgPhase[jo + 1] + (H(i, 23) - 0.5) * 0.8; pz = csgPhase[jo + 2];
+        kind += 10;
+      }
+      csgObj.set([hx, hy, hz, size], o);
+      csgPath.set([ax, ay, az, rate], o);
+      csgSpin.set([(H(i, 11) - 0.5) * 60, (H(i, 12) - 0.5) * 60, (H(i, 13) - 0.5) * 60, kind], o);
+      csgPhase.set([px, py, pz, 0.45 + 0.5 * H(i, 17)], o);
+    }
+  }
+  function csgSeed(dt) {
+    csgTime += dt * csgSpeed * 0.7; csgOrbT += dt * csgOrbit; csgBuild();
+    return { t: csgTime, orbit: csgOrbT, blend: csgBlend, shine: csgShine, width: csgWidth, zoom,
+             count: csgCount, obj: csgObj, path: csgPath, spin: csgSpin, phase: csgPhase };
+  }
+  // CPU mirror: the same cast on bMarch's lambert, unrotated -- the shape of the thing, not
+  // a copy of it (the Ocean rule).
   function csgCPU(s) {
-    const t = s.t, k = Math.max(1e-4, s.blend);
+    const t = s.t, k = Math.max(1e-4, s.blend), n = s.count;
     const box = (x, y, z, b) => { const qx = Math.abs(x) - b, qy = Math.abs(y) - b, qz = Math.abs(z) - b;
       return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0); };
-    const smin = (a, b, kk) => { const h = Math.max(0, Math.min(1, 0.5 + 0.5 * (b - a) / kk)); return b + (a - b) * h - kk * h * (1 - h); };
-    const sx = -1.9 + 0.35 * Math.sin(t * 0.7), sy = 0.35 * Math.sin(t * 1.6);
-    const ry = t * 18 * Math.PI / 180, cr = Math.cos(ry), sr = Math.sin(ry);
-    const cx = 1.9 - 0.18 + 0.25 * Math.sin(t * 1.2), cy = 0.12 + 0.15 * Math.cos(t * 0.9);
+    const sd = (x, y, z, kind, r) => kind === 0 ? Math.hypot(x, y, z) - r : kind === 1 ? box(x, y, z, r * 0.8)
+      : kind === 2 ? Math.hypot(Math.hypot(x, z) - r, y) - r * 0.35 : Math.hypot(x, y - Math.max(-r * 0.8, Math.min(r * 0.8, y)), z) - r * 0.45;
+    const cx = new Float32Array(8), cy = new Float32Array(8), cz = new Float32Array(8);
+    for (let i = 0; i < n; i++) {
+      const o = i * 4;
+      cx[i] = s.obj[o] + s.path[o] * Math.sin(t * s.path[o + 3] + s.phase[o]);
+      cy[i] = s.obj[o + 1] + s.path[o + 1] * Math.sin(t * s.path[o + 3] + s.phase[o + 1]);
+      cz[i] = s.obj[o + 2] + s.path[o + 2] * Math.sin(t * s.path[o + 3] + s.phase[o + 2]);
+    }
     bMarch(fw, fh, (x, y, z) => {
-      x = -x;   // the shader flips uv.x; bMarch does not, so flip the world instead
-      let d = smin(Math.hypot(x - sx, y - sy, z) - 0.5, box(x + 0.77, y + 0.02, z - 0.02, 0.43), k * 0.8);
-      // torus tilted 72 deg about x, spinning about its own axis
-      const px = x - 0.57, py = y - 0.02, pz = z;
-      const ty = 0.309 * py - 0.951 * pz, tz = 0.951 * py + 0.309 * pz;
-      const qx = cr * px + sr * tz, qz = -sr * px + cr * tz;
-      d = Math.min(d, Math.hypot(Math.hypot(qx, qz) - 0.55, ty) - 0.15);
-      const rb = box(x - 1.9, y, z, 0.5), cav = Math.hypot(x - cx, y - cy, z - 0.42) - 0.3;
-      const h = Math.max(0, Math.min(1, 0.5 - 0.5 * (cav + rb) / (k * 0.45)));
-      return Math.min(d, rb + (-cav - rb) * h + k * 0.45 * h * (1 - h));
+      x = -x; y = -y;   // the shader flips both uv axes; bMarch does not, so flip the world instead
+      let a = 1e9;
+      for (let i = 0; i < n; i++) {
+        const kind = s.spin[i * 4 + 3]; if (kind >= 10) continue;
+        const d = sd(x - cx[i], y - cy[i], z - cz[i], kind, s.obj[i * 4 + 3]);
+        const h = Math.max(0, Math.min(1, 0.5 + 0.5 * (d - a) / k));
+        a = a + (d - a) * (1 - h) - k * h * (1 - h);
+      }
+      for (let i = 0; i < n; i++) {
+        const kind = s.spin[i * 4 + 3]; if (kind < 10) continue;
+        const d = sd(x - cx[i], y - cy[i], z - cz[i], kind - 10, s.obj[i * 4 + 3]), kk = k * 0.6;
+        const h = Math.max(0, Math.min(1, 0.5 - 0.5 * (d + a) / kk));
+        a = a + (-d - a) * h + kk * h * (1 - h);
+      }
+      return a;
     }, 6.2, 0.6, 0.55 * Math.sin(s.orbit * 0.25), s.zoom, 40);
   }
   // ---- Batch A: the three noise/pattern effects, and the CPU value-noise they share ----

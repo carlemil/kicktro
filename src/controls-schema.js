@@ -116,6 +116,8 @@
     { key: "gywarp", host: "fx", group: "gyroid", type: "dual", label: "Drift", valId: "vGyWarp", min: 0, max: 3, step: 0.01, lo: 0.6, hi: 0.6, fmt: v => sig3(v), apply: v => gyWarp = v, durScale: 10 },
     { key: "gyglow", host: "fx", group: "gyroid", type: "dual", label: "Glow", valId: "vGyGlow", min: 0, max: 2, step: 0.01, lo: 0.5, hi: 0.5, fmt: v => sig3(v), apply: v => gyGlow = v, durScale: 10 },
     { key: "gyspeed", host: "fx", group: "gyroid", type: "dual", label: "Orbit speed", valId: "vGySpeed", min: 0, max: 3, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => gySpeed = v, durScale: 10 },
+    { key: "csgcount", host: "fx", group: "csg", type: "dual", single: true, label: "Objects", valId: "vCsgCount", min: 1, max: 8, step: 1, lo: 5, hi: 5, fmt: v => sig3(Math.round(v)), apply: v => csgCount = Math.round(v), durScale: 10 },
+    { key: "csgseed", host: "fx", group: "csg", type: "dual", single: true, label: "Seed", valId: "vCsgSeed", min: 1, max: 99, step: 1, lo: 1, hi: 1, fmt: v => "#" + Math.round(v), apply: v => csgSeedV = Math.round(v), durScale: 10 },
     { key: "csgblend", host: "fx", group: "csg", type: "dual", label: "Blend", valId: "vCsgBlend", min: 0, max: 1.5, step: 0.01, lo: 0.35, hi: 0.35, fmt: v => sig3(v), apply: v => csgBlend = v, durScale: 10 },
     { key: "csgspeed", host: "fx", group: "csg", type: "dual", label: "Speed", valId: "vCsgSpeed", min: 0, max: 3, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => csgSpeed = v, durScale: 10 },
     { key: "csgorbit", host: "fx", group: "csg", type: "dual", label: "Orbit speed", valId: "vCsgOrbit", min: 0, max: 3, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => csgOrbit = v, durScale: 10 },

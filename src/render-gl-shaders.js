@@ -919,9 +919,10 @@
       heat += uGlow * 0.45 * exp(-halo * 16.0);
       o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
-    // SMOOTH CSG. After the godotshaders 'Fullscreen SDF raymarching with smooth CSG' demo:
-    // three studies in a row -- a sphere smooth-UNIONED into a box, a spinning torus kept
-    // separate, and a box with a sphere smooth-SUBTRACTED out of it. The operators carry
+    // SMOOTH CSG. After the godotshaders 'Fullscreen SDF raymarching with smooth CSG' demo,
+    // generalised: a hash-seeded cast of spheres, boxes, tori and capsules, each on its own
+    // Lissajous path and spin, smooth-UNIONED together, with some of them CARVING (smooth
+    // subtraction) instead of adding. The operators carry
     // (brightness, distance) pairs and blend BOTH with the same IQ smooth-min factor, so the
     // tone melts across a join exactly as the surface does -- the original blends colours the
     // same way; here the palette owns colour, so brightness is the seam. Plastic lighting:
@@ -929,7 +930,11 @@
     const FS_CSG = `#version 300 es
     precision highp float;
     uniform vec2 uSize; uniform float uTime; uniform float uOrbit; uniform float uBlend;
-    uniform float uShine; uniform float uWidth; uniform float uZoom;
+    uniform float uShine; uniform float uWidth; uniform float uZoom; uniform float uCount;
+    uniform vec4 uObj[8];    // home xyz, size
+    uniform vec4 uPath[8];   // Lissajous amplitude xyz, rate
+    uniform vec4 uSpin[8];   // spin deg/s xyz; kind in .w (0 sphere 1 box 2 torus 3 capsule, +10 = carver)
+    uniform vec4 uPhase[8];  // path phase xyz, tone
     out vec4 o;
     ${SH_ORBIT}
     float sdSphere(vec3 p, float r){ return length(p) - r; }
@@ -952,26 +957,43 @@
       float h = clamp(0.5 - 0.5*(d + a.y)/k, 0.0, 1.0);
       return vec2(a.x, mix(a.y, -d, h) + k*h*(1.0 - h));
     }
+    float sdCapsule(vec3 p, float h, float r){ p.y -= clamp(p.y, -h, h); return length(p) - r; }
+    float sdKind(vec3 p, int kind, float s){
+      if (kind == 0) return sdSphere(p, s);
+      if (kind == 1) return sdBox(p, vec3(s * 0.8));
+      if (kind == 2) return sdTorus(p, vec2(s, s * 0.35));
+      return sdCapsule(p, s * 0.8, s * 0.45);
+    }
+    // THE SCENE IS HASHED ON THE CPU (csgBuild) and arrives as uniforms: count, kinds,
+    // sizes, homes, paths and spins all come from the Seed slider, so a scene renders the
+    // same on every machine and every frame. Adders smooth-union in order, then the carvers
+    // smooth-subtract from the result, so a carver only ever shows as a cavity.
+    vec3 objAt(int i, float t){ return uObj[i].xyz + uPath[i].xyz * sin(t * uPath[i].w + uPhase[i].xyz); }
     vec2 map(vec3 p, float t, float k){
-      // left: a sphere bobbing into a slowly rocking box, smooth union
-      vec2 left = vec2(0.85, sdSphere(p - vec3(-1.9 + 0.35*sin(t*0.7), 0.35*sin(t*1.6), 0.0), 0.5));
-      vec3 lb = rotE(p - vec3(-0.77, -0.02, 0.02), vec3(8.0, -12.0 + 12.0*sin(t), -10.0));
-      left = sUnion(left, sdBox(lb, vec3(0.43)), 0.55, k*0.8);
-      // centre: an independent torus, hard union
-      vec3 ring = rotE(p - vec3(0.57, 0.02, 0.0), vec3(72.0, t*18.0, 8.0));
-      vec2 mid = vec2(0.95, sdTorus(ring, vec2(0.55, 0.15)));
-      // right: a box with a wandering spherical cavity, smooth subtraction
-      vec3 rb = rotE(p - vec3(1.9, 0.0, 0.0), vec3(6.0, -8.0, 8.0));
-      vec2 right = vec2(0.45, sdBox(rb, vec3(0.5)));
-      vec3 cav = vec3(1.9 - 0.18 + 0.25*sin(t*1.2), 0.12 + 0.15*cos(t*0.9), 0.42);
-      right = sSub(right, sdSphere(p - cav, 0.3), k*0.45);
-      vec2 r = mid.y < left.y ? mid : left;
-      return right.y < r.y ? right : r;
+      vec2 acc = vec2(0.0, 1e9);
+      int n = int(uCount);
+      for (int i = 0; i < 8; i++) {
+        if (i >= n) break;
+        int kind = int(uSpin[i].w);
+        if (kind >= 10) continue;
+        vec3 q = rotE(p - objAt(i, t), uSpin[i].xyz * t);
+        acc = sUnion(acc, sdKind(q, kind, uObj[i].w), uPhase[i].w, k);
+      }
+      for (int i = 0; i < 8; i++) {
+        if (i >= n) break;
+        int kind = int(uSpin[i].w);
+        if (kind < 10) continue;
+        vec3 q = rotE(p - objAt(i, t), uSpin[i].xyz * t);
+        acc = sSub(acc, sdKind(q, kind - 10, uObj[i].w), k * 0.6);
+      }
+      return acc;
     }
     void main(){
       vec2 uv = (gl_FragCoord.xy - 0.5 * uSize) / uSize.y / uZoom;
       vec3 ro; mat3 b; orbitCam(0.55 * sin(uOrbit * 0.25), 6.2, 0.6, ro, b);   // sways about the front
-      vec3 rd = normalize(b * vec3(-uv.x, uv.y, 1.5));   // orbit basis puts +x on the left; the demo reads sphere-box-torus-cavity
+      // orbit basis puts +x on the left, and the heat buffer is Y-flipped against the screen:
+      // both axes negated so the light lands on TOP of the objects and the demo reads left-to-right
+      vec3 rd = normalize(b * vec3(-uv.x, -uv.y, 1.5));
       float k = uBlend;
       float t = 0.0, heat = 0.0;
       for (int i = 0; i < 96; i++) {
