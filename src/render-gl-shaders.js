@@ -919,6 +919,80 @@
       heat += uGlow * 0.45 * exp(-halo * 16.0);
       o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
+    // SMOOTH CSG. After the godotshaders 'Fullscreen SDF raymarching with smooth CSG' demo:
+    // three studies in a row -- a sphere smooth-UNIONED into a box, a spinning torus kept
+    // separate, and a box with a sphere smooth-SUBTRACTED out of it. The operators carry
+    // (brightness, distance) pairs and blend BOTH with the same IQ smooth-min factor, so the
+    // tone melts across a join exactly as the surface does -- the original blends colours the
+    // same way; here the palette owns colour, so brightness is the seam. Plastic lighting:
+    // lambert + a tight specular + a rim, both widened by uWidth, both scaled by uShine.
+    const FS_CSG = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uTime; uniform float uOrbit; uniform float uBlend;
+    uniform float uShine; uniform float uWidth; uniform float uZoom;
+    out vec4 o;
+    ${SH_ORBIT}
+    float sdSphere(vec3 p, float r){ return length(p) - r; }
+    float sdBox(vec3 p, vec3 b){ vec3 q = abs(p) - b; return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0); }
+    float sdTorus(vec3 p, vec2 t){ vec2 q = vec2(length(p.xz) - t.x, p.y); return length(q) - t.y; }
+    vec3 rotE(vec3 p, vec3 deg){
+      vec3 a = radians(deg);
+      float cx = cos(a.x), sx = sin(a.x), cy = cos(a.y), sy = sin(a.y), cz = cos(a.z), sz = sin(a.z);
+      p = vec3(p.x, cx*p.y - sx*p.z, sx*p.y + cx*p.z);
+      p = vec3(cy*p.x + sy*p.z, p.y, -sy*p.x + cy*p.z);
+      return vec3(cz*p.x - sz*p.y, sz*p.x + cz*p.y, p.z);
+    }
+    vec2 sUnion(vec2 a, float d, float l, float k){
+      k = max(k, 1e-4);
+      float h = clamp(0.5 + 0.5*(d - a.y)/k, 0.0, 1.0);
+      return vec2(mix(l, a.x, h), mix(d, a.y, h) - k*h*(1.0 - h));
+    }
+    vec2 sSub(vec2 a, float d, float k){
+      k = max(k, 1e-4);
+      float h = clamp(0.5 - 0.5*(d + a.y)/k, 0.0, 1.0);
+      return vec2(a.x, mix(a.y, -d, h) + k*h*(1.0 - h));
+    }
+    vec2 map(vec3 p, float t, float k){
+      // left: a sphere bobbing into a slowly rocking box, smooth union
+      vec2 left = vec2(0.85, sdSphere(p - vec3(-1.9 + 0.35*sin(t*0.7), 0.35*sin(t*1.6), 0.0), 0.5));
+      vec3 lb = rotE(p - vec3(-0.77, -0.02, 0.02), vec3(8.0, -12.0 + 12.0*sin(t), -10.0));
+      left = sUnion(left, sdBox(lb, vec3(0.43)), 0.55, k*0.8);
+      // centre: an independent torus, hard union
+      vec3 ring = rotE(p - vec3(0.57, 0.02, 0.0), vec3(72.0, t*18.0, 8.0));
+      vec2 mid = vec2(0.95, sdTorus(ring, vec2(0.55, 0.15)));
+      // right: a box with a wandering spherical cavity, smooth subtraction
+      vec3 rb = rotE(p - vec3(1.9, 0.0, 0.0), vec3(6.0, -8.0, 8.0));
+      vec2 right = vec2(0.45, sdBox(rb, vec3(0.5)));
+      vec3 cav = vec3(1.9 - 0.18 + 0.25*sin(t*1.2), 0.12 + 0.15*cos(t*0.9), 0.42);
+      right = sSub(right, sdSphere(p - cav, 0.3), k*0.45);
+      vec2 r = mid.y < left.y ? mid : left;
+      return right.y < r.y ? right : r;
+    }
+    void main(){
+      vec2 uv = (gl_FragCoord.xy - 0.5 * uSize) / uSize.y / uZoom;
+      vec3 ro; mat3 b; orbitCam(0.55 * sin(uOrbit * 0.25), 6.2, 0.6, ro, b);   // sways about the front
+      vec3 rd = normalize(b * vec3(-uv.x, uv.y, 1.5));   // orbit basis puts +x on the left; the demo reads sphere-box-torus-cavity
+      float k = uBlend;
+      float t = 0.0, heat = 0.0;
+      for (int i = 0; i < 96; i++) {
+        vec3 p = ro + rd * t;
+        vec2 m = map(p, uTime, k);
+        if (m.y < 0.002 * max(t, 0.5)) {
+          float e = 0.002 * max(t, 0.5);
+          vec2 h = vec2(1.0, -1.0) * 0.5773;
+          vec3 n = normalize(h.xyy * map(p + h.xyy * e, uTime, k).y + h.yyx * map(p + h.yyx * e, uTime, k).y + h.yxy * map(p + h.yxy * e, uTime, k).y + h.xxx * map(p + h.xxx * e, uTime, k).y);
+          vec3 l = normalize(vec3(-0.64, 0.68, 0.36)), v = -rd, hv = normalize(l + v);
+          float ndl = max(0.0, dot(n, l)), w = clamp(uWidth, 0.0, 1.0);
+          float spec = pow(max(0.0, dot(n, hv)), mix(256.0, 4.0, w)) * uShine;
+          float rim = pow(1.0 - max(0.0, dot(n, v)), mix(6.0, 1.0, w)) * 0.35 * uShine;
+          heat = m.x * (0.3 + 0.7 * ndl) + (spec + rim) * 0.5;
+          break;
+        }
+        t += max(m.y, 0.001);
+        if (t > 16.0) break;
+      }
+      o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // ---- Batch C: participating media, scattering, and a landscape ---------------------
     // VOLUMETRIC CLOUDS. The first effect here with genuine participating media: the ray does
     // not look for a SURFACE, it integrates density along its length and lets light through

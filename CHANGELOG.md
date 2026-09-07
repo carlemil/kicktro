@@ -15,6 +15,11 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.78.0] — 2026-09-07
+
+### Added
+- **Smooth CSG** — a new 3D effect after the godotshaders "Fullscreen SDF raymarching with smooth CSG" demo: three studies in constructive solid geometry raymarched as one scene — a sphere melting into a box where they meet (smooth union), a spinning torus, and a box with a spherical cavity wandering through it (smooth subtraction), under plastic lighting with a tight specular and a rim. **Blend** is the melt radius (arm its chips and each beat fuses the sphere and box into one blob), **Shine** and **Highlight width** set the gloss, **Speed** and **Orbit speed** the animation and the camera sway.
+
 ## [1.77.0] — 2026-09-06
 
 ### Added

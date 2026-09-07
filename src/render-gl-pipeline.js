@@ -816,6 +816,7 @@
     glProg.apollo = camProg(VS_QUAD, FS_APOLLO, ["uSize", "uTime", "uScale", "uIter", "uGlow", "uZoom", "uThin"]);
     glProg.mbox = camProg(VS_QUAD, FS_MBOX, ["uSize", "uTime", "uScale", "uIter", "uGlow", "uZoom", "uFold"]);
     glProg.gyroid = camProg(VS_QUAD, FS_GYROID, ["uSize", "uTime", "uFreq", "uThick", "uGlow", "uZoom", "uWarp"]);
+    glProg.csg = camProg(VS_QUAD, FS_CSG, ["uSize", "uTime", "uOrbit", "uBlend", "uShine", "uWidth", "uZoom"]);
     glProg.voronoi = camProg(VS_QUAD, FS_VORONOI, ["uSize", "uTime", "uCells", "uEdge", "uJit", "uZoom"]);
     glProg.warpnoise = camProg(VS_QUAD, FS_WARPNOISE, ["uSize", "uTime", "uScale", "uWarp", "uOct", "uZoom"]);
     glProg.truchet = camProg(VS_QUAD, FS_TRUCHET, ["uSize", "uTime", "uCells", "uWidth", "uFlip", "uZoom"]);

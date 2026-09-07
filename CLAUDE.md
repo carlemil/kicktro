@@ -32,7 +32,8 @@ count. Add an effect ⇒ add it here and there, in the same commit.
   Mandelbulb, Menger sponge, Apollonian gasket (`apollo`, built by **inversion**, not by
   iterating a power), Mandelbox (`mbox`, **box folds** — hard-edged where the bulb is organic),
   Gyroid (`gyroid`, a triply-periodic minimal surface, NOT a fractal and the cheapest 3D effect
-  here), Terrain (`terrain`, a height field with Ocean's distance-scaled step law), Volumetric
+  here), Smooth CSG (`csg`, IQ smooth union/subtraction over (brightness, distance) pairs so
+  the tone melts across a join as the surface does — after the godotshaders demo), Terrain (`terrain`, a height field with Ocean's distance-scaled step law), Volumetric
   clouds (`clouds`, the one that integrates **density** along the ray rather than looking for a
   surface) — everything from Bouncing solids on is 3D raymarched.
 

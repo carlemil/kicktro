@@ -363,6 +363,32 @@
       return Math.max((Math.abs(g) - s.thick) / (f * 1.7), Math.hypot(x, y, z) - 1.7);
     }, 4.6, 0, s.t * 0.15, s.zoom, 30);
   }
+  // Smooth CSG: two clocks (animation, camera sway); the mirror marches the same three
+  // studies through bMarch's lambert, minus the smooth blends' tone seam and the plastic
+  // highlight -- the shape of the thing, not a copy of it (the Ocean rule).
+  let csgBlend = 0.35, csgSpeed = 1, csgOrbit = 1, csgShine = 1.25, csgWidth = 0.21, csgTime = 0, csgOrbT = 0;
+  function csgSeed(dt) { csgTime += dt * csgSpeed * 0.7; csgOrbT += dt * csgOrbit; return { t: csgTime, orbit: csgOrbT, blend: csgBlend, shine: csgShine, width: csgWidth, zoom }; }
+  function csgCPU(s) {
+    const t = s.t, k = Math.max(1e-4, s.blend);
+    const box = (x, y, z, b) => { const qx = Math.abs(x) - b, qy = Math.abs(y) - b, qz = Math.abs(z) - b;
+      return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0); };
+    const smin = (a, b, kk) => { const h = Math.max(0, Math.min(1, 0.5 + 0.5 * (b - a) / kk)); return b + (a - b) * h - kk * h * (1 - h); };
+    const sx = -1.9 + 0.35 * Math.sin(t * 0.7), sy = 0.35 * Math.sin(t * 1.6);
+    const ry = t * 18 * Math.PI / 180, cr = Math.cos(ry), sr = Math.sin(ry);
+    const cx = 1.9 - 0.18 + 0.25 * Math.sin(t * 1.2), cy = 0.12 + 0.15 * Math.cos(t * 0.9);
+    bMarch(fw, fh, (x, y, z) => {
+      x = -x;   // the shader flips uv.x; bMarch does not, so flip the world instead
+      let d = smin(Math.hypot(x - sx, y - sy, z) - 0.5, box(x + 0.77, y + 0.02, z - 0.02, 0.43), k * 0.8);
+      // torus tilted 72 deg about x, spinning about its own axis
+      const px = x - 0.57, py = y - 0.02, pz = z;
+      const ty = 0.309 * py - 0.951 * pz, tz = 0.951 * py + 0.309 * pz;
+      const qx = cr * px + sr * tz, qz = -sr * px + cr * tz;
+      d = Math.min(d, Math.hypot(Math.hypot(qx, qz) - 0.55, ty) - 0.15);
+      const rb = box(x - 1.9, y, z, 0.5), cav = Math.hypot(x - cx, y - cy, z - 0.42) - 0.3;
+      const h = Math.max(0, Math.min(1, 0.5 - 0.5 * (cav + rb) / (k * 0.45)));
+      return Math.min(d, rb + (-cav - rb) * h + k * 0.45 * h * (1 - h));
+    }, 6.2, 0.6, 0.55 * Math.sin(s.orbit * 0.25), s.zoom, 40);
+  }
   // ---- Batch A: the three noise/pattern effects, and the CPU value-noise they share ----
   // The mirrors are honest but coarse: one octave where the shader runs up to eight, and no
   // domain warp at all in the warp mirror. That is the Ocean rule -- a fallback that keeps the
