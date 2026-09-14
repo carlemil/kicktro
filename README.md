@@ -37,7 +37,7 @@ The whole thing burns, flickers, and morphs continuously — and every effect ca
 ## Effects
 
 Every row in the panel's **Layers** box carries an **Effect** chooser, switching that layer
-between fifty-four visuals that share the same palette, glow and music-reactivity pipeline —
+between fifty-five visuals that share the same palette, glow and music-reactivity pipeline —
 but each is an independent "scene" that remembers its own settings (see Controls). You can
 **stack up to four of them at once**, each with its own palette and filters — see Layers
 below:
@@ -53,6 +53,12 @@ below:
   vertices and is perspective-projected. The view turns so you read the box as solid 3D:
   **Rotation** yaws it and **Box nod** pitches it in a slow sine — both on sliders, and
   both can be set to 0 to hold it still.
+- **Polypinski** — Sierpiński set free: the chaos game between **any number of corners
+  (3–24) on the surface of a sphere**. **Seed** rolls where the corners sit, so a formation
+  you like is one number; **Jump** is the step fraction (0.5 is the Sierpiński rule, longer
+  opens a crowded sphere up); **Wiggle** / **Wiggle speed** let the corners wander about their
+  homes while the whole solid tumbles. Points are re-stamped at full resolution, so Zoom
+  goes as deep as you like.
 - **Julia** — an animated Julia set. The seed `c` is orbited around the
   Mandelbrot plane along two stacked loops: a large slow loop tracing just
   outside the inner bound (the main cardioid, pushed slightly outward) so the

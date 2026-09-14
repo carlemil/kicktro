@@ -742,6 +742,52 @@
     }
   }
 
+  // ---- Polypinski: the chaos game between N corners on a sphere (point effect) ----
+  // Sierpiński with the corner count and the jump ratio set free. The corners sit on a unit
+  // sphere at directions HASHED from Seed (sdHash, CPU — the same picture for the same seed on
+  // every machine, so a formation you like is one number), each wandering about its home on
+  // three hashed sines and pushed back onto the sphere, so the solid never leaves its ball.
+  // Jump 0.5 with 3 or 4 corners is the Sierpiński family; many corners want a LONGER jump (each
+  // copy shrinks) or the copies overlap into a fuzzy ball — 0.62 for six is the sweet spot. The chaos PRNG is re-seeded per frame like every
+  // other point effect, so only the moving corners reshape the picture. Heat shades by depth
+  // so the ball reads as a ball. Zoom, Size and Rotation are the shared ones (plot() zooms).
+  let pyCorners = 6, pySeed = 3, pyWiggle = 0.25, pyWSpeed = 0.5, pyJump = 0.62, pyPhase = 0;
+  const PY_MAX = 24;
+  const pyCx = new Float64Array(PY_MAX), pyCy = new Float64Array(PY_MAX), pyCz = new Float64Array(PY_MAX);
+  function polypinskiStamp(xL, xR, yT, yB, n) {
+    pyPhase += pyWSpeed * 2 / cfg.burn;             // per TICK, like hgPhase
+    const k = Math.max(3, Math.min(PY_MAX, Math.round(pyCorners))), ph = pyPhase, wg = pyWiggle;
+    // Whole-body tumble on the same clock: yaw from the Rotation slider plus a slow drift,
+    // pitch a slow nod — a still ball of corners reads flat.
+    const yaw = spinAngle + ph * 0.13, pitch = 0.5 * Math.sin(ph * 0.21);
+    const cyw = Math.cos(yaw), syw = Math.sin(yaw), cpt = Math.cos(pitch), spt = Math.sin(pitch);
+    for (let i = 0; i < k; i++) {
+      const h = j => sdHash(pySeed, 0x5157, i * 8 + j);
+      const z0 = h(0) * 2 - 1, a0 = h(1) * 6.2831853, r0 = Math.sqrt(1 - z0 * z0);   // uniform on the sphere
+      let x = r0 * Math.cos(a0) + wg * Math.sin(ph * (0.4 + h(2)) + h(3) * 6.2831853);
+      let y = r0 * Math.sin(a0) + wg * Math.sin(ph * (0.4 + h(4)) + h(5) * 6.2831853);
+      let z = z0 + wg * Math.sin(ph * (0.4 + h(6)) + h(7) * 6.2831853);
+      const inv = 1 / Math.hypot(x, y, z);
+      x *= inv; y *= inv; z *= inv;
+      const rx = x * cyw + z * syw, rz = z * cyw - x * syw;   // yaw about Y, then pitch about X
+      pyCx[i] = rx; pyCy[i] = y * cpt - rz * spt; pyCz[i] = y * spt + rz * cpt;
+    }
+    const cx = (xL + xR) * 0.5, cy = (yT + yB) * 0.5;
+    // Pin-hole at z = F; the nearest possible corner (z = 1) must still land inside the box.
+    const F = 3.2, sc = Math.min(xR - xL, yB - yT) * 0.5 * 1.0 * fractalSize * (F - 1) / F;
+    const jump = pyJump;
+    rngState = (SEED + 0x7a1b) >>> 0;
+    let px = 0, py = 0, pz = 0;
+    for (let i = 0; i < n + 16; i++) {
+      const c = (rnd() * k) | 0;
+      px += (pyCx[c] - px) * jump; py += (pyCy[c] - py) * jump; pz += (pyCz[c] - pz) * jump;
+      if (i > 15) {
+        const persp = F / (F - pz);
+        plot(cx + px * persp * sc, cy - py * persp * sc, POINT_HEAT * (0.55 + 0.225 * (pz + 1)));
+      }
+    }
+  }
+
   // ---- Fractal flames: IFS chaos game with nonlinear variations (point effect) ----
   // Two affine transforms whose coefficients orbit slowly (flPhase), then one of six
   // classic flame variations applied after each affine step. Stamped ADDITIVELY

@@ -451,6 +451,15 @@
         rpm: [0.15, 0.15], ratio: [6.5, 6.5], inrad: [0.12, 0.12], outrad: [1.02, 1.02], phase: [0, 0], cardx: [0, 0],
         zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
       beat: {}, extras: { palette: "4", morph: false, showBox: true, world: false, randSeed: true } },
+    { id: "polypinski", name: "Polypinski", subtitle: "Polypinski · chaos game on a sphere",
+      help: "Sierpiński set free: the chaos game played between any number of corners on the surface of a sphere. Corners sets how many; Seed rolls where on the sphere they sit, so a formation you like is one number you can come back to. Jump is how far each step goes toward the chosen corner — 0.5 with 3 or 4 corners is the classic triangle or tetrahedron; a crowd of corners wants a LONGER jump, which shrinks each copy so they stop overlapping into a fuzzy ball. Wiggle lets every corner wander about its home, Wiggle speed how fast; the whole solid tumbles slowly and Rotation spins it. Zoom in on the structure — the points are re-stamped at full resolution at any zoom.",
+      params: ["pycorners", "pyseed", "pyjump", "pywiggle", "pywspeed", "points", "size", "rot", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold"],
+      helpTags: ["all", "poly"], bakesOwnZoom: true,
+      stamp: (xL, xR, yT, yB, n) => polypinskiStamp(xL, xR, yT, yB, n),
+      ranges: { points: { min: 2000, max: 60000 } },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], pycorners: [6, 6], pyseed: [3, 3], pyjump: [0.62, 0.62], pywiggle: [0.25, 0.25], pywspeed: [0.5, 0.5],
+        points: [20000, 20000], rise: [130, 130], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], speed: [10, 10], size: [1, 1], rot: [0, 0], layers: 1 },
+      beat: {}, extras: { palette: "2", morph: false, showBox: true, randSeed: true } },
   ];
   // DISPLAY order only: every effect dropdown lists by name (twenty-odd effects in registry
   // order are a pile to hunt through), while EFFECTS keeps its own order — the runtime
@@ -462,7 +471,7 @@
   // rather than disappearing from the list, which is the safe way to be wrong.
   const EFFECT_CATS = [
     { name: "Fractals", desc: "the classic escape-time sets and their 3D relatives",
-      ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "mbox", "flames", "sirpinfyer", "tetrafyer"] },
+      ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
     { name: "3D & raymarched", desc: "solids, surfaces and landscapes traced through space",
       ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds"] },
     { name: "Demoscene classics", desc: "the effects the scene has been writing since the 90s",
