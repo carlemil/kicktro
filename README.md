@@ -32,6 +32,7 @@ The whole thing burns, flickers, and morphs continuously — and every effect ca
 **react to whatever music you're playing**.
 
 🔥 **Live demo:** https://kicktro.com/
+🎬 **Promo video (30 s):** [promo/kicktro-promo.mp4](promo/kicktro-promo.mp4) — music credits in [promo/CREDITS.md](promo/CREDITS.md)
 
 ## Effects
 
