@@ -226,6 +226,8 @@
     { key: "hgmorph", host: "fx", group: "harmo", type: "dual", label: "Morph speed", valId: "vHgMorph", min: 0, max: 2, step: 0.02, lo: 0.35, hi: 0.35, fmt: v => sig3(v) + "×", apply: v => hgMorph = v, durScale: 10 },
     { key: "pycorners", host: "fx", group: "poly", type: "dual", single: true, label: "Corners", valId: "vPyCorners", min: 3, max: 24, step: 1, lo: 6, hi: 6, fmt: v => sig3(Math.round(v)), apply: v => pyCorners = Math.round(v), durScale: 10 },
     { key: "pyseed", host: "fx", group: "poly", type: "dual", single: true, label: "Seed", valId: "vPySeed", min: 1, max: 999, step: 1, lo: 1, hi: 1, fmt: v => "#" + Math.round(v), apply: v => pySeed = Math.round(v), durScale: 10 },
+    // Off/On. Rolling is pyRollSeed's job (on entry, and on the user's own flip); apply has nothing to set.
+    { key: "pyrand", host: "fx", group: "poly", type: "dual", single: true, label: "Random seed", valId: "vPyRand", min: 0, max: 1, step: 1, lo: 0, hi: 0, fmt: v => Math.round(v) ? "On" : "Off", apply: () => {}, durScale: 10 },
     { key: "pygap", host: "fx", group: "poly", type: "dual", label: "Gap", valId: "vPyGap", min: -0.6, max: 0.6, step: 0.01, lo: 0, hi: 0, fmt: v => sig3(v), apply: v => pyGap = v, durScale: 10 },
     { key: "pywiggle", host: "fx", group: "poly", type: "dual", label: "Wiggle", valId: "vPyWiggle", min: 0, max: 1, step: 0.01, lo: 0.1, hi: 0.1, fmt: v => sig3(v), apply: v => pyWiggle = v, durScale: 10 },
     { key: "pywspeed", host: "fx", group: "poly", type: "dual", label: "Wiggle speed", valId: "vPyWSpeed", min: 0, max: 3, step: 0.02, lo: 0.5, hi: 0.5, fmt: v => sig3(v) + "×", apply: v => pyWSpeed = v, durScale: 10 },

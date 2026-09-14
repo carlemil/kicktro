@@ -67,7 +67,7 @@ const EXPECT = [
   "carule", "cacells",   // Cellular automata: a rule enum and a grid width
   "noiseseed",   // Noise warp: Static / Drift / Random is a mode, not a quantity
   "vbcount", "vbshape", "gxarms", "gosurf",
-  "pycorners", "pyseed",   // Polypinski: a corner count and a roll of the dice
+  "pycorners", "pyseed", "pyrand",   // Polypinski: a corner count, a roll of the dice, Random Off/On
   // Doughnut: both are single because the flute pattern cos(flute·(ang + twist·arc))
   // only closes across the atan2 branch cut when flute·twist is a whole number.
   "dnflute",

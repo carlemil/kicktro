@@ -292,6 +292,9 @@
     ctlIn(slot, "showbox").addEventListener("change", () => showBox = showBoxChk.checked);
     // Toggling it re-rolls immediately (on ⇒ jump somewhere random; off ⇒ back to 0).
     ctlIn(slot, "randseed").addEventListener("change", () => { randSeed = randSeedChk.checked; reseedJulia(); });
+    // Polypinski's Random seed: flipping it ON rolls straight away. `change`, not `input` -- only a user's
+    // release fires it, so loads and paints (synthetic input events) never re-roll a saved seed.
+    ctlIn(slot, "pyrand-lo").addEventListener("change", () => { if (slot === stackSel) pyRollSeed(); });
     // Joining or leaving the shared world changes which layers are traced together, so
     // it has to reach the render immediately rather than waiting for a reselect.
     // Write the layer THIS CHECKBOX BELONGS TO, from the event's own target -- not

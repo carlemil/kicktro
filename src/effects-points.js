@@ -758,6 +758,20 @@
   // only the moving corners reshape the picture. Heat shades by depth (Depth fade) so the ball reads as a
   // ball. Zoom, Size and Rotation are the shared ones (plot() zooms).
   let pyCorners = 6, pySeed = 1, pyWiggle = 0.1, pyWSpeed = 0.5, pyGap = 0, pyDepth = 0.45, pyPhase = 0;
+  // Random seed (the `pyrand` Off/On slider). ON rolls a fresh Seed when the effect is entered (reload,
+  // scene load, switching to it) and when the user flips it on. The roll is WRITTEN TO THE SEED SLIDER,
+  // so the number behind a formation you like is right there, and turning Random off keeps it. Reads
+  // the selected block's DOM: onEnter and the flip both act on the selected layer.
+  // ponytail: only the SELECTED layer rolls; a second Polypinski layer keeps its seed until it is entered.
+  function pyRollSeed() {
+    const on = ctl("pyrand-lo"), seed = ctl("pyseed-lo");
+    if (!on || !seed || Math.round(+on.value) !== 1) return;
+    const cur = Math.round(+seed.value), mn = Math.ceil(+seed.min), mx = Math.floor(+seed.max);
+    let v = cur;
+    while (v === cur && mx > mn) v = mn + Math.floor(Math.random() * (mx - mn + 1));
+    seed.value = String(v);
+    seed.dispatchEvent(new Event("input", { bubbles: true }));   // mirrors the hidden thumb, readout, autosave
+  }
   const PY_MAX = 24;
   const pyCx = new Float64Array(PY_MAX), pyCy = new Float64Array(PY_MAX), pyCz = new Float64Array(PY_MAX);
   const pyHx = new Float64Array(PY_MAX), pyHy = new Float64Array(PY_MAX), pyHz = new Float64Array(PY_MAX);

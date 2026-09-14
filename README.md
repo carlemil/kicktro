@@ -56,7 +56,8 @@ below:
 - **Polypinski** — Sierpiński set free: the chaos game between **any number of corners
   (3–24) spread evenly over a sphere** — 3 is the triangle, 4 the tetrahedron, 6 the
   octahedron. **Seed** picks the orientation (and the arrangement where several tie), so a
-  formation you like is one number; the step toward each corner is worked out so the shrunken copies just touch, which keeps
+  formation you like is one number, and **Random seed** rolls a fresh one on every start and shows
+  it on the Seed slider; the step toward each corner is worked out so the shrunken copies just touch, which keeps
   the holes open at any count, and **Gap** spreads them apart or lets them overlap; **Wiggle** / **Wiggle speed** let the corners wander about their
   homes while the whole solid tumbles; **Depth fade** dims points by their distance from you
   (negative dims the near side instead). Points are re-stamped at full resolution, so Zoom

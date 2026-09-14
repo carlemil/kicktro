@@ -12856,6 +12856,20 @@
   // only the moving corners reshape the picture. Heat shades by depth (Depth fade) so the ball reads as a
   // ball. Zoom, Size and Rotation are the shared ones (plot() zooms).
   let pyCorners = 6, pySeed = 1, pyWiggle = 0.1, pyWSpeed = 0.5, pyGap = 0, pyDepth = 0.45, pyPhase = 0;
+  // Random seed (the `pyrand` Off/On slider). ON rolls a fresh Seed when the effect is entered (reload,
+  // scene load, switching to it) and when the user flips it on. The roll is WRITTEN TO THE SEED SLIDER,
+  // so the number behind a formation you like is right there, and turning Random off keeps it. Reads
+  // the selected block's DOM: onEnter and the flip both act on the selected layer.
+  // ponytail: only the SELECTED layer rolls; a second Polypinski layer keeps its seed until it is entered.
+  function pyRollSeed() {
+    const on = ctl("pyrand-lo"), seed = ctl("pyseed-lo");
+    if (!on || !seed || Math.round(+on.value) !== 1) return;
+    const cur = Math.round(+seed.value), mn = Math.ceil(+seed.min), mx = Math.floor(+seed.max);
+    let v = cur;
+    while (v === cur && mx > mn) v = mn + Math.floor(Math.random() * (mx - mn + 1));
+    seed.value = String(v);
+    seed.dispatchEvent(new Event("input", { bubbles: true }));   // mirrors the hidden thumb, readout, autosave
+  }
   const PY_MAX = 24;
   const pyCx = new Float64Array(PY_MAX), pyCy = new Float64Array(PY_MAX), pyCz = new Float64Array(PY_MAX);
   const pyHx = new Float64Array(PY_MAX), pyHy = new Float64Array(PY_MAX), pyHz = new Float64Array(PY_MAX);
@@ -14985,6 +14999,8 @@
     { key: "hgmorph", host: "fx", group: "harmo", type: "dual", label: "Morph speed", valId: "vHgMorph", min: 0, max: 2, step: 0.02, lo: 0.35, hi: 0.35, fmt: v => sig3(v) + "×", apply: v => hgMorph = v, durScale: 10 },
     { key: "pycorners", host: "fx", group: "poly", type: "dual", single: true, label: "Corners", valId: "vPyCorners", min: 3, max: 24, step: 1, lo: 6, hi: 6, fmt: v => sig3(Math.round(v)), apply: v => pyCorners = Math.round(v), durScale: 10 },
     { key: "pyseed", host: "fx", group: "poly", type: "dual", single: true, label: "Seed", valId: "vPySeed", min: 1, max: 999, step: 1, lo: 1, hi: 1, fmt: v => "#" + Math.round(v), apply: v => pySeed = Math.round(v), durScale: 10 },
+    // Off/On. Rolling is pyRollSeed's job (on entry, and on the user's own flip); apply has nothing to set.
+    { key: "pyrand", host: "fx", group: "poly", type: "dual", single: true, label: "Random seed", valId: "vPyRand", min: 0, max: 1, step: 1, lo: 0, hi: 0, fmt: v => Math.round(v) ? "On" : "Off", apply: () => {}, durScale: 10 },
     { key: "pygap", host: "fx", group: "poly", type: "dual", label: "Gap", valId: "vPyGap", min: -0.6, max: 0.6, step: 0.01, lo: 0, hi: 0, fmt: v => sig3(v), apply: v => pyGap = v, durScale: 10 },
     { key: "pywiggle", host: "fx", group: "poly", type: "dual", label: "Wiggle", valId: "vPyWiggle", min: 0, max: 1, step: 0.01, lo: 0.1, hi: 0.1, fmt: v => sig3(v), apply: v => pyWiggle = v, durScale: 10 },
     { key: "pywspeed", host: "fx", group: "poly", type: "dual", label: "Wiggle speed", valId: "vPyWSpeed", min: 0, max: 3, step: 0.02, lo: 0.5, hi: 0.5, fmt: v => sig3(v) + "×", apply: v => pyWSpeed = v, durScale: 10 },
@@ -17495,6 +17511,9 @@
     ctlIn(slot, "showbox").addEventListener("change", () => showBox = showBoxChk.checked);
     // Toggling it re-rolls immediately (on ⇒ jump somewhere random; off ⇒ back to 0).
     ctlIn(slot, "randseed").addEventListener("change", () => { randSeed = randSeedChk.checked; reseedJulia(); });
+    // Polypinski's Random seed: flipping it ON rolls straight away. `change`, not `input` -- only a user's
+    // release fires it, so loads and paints (synthetic input events) never re-roll a saved seed.
+    ctlIn(slot, "pyrand-lo").addEventListener("change", () => { if (slot === stackSel) pyRollSeed(); });
     // Joining or leaving the shared world changes which layers are traced together, so
     // it has to reach the render immediately rather than waiting for a reselect.
     // Write the layer THIS CHECKBOX BELONGS TO, from the event's own target -- not
@@ -18350,12 +18369,12 @@
         zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
       beat: {}, extras: { palette: "4", morph: false, showBox: true, world: false, randSeed: true } },
     { id: "polypinski", name: "Polypinski", subtitle: "Polypinski · chaos game on a sphere",
-      help: "Sierpiński set free: the chaos game played between any number of corners spread evenly over the surface of a sphere — 3 is the triangle, 4 the tetrahedron, 6 the octahedron, and more keep the pattern. Seed picks the orientation and, where several arrangements tie, which one, so a formation you like is one number you can come back to. The step toward each corner is worked out from the corners themselves so the shrunken copies just touch, which is what keeps the holes open at any count; Gap pushes the copies further apart (positive) or lets them overlap and fill in (negative). Wiggle lets every corner wander about its home, Wiggle speed how fast; Depth fade dims points by their distance from you; the whole solid tumbles slowly and Rotation spins it. Zoom in on the structure — the points are re-stamped at full resolution at any zoom.",
-      params: ["pycorners", "pyseed", "pygap", "pywiggle", "pywspeed", "pydepth", "points", "size", "rot", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold"],
-      helpTags: ["all", "poly"], bakesOwnZoom: true,
+      help: "Sierpiński set free: the chaos game played between any number of corners spread evenly over the surface of a sphere — 3 is the triangle, 4 the tetrahedron, 6 the octahedron, and more keep the pattern. Seed picks the orientation and, where several arrangements tie, which one, so a formation you like is one number you can come back to. Turn Random seed on and every start rolls a new one onto the Seed slider; turn it off when a roll looks good and it stays. The step toward each corner is worked out from the corners themselves so the shrunken copies just touch, which is what keeps the holes open at any count; Gap pushes the copies further apart (positive) or lets them overlap and fill in (negative). Wiggle lets every corner wander about its home, Wiggle speed how fast; Depth fade dims points by their distance from you; the whole solid tumbles slowly and Rotation spins it. Zoom in on the structure — the points are re-stamped at full resolution at any zoom.",
+      params: ["pycorners", "pyseed", "pyrand", "pygap", "pywiggle", "pywspeed", "pydepth", "points", "size", "rot", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold"],
+      helpTags: ["all", "poly"], bakesOwnZoom: true, onEnter: () => pyRollSeed(),
       stamp: (xL, xR, yT, yB, n) => polypinskiStamp(xL, xR, yT, yB, n),
       ranges: { points: { min: 2000, max: 60000 } },
-      defaults: { palcycle: [0, 0], palhold: [0, 0], pycorners: [6, 6], pyseed: [1, 1], pygap: [0, 0], pywiggle: [0.1, 0.1], pywspeed: [0.5, 0.5], pydepth: [0.45, 0.45],
+      defaults: { palcycle: [0, 0], palhold: [0, 0], pycorners: [6, 6], pyseed: [1, 1], pyrand: [0, 0], pygap: [0, 0], pywiggle: [0.1, 0.1], pywspeed: [0.5, 0.5], pydepth: [0.45, 0.45],
         points: [20000, 20000], rise: [130, 130], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], speed: [10, 10], size: [1, 1], rot: [0, 0], layers: 1 },
       beat: {}, extras: { palette: "2", morph: false, showBox: true, randSeed: true } },
   ];
@@ -26599,6 +26618,7 @@
       { n: "Scatter", w: "galaxy", t: "Galaxy only — how far stars stray from their arm. Low values give hard, almost drawn-on arms; high values dissolve them into a general disc where the spiral is only just readable. The scatter widens outward, so the core stays tight either way." },
       { n: "Corners", w: "poly", t: "Polypinski only — how many corners the chaos game jumps between, 3 to 24, spread evenly over one sphere. 3 is the Sierpiński triangle, 4 the tetrahedron, 6 the octahedron, and higher counts keep the pattern." },
       { n: "Seed", w: "poly", t: "Polypinski only — which roll of the dice the even spread is relaxed from — it sets the orientation and, where several arrangements tie, which one. The same seed always gives the same formation, so when one looks good, note the number." },
+      { n: "Random seed", w: "poly", t: "Polypinski only — Off keeps the Seed you set. On rolls a new Seed every time the effect starts (reload, scene change, switching to it) and the moment you turn it on. The number lands on the Seed slider, so when a roll looks good, turn Random seed off and that formation stays." },
       { n: "Gap", w: "poly", t: "Polypinski only — the space between the shrunken copies. At 0 each step is worked out from the corners so the copies just touch: 0.5 for the triangle, tetrahedron and octahedron, less for more corners. Positive values shrink the copies and open the holes wider; negative values let them overlap until the solid fills in." },
       { n: "Wiggle", w: "poly", t: "Polypinski only — how far each corner wanders about its home on the sphere. 0 holds the formation rigid (only the tumble moves), 1 lets the corners roam the whole ball." },
       { n: "Depth fade", w: "poly", t: "Polypinski only — brightness as a function of distance from you. 0 lights every point the same; positive values dim the far side of the ball (1 makes the back vanish), negative values dim the near side so the back glows through." },

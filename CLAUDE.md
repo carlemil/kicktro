@@ -18,7 +18,9 @@ effect ⇒ add it here and there in the same commit.
   ribbons (the one that **rasterises geometry**), Polypinski (`polypinski`, the chaos game
   between N corners spread EVENLY on a sphere — hashed from Seed then Thomson-relaxed in
   `pyHomes`, cached per (seed, k) with the touching
-  scale `pyTouch`, min over pairs of d/(d+width); Gap scales it. `tools/polyprobe.js`).
+  scale `pyTouch`, min over pairs of d/(d+width); Gap scales it. Random seed `pyrand` rolls into
+  the Seed SLIDER via `pyRollSeed` on entry and on the user's `change`, never on synthetic input.
+  `tools/polyprobe.js`).
 - **Shader fractals** — Julia, Burning Ship, Multibrot, Newton.
 - **Shader pattern** — Plasma, Tunnel, Metaballs, Kaleidoscope, Rotozoomer, Moiré, Munching
   Squares, Copper Bars, Sun surface, Kefrens bars, Twister, Cymatics, Lightning storm, Starfield,
