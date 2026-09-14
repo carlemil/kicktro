@@ -15,6 +15,15 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.80.0] — 2026-09-14
+
+### Added
+- **Polypinski** — a new effect under Fractals: Sierpiński set free. The chaos game is played between any number of **Corners** (3–24) sitting on the surface of a sphere. **Seed** rolls where they sit, so a formation you like is one number you can come back to; **Jump** is how far each step goes toward the chosen corner (0.5 is the classic triangle/tetrahedron rule, longer opens a crowded sphere up into clean copies); **Wiggle** and **Wiggle speed** let the corners wander about their homes while the whole solid tumbles. Zoom re-draws the points at full resolution, so you can dive into the structure.
+
+### Internal
+- A 30 s promo video and its screen-recording script live in `promo/`.
+- CLAUDE.md trimmed to rules only; the full rationale is reachable through the tagged history it names.
+
 ## [1.79.0] — 2026-09-07
 
 ### Changed
