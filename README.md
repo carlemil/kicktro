@@ -54,10 +54,12 @@ below:
   **Rotation** yaws it and **Box nod** pitches it in a slow sine — both on sliders, and
   both can be set to 0 to hold it still.
 - **Polypinski** — Sierpiński set free: the chaos game between **any number of corners
-  (3–24) on the surface of a sphere**. **Seed** rolls where the corners sit, so a formation
-  you like is one number; **Jump** is the step fraction (0.5 is the Sierpiński rule, longer
-  opens a crowded sphere up); **Wiggle** / **Wiggle speed** let the corners wander about their
-  homes while the whole solid tumbles. Points are re-stamped at full resolution, so Zoom
+  (3–24) spread evenly over a sphere** — 3 is the triangle, 4 the tetrahedron, 6 the
+  octahedron. **Seed** picks the orientation (and the arrangement where several tie), so a
+  formation you like is one number; the step toward each corner is worked out so the shrunken copies just touch, which keeps
+  the holes open at any count, and **Gap** spreads them apart or lets them overlap; **Wiggle** / **Wiggle speed** let the corners wander about their
+  homes while the whole solid tumbles; **Depth fade** dims points by their distance from you
+  (negative dims the near side instead). Points are re-stamped at full resolution, so Zoom
   goes as deep as you like.
 - **Julia** — an animated Julia set. The seed `c` is orbited around the
   Mandelbrot plane along two stacked loops: a large slow loop tracing just

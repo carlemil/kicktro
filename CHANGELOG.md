@@ -15,6 +15,18 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.81.0] — 2026-09-14
+
+### Added
+- **Polypinski → Depth fade** — brightness as a function of distance from you. Positive values dim the far side of the ball (1 makes the back vanish), negative values dim the near side so the back glows through, 0 lights every point the same.
+- **Polypinski → Gap** — the space between the shrunken copies. 0 is where the copies just touch; positive opens the holes wider, negative lets the copies overlap until the solid fills in.
+
+### Fixed
+- **Polypinski** now draws the shapes its name promises. The corners are spread **evenly** over the sphere instead of at random, so 3 corners are the Sierpiński triangle, 4 the Sierpiński tetrahedron, 6 the octahedron flake, 12 the icosahedron flake, and higher counts follow the same pattern. The step toward each corner is worked out from the corners so the copies keep their holes at any count; it replaces the **Jump** slider, which could only ever be right for three or four corners. **Seed** now picks the orientation (and the arrangement, where several are equally even). A Polypinski scene saved with 1.80.0 draws the corrected shape.
+
+### Internal
+- `tools/polyprobe.js` pins the corner geometry (triangle, tetrahedron, octahedron and icosahedron edge lengths for several seeds) and the touching scale (1/2 for the first three, 1/(1+φ) for the icosahedron).
+
 ## [1.80.0] — 2026-09-14
 
 ### Added

@@ -743,30 +743,77 @@
   }
 
   // ---- Polypinski: the chaos game between N corners on a sphere (point effect) ----
-  // Sierpiński with the corner count and the jump ratio set free. The corners sit on a unit
-  // sphere at directions HASHED from Seed (sdHash, CPU — the same picture for the same seed on
-  // every machine, so a formation you like is one number), each wandering about its home on
-  // three hashed sines and pushed back onto the sphere, so the solid never leaves its ball.
-  // Jump 0.5 with 3 or 4 corners is the Sierpiński family; many corners want a LONGER jump (each
-  // copy shrinks) or the copies overlap into a fuzzy ball — 0.62 for six is the sweet spot. The chaos PRNG is re-seeded per frame like every
-  // other point effect, so only the moving corners reshape the picture. Heat shades by depth
-  // so the ball reads as a ball. Zoom, Size and Rotation are the shared ones (plot() zooms).
-  let pyCorners = 6, pySeed = 3, pyWiggle = 0.25, pyWSpeed = 0.5, pyJump = 0.62, pyPhase = 0;
+  // Sierpiński with the corner count set free. The corners are spread EVENLY over a unit sphere
+  // (pyHomes: hashed start from Seed, then Coulomb repulsion relaxed on the sphere — the Thomson
+  // problem), so 3 corners are the triangle, 4 the tetrahedron, 6 the octahedron and more keep
+  // the pattern; Seed picks the orientation and, where several arrangements tie, which one.
+  // Pure CPU arithmetic, so the same seed is the same picture on every machine. Each corner
+  // then wanders about its home on three hashed sines and is pushed back onto the sphere.
+  // THE JUMP FOLLOWS THE CORNERS. pyTouch is the largest copy scale r at which the shrunken copies
+  // (1-r)·c_i + r·hull stay apart along the line joining their corners: min over pairs of
+  // d/(d + w), w = the corners' width along that line. It is 0.5 for the triangle, tetrahedron and
+  // octahedron and 0.382 for the icosahedron (the n-flake scales), so every count draws distinct
+  // copies with holes. A fixed jump of 0.5 blurred anything past six corners into a solid ball.
+  // Gap scales it: 0 touching, positive spreads the copies apart, negative overlaps them. The chaos PRNG is re-seeded per frame like every other point effect, so
+  // only the moving corners reshape the picture. Heat shades by depth (Depth fade) so the ball reads as a
+  // ball. Zoom, Size and Rotation are the shared ones (plot() zooms).
+  let pyCorners = 6, pySeed = 1, pyWiggle = 0.1, pyWSpeed = 0.5, pyGap = 0, pyDepth = 0.45, pyPhase = 0;
   const PY_MAX = 24;
   const pyCx = new Float64Array(PY_MAX), pyCy = new Float64Array(PY_MAX), pyCz = new Float64Array(PY_MAX);
+  const pyHx = new Float64Array(PY_MAX), pyHy = new Float64Array(PY_MAX), pyHz = new Float64Array(PY_MAX);
+  // Cached per (seed, k): two layers on different seeds would otherwise each re-relax (~2 ms at
+  // k = 24) on every tick. Bounded by what anyone can dial in one session.
+  const pyHomeCache = new Map();
+  let pyTouch = 0.5;
+  function pyHomes(seed, k) {
+    const key = seed + "/" + k, hit = pyHomeCache.get(key);
+    if (hit) { for (let i = 0; i < k; i++) { pyHx[i] = hit[i * 3]; pyHy[i] = hit[i * 3 + 1]; pyHz[i] = hit[i * 3 + 2]; } pyTouch = hit[k * 3]; return; }
+    for (let i = 0; i < k; i++) {
+      const z = sdHash(seed, 0x5157, i * 8) * 2 - 1, a = sdHash(seed, 0x5157, i * 8 + 1) * 6.2831853, r = Math.sqrt(1 - z * z);
+      pyHx[i] = r * Math.cos(a); pyHy[i] = r * Math.sin(a); pyHz[i] = z;
+    }
+    const fx = new Float64Array(k), fy = new Float64Array(k), fz = new Float64Array(k);
+    for (let it = 0; it < 1000; it++) {             // 1000 × step 0.5/k: edge error < 1e-12 for k ≤ 24 (polyprobe)
+      fx.fill(0); fy.fill(0); fz.fill(0);
+      for (let i = 0; i < k; i++) for (let j = i + 1; j < k; j++) {
+        const dx = pyHx[i] - pyHx[j], dy = pyHy[i] - pyHy[j], dz = pyHz[i] - pyHz[j];
+        const d2 = dx * dx + dy * dy + dz * dz + 1e-9, w = 1 / (d2 * Math.sqrt(d2));
+        fx[i] += dx * w; fy[i] += dy * w; fz[i] += dz * w;
+        fx[j] -= dx * w; fy[j] -= dy * w; fz[j] -= dz * w;
+      }
+      const a = 0.5 / k;
+      for (let i = 0; i < k; i++) {
+        let x = pyHx[i] + fx[i] * a, y = pyHy[i] + fy[i] * a, z = pyHz[i] + fz[i] * a;
+        const inv = 1 / Math.hypot(x, y, z);
+        pyHx[i] = x * inv; pyHy[i] = y * inv; pyHz[i] = z * inv;
+      }
+    }
+    let r = 1;
+    for (let i = 0; i < k; i++) for (let j = i + 1; j < k; j++) {
+      const ux = pyHx[i] - pyHx[j], uy = pyHy[i] - pyHy[j], uz = pyHz[i] - pyHz[j], d = Math.hypot(ux, uy, uz);
+      let lo = Infinity, hi = -Infinity;
+      for (let m = 0; m < k; m++) { const p = (pyHx[m] * ux + pyHy[m] * uy + pyHz[m] * uz) / d; if (p < lo) lo = p; if (p > hi) hi = p; }
+      r = Math.min(r, d / (d + hi - lo));
+    }
+    pyTouch = r;
+    const out = new Float64Array(k * 3 + 1);
+    out[k * 3] = r;
+    for (let i = 0; i < k; i++) { out[i * 3] = pyHx[i]; out[i * 3 + 1] = pyHy[i]; out[i * 3 + 2] = pyHz[i]; }
+    pyHomeCache.set(key, out);
+  }
   function polypinskiStamp(xL, xR, yT, yB, n) {
     pyPhase += pyWSpeed * 2 / cfg.burn;             // per TICK, like hgPhase
     const k = Math.max(3, Math.min(PY_MAX, Math.round(pyCorners))), ph = pyPhase, wg = pyWiggle;
+    pyHomes(pySeed, k);
     // Whole-body tumble on the same clock: yaw from the Rotation slider plus a slow drift,
     // pitch a slow nod — a still ball of corners reads flat.
     const yaw = spinAngle + ph * 0.13, pitch = 0.5 * Math.sin(ph * 0.21);
     const cyw = Math.cos(yaw), syw = Math.sin(yaw), cpt = Math.cos(pitch), spt = Math.sin(pitch);
     for (let i = 0; i < k; i++) {
       const h = j => sdHash(pySeed, 0x5157, i * 8 + j);
-      const z0 = h(0) * 2 - 1, a0 = h(1) * 6.2831853, r0 = Math.sqrt(1 - z0 * z0);   // uniform on the sphere
-      let x = r0 * Math.cos(a0) + wg * Math.sin(ph * (0.4 + h(2)) + h(3) * 6.2831853);
-      let y = r0 * Math.sin(a0) + wg * Math.sin(ph * (0.4 + h(4)) + h(5) * 6.2831853);
-      let z = z0 + wg * Math.sin(ph * (0.4 + h(6)) + h(7) * 6.2831853);
+      let x = pyHx[i] + wg * Math.sin(ph * (0.4 + h(2)) + h(3) * 6.2831853);
+      let y = pyHy[i] + wg * Math.sin(ph * (0.4 + h(4)) + h(5) * 6.2831853);
+      let z = pyHz[i] + wg * Math.sin(ph * (0.4 + h(6)) + h(7) * 6.2831853);
       const inv = 1 / Math.hypot(x, y, z);
       x *= inv; y *= inv; z *= inv;
       const rx = x * cyw + z * syw, rz = z * cyw - x * syw;   // yaw about Y, then pitch about X
@@ -775,7 +822,9 @@
     const cx = (xL + xR) * 0.5, cy = (yT + yB) * 0.5;
     // Pin-hole at z = F; the nearest possible corner (z = 1) must still land inside the box.
     const F = 3.2, sc = Math.min(xR - xL, yB - yT) * 0.5 * 1.0 * fractalSize * (F - 1) / F;
-    const jump = pyJump;
+    // Depth fade: pz runs from -1 (far) to +1 (near). Positive dims the far side (1 = the back of the
+    // ball vanishes), negative dims the near side instead. The nearest (or farthest) point keeps full heat.
+    const jump = 1 - pyTouch * (1 - pyGap), df = pyDepth, dA = df >= 0 ? df * 0.5 : -df * 0.5;
     rngState = (SEED + 0x7a1b) >>> 0;
     let px = 0, py = 0, pz = 0;
     for (let i = 0; i < n + 16; i++) {
@@ -783,7 +832,7 @@
       px += (pyCx[c] - px) * jump; py += (pyCy[c] - py) * jump; pz += (pyCz[c] - pz) * jump;
       if (i > 15) {
         const persp = F / (F - pz);
-        plot(cx + px * persp * sc, cy - py * persp * sc, POINT_HEAT * (0.55 + 0.225 * (pz + 1)));
+        plot(cx + px * persp * sc, cy - py * persp * sc, POINT_HEAT * (1 - dA * (df >= 0 ? 1 - pz : 1 + pz)));
       }
     }
   }

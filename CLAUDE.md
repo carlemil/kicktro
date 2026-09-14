@@ -16,7 +16,9 @@ effect ⇒ add it here and there in the same commit.
   older notes), Attractor (de Jong), Fractal flames (`flames`, the one **additive** stamper),
   Boids, Slime mould (`physarum`), Curl flow (`curl`), Harmonograph, Galaxy, Trees, Flying
   ribbons (the one that **rasterises geometry**), Polypinski (`polypinski`, the chaos game
-  between N hashed corners on a sphere; Seed → `sdHash`, jump ratio free).
+  between N corners spread EVENLY on a sphere — hashed from Seed then Thomson-relaxed in
+  `pyHomes`, cached per (seed, k) with the touching
+  scale `pyTouch`, min over pairs of d/(d+width); Gap scales it. `tools/polyprobe.js`).
 - **Shader fractals** — Julia, Burning Ship, Multibrot, Newton.
 - **Shader pattern** — Plasma, Tunnel, Metaballs, Kaleidoscope, Rotozoomer, Moiré, Munching
   Squares, Copper Bars, Sun surface, Kefrens bars, Twister, Cymatics, Lightning storm, Starfield,
