@@ -15,6 +15,11 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.82.0] — 2026-09-14
+
+### Added
+- **Polypinski → Random seed** — an Off/On slider under Seed. On rolls a new Seed every time the effect starts (reload, scene change, switching to it) and the moment you turn it on. The roll lands on the Seed slider, so when a formation looks good, turn Random seed off and it stays. Off (the default) keeps the Seed you set, so existing scenes are unchanged.
+
 ## [1.81.0] — 2026-09-14
 
 ### Added
