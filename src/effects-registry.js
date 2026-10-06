@@ -291,6 +291,13 @@
       draw: dt => { const s = rdSeedFn(dt); if (useGL) { glRDTick(s.steps, s.feed, s.kill); glShaderDraw("rdshow", u => { bindTexUnit(0, glTex.rd[rdCur]); gl.uniform1i(u.uState, 0); gl.uniform1f(u.uGain, s.gain); gl.uniform1f(u.uZoom, s.zoom); }); } else rdCPU(s); },
       defaults: { palcycle: [0, 0], palhold: [0, 0], rdfeed: [0.03, 0.03], rdkill: [0.062, 0.062], rdspeed: [8, 8], rdgain: [1, 1], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
       beat: {}, extras: { palette: "2", morph: false, showBox: true, randSeed: true } },
+    { id: "crystal", name: "Crystal growth", subtitle: "Diffusion-limited frost · grows, ages, sublimates",
+      help: "Frost creeping across a pane: vapour drifts through the air, and wherever it touches ice it may freeze, so the tips that reach furthest into the wet air grow fastest and the crystal branches into ferns. Ice is brightest while it is fresh and dims as it ages. After Lifetime seconds the pane thaws, each crystal dissolving from its seed out to its tips, and new ones start. Nucleation starts extra crystals in the clear air while it grows — arm its chips and every beat sows a few. Branching is how readily vapour sticks: low grows thin, sparse dendrites, high packs dense, bushy frost. One shared pane; entering the effect re-seeds it.",
+      params: ["cgcells", "cgspeed", "cgstick", "cglife", "cgnuc", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "cg", "band"], bakesOwnZoom: true,
+      onEnter: () => { cgNeedSeed = true; cgCpuSeed = true; cgClock = 0; },
+      draw: dt => { const s = cgSeedFn(dt); if (useGL) { glCGTick(s); glShaderDraw("cgshow", u => { bindTexUnit(0, glTex.cg[cgCur]); gl.uniform1i(u.uState, 0); gl.uniform1f(u.uGain, s.gain); gl.uniform1f(u.uZoom, s.zoom); }); } else cgCPU(s); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], cgcells: [400, 400], cgspeed: [90, 90], cgstick: [0.15, 0.15], cglife: [12, 12], cgnuc: [0.2, 0.2], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
+      beat: {}, extras: { palette: "2", morph: false, showBox: true, randSeed: true } },
     { id: "automata", name: "Cellular automata", subtitle: "Life-like automata · B/S rules on a torus",
       help: "Conway's Game of Life and its relatives, run on a grid of cells that wraps at every edge. Rule picks the family: Life (gliders and still lifes), HighLife (replicators), Day & Night (boiling fronts), Seeds (explosive), Maze and Coral (slow growth). Rain sprinkles new cells every generation so the grid never settles for good — arm its chips and every beat is a shower of new life. Trail lets a dead cell fade over that many generations, Cells sets the grid, Speed the generations per second. One shared grid; changing Rule or entering the effect re-seeds it.",
       params: ["carule", "cacells", "caspeed", "carain", "catrail", "cagain", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "ca", "band"], bakesOwnZoom: true,
@@ -497,7 +504,7 @@
     { name: "Patterns & noise", desc: "fields, tilings and shapes built from a formula",
       ids: ["voronoi", "warpnoise", "truchet", "shapegrid", "concentric", "bounce", "cymatics", "reactdiff", "harmonograph", "ribbons"] },
     { name: "Nature & simulation", desc: "things that grow, flock, flow or weather",
-      ids: ["boids", "physarum", "curl", "trees", "galaxy", "aurora", "lightning", "sunsurface", "attractor", "attr3d", "godray"] },
+      ids: ["boids", "physarum", "curl", "trees", "galaxy", "aurora", "lightning", "sunsurface", "attractor", "attr3d", "crystal", "godray"] },
   ];
   // id -> group index, built once. Anything unlisted sorts last, under "Other".
   const EFFECT_CAT_OF = {};

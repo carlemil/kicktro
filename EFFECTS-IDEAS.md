@@ -28,7 +28,7 @@ that are inherently "one animated scalar field" rank above ones that need real R
 | ~~**Cymatics / Chladni plate**~~ ✅ | SHIPPED in 1.16.0 | Mode drift morphs, beat chips snap figures |
 | ~~**Gerstner ocean**~~ ✅ | SHIPPED post-1.25.0 as "Ocean" | screen ray x flat plane (no marching), 6 pow-sharpened trains, analytic normals for glint + foam |
 | **Volumetric nebula** | fbm cloud raymarch with light scattering — slow, huge, high-end | Raymarch; Density / Light / Drift; CPU mirror at low steps |
-| **Crystal growth** | DLA-style frost creeping from seeds, dissolving and regrowing | Feedback-texture sim like reaction–diffusion |
+| ~~**Crystal growth**~~ ✅ | SHIPPED post-1.82.0 | vapour field + freezing on its own RGBA16F pair; 7 extra diffusion passes per freezing step (growth must be slow against diffusion or it fills as noise — measured offline); grow/thaw/re-seed cycle is global, per-cell melting regrew as noise |
 
 ## C. High-end 3D / raymarched flagships
 

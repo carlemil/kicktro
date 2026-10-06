@@ -867,6 +867,10 @@
     glProg.rdstep = makeProg(VS_QUAD, FS_RDSTEP, ["uPrev", "uSize", "uFeed", "uKill"]);
     glProg.rdseed = makeProg(VS_QUAD, FS_RDSEED, ["uSize", "uSalt"]);
     glProg.rdshow = camProg(VS_QUAD, FS_RDSHOW, ["uState", "uSize", "uGain", "uZoom"]);
+    glProg.cgdiff = makeProg(VS_QUAD, FS_CGDIFF, ["uPrev", "uSize"]);
+    glProg.cgstep = makeProg(VS_QUAD, FS_CGSTEP, ["uPrev", "uSize", "uSalt", "uStick", "uFade", "uNuc", "uFeed", "uMelt"]);
+    glProg.cgseed = makeProg(VS_QUAD, FS_CGSEED, ["uSize", "uSalt", "uSeedP"]);
+    glProg.cgshow = camProg(VS_QUAD, FS_CGSHOW, ["uState", "uSize", "uGain", "uZoom"]);
     glProg.castep = makeProg(VS_QUAD, FS_CASTEP, ["uPrev", "uSize", "uBirth", "uSurvive", "uRain", "uSalt", "uFade"]);
     glProg.caseed = makeProg(VS_QUAD, FS_CASEED, ["uSize", "uSalt"]);
     glProg.cashow = camProg(VS_QUAD, FS_CASHOW, ["uState", "uSize", "uGain", "uZoom"]);
@@ -967,6 +971,13 @@
       createTex(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.REPEAT),
     ];
     glFbo.ca = [createFbo(glTex.ca[0]), createFbo(glTex.ca[1])];
+    // Crystal growth: sized by glCGTick from Detail, in the RD format (the vapour and the
+    // age move far below 1/255 a step). LINEAR for the display only -- the step uses texelFetch.
+    glTex.cg = [
+      createTex(rdI, gl.RGBA, rdT, gl.LINEAR, gl.CLAMP_TO_EDGE),
+      createTex(rdI, gl.RGBA, rdT, gl.LINEAR, gl.CLAMP_TO_EDGE),
+    ];
+    glFbo.cg = [createFbo(glTex.cg[0]), createFbo(glTex.cg[1])];
     // Per-layer state for multi-layer stacks (see the frame loop / glLayerBeginHeat).
     // Each slot gets its own persistent heat pair (so it retains its own fire/feedback),
     // its own 256×1 palette LUT, so every stacked effect keeps its own colours. The
@@ -2306,6 +2317,41 @@
       gl.uniform1f(P.u.uRain, s.rain); gl.uniform1f(P.u.uSalt, caSalt); gl.uniform1f(P.u.uFade, s.fade);
       drawQuad();
       caCur = dst;
+    }
+  }
+  // Crystal growth driver, glCATick's shape: (re)size to Detail, seed on demand (entering the
+  // effect, a resize, the end of a thaw), then `steps` freezing steps, each CG_DIFF diffusion
+  // passes and one freezing pass, ping-ponging the pair. A deliberate singleton like the RD
+  // dish (a stack of two shows one pane).
+  let cgCur = 0, cgW = 0, cgH = 0;
+  function glCGTick(s) {
+    const w = s.cols, h = Math.max(4, Math.round(s.cols * fh / fw));
+    if (w !== cgW || h !== cgH) { cgW = w; cgH = h; resizeTex(glTex.cg[0], w, h); resizeTex(glTex.cg[1], w, h); cgNeedSeed = true; }
+    if (cgNeedSeed) {
+      cgNeedSeed = false;
+      cgSalt = (cgSalt + 1) % 65536;
+      bindFbo(glFbo.cg[0], w, h);
+      gl.useProgram(glProg.cgseed.p);
+      gl.uniform2f(glProg.cgseed.u.uSize, w, h);
+      gl.uniform1f(glProg.cgseed.u.uSalt, cgSalt);
+      gl.uniform1f(glProg.cgseed.u.uSeedP, CG_SEEDS / (w * h));
+      drawQuad();
+      cgCur = 0;
+    }
+    const D = glProg.cgdiff, P = glProg.cgstep;
+    const pass = () => { const dst = 1 - cgCur; bindFbo(glFbo.cg[dst], w, h); bindTexUnit(0, glTex.cg[cgCur]); return dst; };
+    for (let k = 0; k < s.steps; k++) {
+      gl.useProgram(D.p);
+      gl.uniform2f(D.u.uSize, w, h);
+      for (let j = 0; j < CG_DIFF; j++) { const dst = pass(); gl.uniform1i(D.u.uPrev, 0); drawQuad(); cgCur = dst; }
+      cgSalt = (cgSalt + 1) % 65536;         // a fresh draw of the dice every step
+      gl.useProgram(P.p);
+      const dst = pass(); gl.uniform1i(P.u.uPrev, 0);
+      gl.uniform2f(P.u.uSize, w, h);
+      gl.uniform1f(P.u.uSalt, cgSalt); gl.uniform1f(P.u.uStick, s.stick); gl.uniform1f(P.u.uFade, s.fade);
+      gl.uniform1f(P.u.uNuc, s.nuc); gl.uniform1f(P.u.uFeed, CG_FEED); gl.uniform1f(P.u.uMelt, s.melt);
+      drawQuad();
+      cgCur = dst;
     }
   }
   // ---- THE ASCII MOSAIC'S GLYPH SETS ---------------------------------------------------

@@ -29,7 +29,10 @@ effect ⇒ add it here and there in the same commit.
   Aurora, Reaction-diffusion, Voronoi cells (`voronoi`), Flow noise (`warpnoise`), Truchet tiles
   (`truchet`), God rays (`godray`), Cellular automata (`automata`, Life-like B/S rules on its own
   coarse state pair `glTex.ca`, torus via REPEAT; age fades LINEARLY — 8-bit multiplicative decay
-  never reaches zero).
+  never reaches zero), Crystal growth (`crystal`, diffusion-limited frost on its own pair
+  `glTex.cg` in the RD format; `CG_DIFF` diffusion passes per freezing step are what make it
+  branch; the grow/thaw/re-seed CYCLE is global, from `cgSeedFn` — per-cell melting regrew as
+  noise).
 - **Shader SDF** — Polygon, Shape grid, Concentric rings, Bouncing shapes, Bouncing solids,
   Mandelbulb, Menger sponge, Apollonian gasket (`apollo`, by inversion), Mandelbox (`mbox`, box
   folds), Gyroid (`gyroid`, minimal surface, not a fractal), Smooth CSG (`csg`, IQ smooth ops over

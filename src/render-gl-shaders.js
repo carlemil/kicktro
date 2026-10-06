@@ -3332,4 +3332,85 @@
       vec2 s = texture(uState, uv).rg;
       o = vec4(clamp(max(s.r*0.85, s.g*0.7)*uGain, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
+    // Crystal growth -- DIFFUSION-LIMITED frost on the Cellular automata arrangement (its own
+    // pair glTex.cg, sized by Detail, read with texelFetch) in the Reaction-diffusion format
+    // (RGBA16F where it renders: vapour and age both move far below 1/255 a step). State:
+    // frozen in .r, vapour in .g, age of the ice in .b (0 at freezing, 1 at the end of the
+    // growing phase). Ice holds no vapour, so the crystal is an absorbing wall and the field
+    // starves the fjords between branches -- the tips see the most vapour and outgrow the
+    // rest, which is what makes it branch at all. That only works while diffusion is FAST
+    // against growth (branch scale ~ D/V): FS_CGDIFF runs CG_DIFF extra diffusion passes per
+    // freezing step, and a wet cell beside ice freezes with probability Branching x vapour.
+    // Measured offline first: one diffusion pass a step and a high sticking rate fill the
+    // dish with a sponge of ice and holes in ~300 steps, which reads as noise.
+    // THE CYCLE IS GLOBAL, from the CPU (cgSeedFn): grow for Lifetime, then THAW -- uMelt
+    // sweeps from 1 to 0 and ice older than it sublimates, so every crystal dissolves from its
+    // seed out to its tips -- then re-seed. Per-cell melting was tried and rejected: the
+    // freed cells regrow in uniformly re-humidified air, which is Eden growth, i.e. noise.
+    const FS_CGDIFF = `#version 300 es
+    precision highp float;
+    uniform sampler2D uPrev; uniform vec2 uSize;
+    out vec4 o;
+    vec4 at(ivec2 p){ return texelFetch(uPrev, clamp(p, ivec2(0), ivec2(uSize) - 1), 0); }
+    void main(){
+      ivec2 p = ivec2(gl_FragCoord.xy);
+      vec4 c = at(p);
+      if (c.r > 0.5) { o = c; return; }
+      float lap = at(p + ivec2(1, 0)).g + at(p - ivec2(1, 0)).g + at(p + ivec2(0, 1)).g + at(p - ivec2(0, 1)).g - 4.0*c.g;
+      o = vec4(0.0, clamp(c.g + 0.2*lap, 0.0, 1.0), 0.0, 1.0);
+    }`;
+    const FS_CGSTEP = `#version 300 es
+    precision highp float;
+    uniform sampler2D uPrev; uniform vec2 uSize; uniform float uSalt;
+    uniform float uStick; uniform float uFade; uniform float uNuc; uniform float uFeed; uniform float uMelt;
+    out vec4 o;
+    float nh(ivec3 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    vec4 at(ivec2 p){ return texelFetch(uPrev, clamp(p, ivec2(0), ivec2(uSize) - 1), 0); }
+    void main(){
+      ivec2 p = ivec2(gl_FragCoord.xy);
+      vec4 c = at(p);
+      if (c.r > 0.5) {
+        float age = min(c.b + uFade, 1.0);
+        o = age > uMelt ? vec4(0.0, 0.0, 0.0, 1.0) : vec4(1.0, 0.0, age, 1.0);
+        return;
+      }
+      vec4 e = at(p + ivec2(1, 0)), w = at(p - ivec2(1, 0)), n = at(p + ivec2(0, 1)), s = at(p - ivec2(0, 1));
+      float diag = at(p + ivec2(1, 1)).r + at(p + ivec2(-1, 1)).r + at(p + ivec2(1, -1)).r + at(p + ivec2(-1, -1)).r;
+      float v = c.g + 0.2*(e.g + w.g + n.g + s.g - 4.0*c.g);
+      v = clamp(v + uFeed*(1.0 - v), 0.0, 1.0);
+      float ice = e.r + w.r + n.r + s.r + 0.5*diag;
+      bool freeze = ice > 0.25 && nh(ivec3(p, int(uSalt))) < uStick*v;
+      if (!freeze && v > 0.6 && nh(ivec3(p, int(uSalt)) + ivec3(11, 7, 3)) < uNuc) freeze = true;
+      o = freeze ? vec4(1.0, 0.0, 0.0, 1.0) : vec4(0.0, v, 0.0, 1.0);
+    }`;
+    const FS_CGSEED = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uSalt; uniform float uSeedP;
+    out vec4 o;
+    float nh(ivec3 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    void main(){
+      bool ice = nh(ivec3(ivec2(gl_FragCoord.xy), int(uSalt)) + ivec3(5)) < uSeedP;
+      o = ice ? vec4(1.0, 0.0, 0.0, 1.0) : vec4(0.0, 1.0, 0.0, 1.0);
+    }`;
+    // Fresh ice is brightest and dims as it ages: the growing rims burn, the old core fades
+    // to a ghost before it sublimates. Age is divided back out of the filtered sample so a
+    // linear blend with an empty neighbour does not read as young ice.
+    const FS_CGSHOW = `#version 300 es
+    precision highp float;
+    uniform sampler2D uState; uniform vec2 uSize; uniform float uGain; uniform float uZoom;
+    out vec4 o;
+    void main(){
+      vec2 uv = (gl_FragCoord.xy/uSize - 0.5)/uZoom + 0.5;
+      vec3 s = texture(uState, uv).rgb;
+      float a = 1.0 - clamp(s.b/max(s.r, 1e-3), 0.0, 1.0);
+      o = vec4(clamp(s.r*(0.22 + 0.78*a*a)*uGain, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // heat → palette colour (fire-oriented, no flip yet)

@@ -195,6 +195,7 @@
   // is a var on purpose — initGL assigns it while later slices' lets are still in TDZ.
   let rdNeedSeed = true, rdSalt = 1;
   let caNeedSeed = true, caSalt = 1;      // Cellular automata: same arrangement, its own grid
+  let cgNeedSeed = true, cgSalt = 1;      // Crystal growth: the same again
   var rdIsFloat = false;
   // Wall time for the post/screen passes that animate on their own (Slice glitch,
   // Grain). Accumulated from the frame loop's dt, never read off performance.now(),

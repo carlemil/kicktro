@@ -631,6 +631,78 @@
     }
   }
 
+  // ---- Crystal growth -- CPU sim mirror of FS_CGDIFF + FS_CGSTEP ----------------------
+  // Same rules on a quarter-width grid with the step count capped (JS budget): coarser,
+  // same frost. Hash is sunH21, not the shader's integer hash (look-equivalent).
+  // The CYCLE lives here and drives both paths: grow for Lifetime seconds, then a CG_THAW
+  // second thaw (melt threshold 1 -> 0, oldest ice first), then a fresh seed. One clock for
+  // the one shared pane, so it is not on PHASE_VARS (two layers would fight over it).
+  const CG_FEED = 0.0005, CG_SEEDS = 5, CG_DIFF = 7, CG_THAW = 2.5;
+  let cgCols = 400, cgSpeedV = 90, cgStick = 0.15, cgLife = 12, cgNucV = 0.2;
+  let cgAcc = 0, cgClock = 0, cgCpu = null, cgCpu2 = null, cgCpuW = 0, cgCpuH = 0, cgCpuSeed = true;
+  function cgSeedFn(dt) {
+    cgClock += dt;
+    if (cgClock > cgLife + CG_THAW) { cgClock = 0; cgNeedSeed = true; cgCpuSeed = true; }
+    const thaw = cgClock > cgLife;
+    // steps per SECOND from dt (real time at any frame rate), capped per frame with a
+    // bounded backlog -- the CA's accumulator
+    cgAcc = Math.min(cgAcc + cgSpeedV * dt, 24);
+    const steps = Math.min(12, Math.floor(cgAcc)); cgAcc -= steps;
+    // Nucleation is squared so the low end is fine-grained: 0.2 is a new crystal every few
+    // seconds on a 400-wide pane, 1 is a burst (arm the chips)
+    return { steps, cols: cgCols, stick: thaw ? 0 : cgStick, fade: 1 / Math.max(1, cgLife * cgSpeedV),
+             nuc: thaw ? 0 : 1e-5 * cgNucV * cgNucV, melt: thaw ? 1 - (cgClock - cgLife) / CG_THAW : 2,
+             gain: 1, zoom };
+  }
+  function cgCPU(s) {
+    const w = Math.max(16, s.cols >> 2), h = Math.max(4, Math.round(w * fh / fw)), N = w * h;
+    if (w !== cgCpuW || h !== cgCpuH) { cgCpuW = w; cgCpuH = h; cgCpu = new Float32Array(N * 3); cgCpu2 = new Float32Array(N * 3); cgCpuSeed = true; }
+    if (cgCpuSeed) {
+      cgCpuSeed = false; cgSalt = (cgSalt + 1) % 65536;
+      for (let i = 0; i < N; i++) {
+        const ice = sunH21(i % w + cgSalt, (i / w | 0) + cgSalt) < CG_SEEDS / N;
+        cgCpu[i * 3] = ice ? 1 : 0; cgCpu[i * 3 + 1] = ice ? 0 : 1; cgCpu[i * 3 + 2] = 0;
+      }
+    }
+    const A = (x, y) => (Math.min(w - 1, Math.max(0, x)) + Math.min(h - 1, Math.max(0, y)) * w) * 3;
+    // a quarter-width grid covers in a quarter of the steps, so it runs a quarter of them --
+    // still capped at 2 a frame -- and ages each one four times as fast
+    const steps = Math.min(2, Math.ceil(s.steps / 4)), fade = s.fade * Math.max(1, s.steps) / Math.max(1, steps);
+    for (let k = 0; k < steps; k++) {
+      for (let j = 0; j <= CG_DIFF; j++) {                 // diffusion; the last pass also freezes
+        const last = j === CG_DIFF;
+        if (last) cgSalt = (cgSalt + 1) % 65536;
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 3;
+          if (cgCpu[i] > 0.5) {
+            const age = last ? Math.min(1, cgCpu[i + 2] + fade) : cgCpu[i + 2], gone = age > s.melt;
+            cgCpu2[i] = gone ? 0 : 1; cgCpu2[i + 1] = 0; cgCpu2[i + 2] = gone ? 0 : age;
+            continue;
+          }
+          const e = A(x + 1, y), wv = A(x - 1, y), n = A(x, y + 1), so = A(x, y - 1);
+          let v = Math.min(1, Math.max(0, cgCpu[i + 1] + 0.2 * (cgCpu[e + 1] + cgCpu[wv + 1] + cgCpu[n + 1] + cgCpu[so + 1] - 4 * cgCpu[i + 1])));
+          let freeze = false;
+          if (last) {
+            v = Math.min(1, v + CG_FEED * (1 - v));
+            const ice = cgCpu[e] + cgCpu[wv] + cgCpu[n] + cgCpu[so]
+              + 0.5 * (cgCpu[A(x + 1, y + 1)] + cgCpu[A(x - 1, y + 1)] + cgCpu[A(x + 1, y - 1)] + cgCpu[A(x - 1, y - 1)]);
+            freeze = ice > 0.25 && sunH21(x + cgSalt * 0.37, y + cgSalt * 0.61) < s.stick * v;
+            if (!freeze && v > 0.6 && sunH21(x + cgSalt * 0.53, y + cgSalt * 0.29) < s.nuc * 64) freeze = true;   // x64: 16x fewer cells, 4x fewer steps
+          }
+          cgCpu2[i] = freeze ? 1 : 0; cgCpu2[i + 1] = freeze ? 0 : v; cgCpu2[i + 2] = 0;
+        }
+        const t = cgCpu; cgCpu = cgCpu2; cgCpu2 = t;
+      }
+    }
+    for (let y = 0; y < fh; y++) {
+      const cy = Math.min(h - 1, (y * h / fh) | 0) * w;
+      for (let x = 0; x < fw; x++) {
+        const i = (cy + Math.min(w - 1, (x * w / fw) | 0)) * 3, a = 1 - cgCpu[i + 2];
+        fire[y * fw + x] = cgCpu[i] * (0.22 + 0.78 * a * a) * s.gain * 255;
+      }
+    }
+  }
+
   // ---- Sun surface: boiling solar granulation via animated Voronoi (shader effect) ----
   // Clock starts at 0, not unix time (float32 uTime — same trap plasmaTime documents).
   // The mirror is look-equivalent, not bit-identical: sites are cached per frame per CELL
