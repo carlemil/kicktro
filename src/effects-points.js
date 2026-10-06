@@ -334,6 +334,65 @@
       return 0.35 * Math.abs(py) / sc;
     }, 2.4, 0.2, s.t * 0.2, s.zoom, 26);
   }
+  // Kleinian limit set: same group, cut and camera as FS_KLEIN, fewer group moves and march
+  // steps -- the cut face and the biggest bubbles survive, the deep filigree does not.
+  let klSlice = 0, klAngle = 22, klTilt = 12, klIter = 28, klGlow = 0.4, klSpeed = 1, klTime = 0;
+  function kleinSeed(dt) {
+    klTime += dt * klSpeed;
+    return { t: klTime, cut: klSlice + klTime * 0.06, angle: klAngle * Math.PI / 180, tilt: klTilt * Math.PI / 180, iter: klIter, glow: klGlow, zoom };
+  }
+  const KL_A = 1.95859103, KL_B = 0.0112785606;
+  function kleinDE(x, y, z, it) {
+    let lx = x + 1, ly = y + 1, lz = z + 1, mx = x - 1, my = y - 1, mz = z - 1, df = 1;
+    for (let i = 0; i < it; i++) {
+      x += KL_B / KL_A * y;
+      x -= 2 * Math.floor((x + 1) * 0.5); z -= 2 * Math.floor((z + 1) * 0.5);
+      x -= KL_B / KL_A * y;
+      const sx = x + KL_B * 0.5;
+      if (y >= KL_A * 0.5 + (2 * KL_A - 1.95) * 0.25 * Math.sign(sx) * (1 - Math.exp(-(7.2 - (1.95 - KL_A) * 15) * Math.abs(sx)))) { x = -KL_B - x; y = KL_A - y; z = -z; }
+      const ir = 1 / (x * x + y * y + z * z);
+      x = -KL_B + x * ir; y = KL_A - y * ir; z = -z * ir;
+      df *= Math.max(1, ir);
+      if ((x - mx) * (x - mx) + (y - my) * (y - my) + (z - mz) * (z - mz) < 1e-5) break;
+      mx = lx; my = ly; mz = lz; lx = x; ly = y; lz = z;
+    }
+    return Math.min(Math.min(y, KL_A - y), 0.3) / Math.max(df, 2);
+  }
+  function klein(s) {
+    const it = Math.min(16, Math.round(s.iter));
+    const n = [Math.sin(s.angle) * Math.cos(s.tilt), Math.sin(s.tilt), Math.cos(s.angle) * Math.cos(s.tilt)];
+    const sl = Math.hypot(n[2], n[0]) || 1, side = [n[2] / sl, 0, -n[0] / sl];
+    const c = [side[0] * s.t * 0.11, KL_A * 0.5, side[2] * s.t * 0.11];
+    const off = s.cut - (c[0] * n[0] + c[1] * n[1] + c[2] * n[2]);
+    const ct = Math.cos(s.tilt); c[0] += n[0] / ct * off / ct; c[2] += n[2] / ct * off / ct;
+    const sw = 0.18 * Math.sin(s.t * 0.21), lift = 0.12 * Math.sin(s.t * 0.13);
+    let f = [n[0] + side[0] * sw, n[1] + lift, n[2] + side[2] * sw];
+    const fl = Math.hypot(f[0], f[1], f[2]); f = [-f[0] / fl, -f[1] / fl, -f[2] / fl];
+    const ro = [c[0] - f[0] * 4.2, c[1] - f[1] * 4.2, c[2] - f[2] * 4.2];
+    const rl = Math.hypot(f[2], f[0]) || 1, r = [f[2] / rl, 0, -f[0] / rl];
+    const u = [f[1] * r[2] - f[2] * r[1], f[2] * r[0] - f[0] * r[2], f[0] * r[1] - f[1] * r[0]];
+    let idx = 0;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      camPix(x, y);
+      const ux = (camPX - 0.5 * fw) / fh / s.zoom, uy = (camPY - 0.5 * fh) / fh / s.zoom;
+      let dx = r[0] * ux + u[0] * uy + f[0] * 1.7, dy = r[1] * ux + u[1] * uy + f[1] * 1.7, dz = r[2] * ux + u[2] * uy + f[2] * 1.7;
+      const dl = Math.hypot(dx, dy, dz); dx /= dl; dy /= dl; dz /= dl;
+      let t = 0, heat = 0;
+      for (let i = 0; i < 40; i++) {
+        const px = ro[0] + dx * t, py = ro[1] + dy * t, pz = ro[2] + dz * t;
+        const k = kleinDE(px, py, pz, it), pn = px * n[0] + py * n[1] + pz * n[2];
+        const d = Math.max(k, pn - s.cut);
+        if (d < 0.003 * t) {
+          const depth = s.cut - pn;
+          heat = depth < 0.01 ? 0.5 : 0.5 * Math.exp(-depth * 0.8);
+          break;
+        }
+        t += d * 0.9;
+        if (t > 9) break;
+      }
+      fire[idx++] = Math.max(0, Math.min(1, heat)) * 255;
+    }
+  }
   let bxScale = -1.7, bxIter = 8, bxGlow = 0.5, bxFold = 1, bxSpeed = 1, bxTime = 0;
   function mboxSeedFn(dt) { bxTime += dt * bxSpeed; return { t: bxTime, scale: bxScale, iter: bxIter, glow: bxGlow, fold: bxFold, zoom }; }
   function mbox(s) {

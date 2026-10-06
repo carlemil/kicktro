@@ -41,7 +41,9 @@ effect ⇒ add it here and there in the same commit.
   (`clouds`, integrates density along the ray), Vector balls (`vballs`, a projected sprite
   rasteriser), Glass ball (`glass`), Doughnut (`torus`), Ocean (`ocean`), Black hole (`bhole`),
   Quaternion Julia (`qjulia`), Metaball goo (`goo`, smooth-min spheres riding the Bouncing
-  solids physics on `L.goo`; `solids(s, map)` is the shared CPU marcher) — everything from
+  solids physics on `L.goo`; `solids(s, map)` is the shared CPU marcher), Kleinian limit set
+  (`klein`, Jos Leys' Maskit DE with the group PINNED — the knobs are the CUT: Slice, Cut angle,
+  Cut tilt; the camera target slides LEVEL, never along the tilted normal) — everything from
   Bouncing solids on is raymarched.
 
 Each = one `EFFECTS` descriptor + a `draw(dt)` shader hook or a `stamp(box)` point hook. No package

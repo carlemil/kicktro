@@ -835,6 +835,76 @@
       heat += uGlow * 0.45 * exp(-halo * 16.0);
       o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
+    // KLEINIAN LIMIT SET (Jos Leys / Knighty): the Maskit slice's two generators -- a shift
+    // folded into a period-2 cell in x and z, and an inversion -- applied until the point
+    // settles in a 2-cycle. The set is an infinite slab between y = 0 and y = KA, everything
+    // outside it counts as solid. The group is PINNED at the classic Maskit trace: off that
+    // edge the set just shatters (the Quaternion Julia lesson in EFFECTS-IDEAS.md). The
+    // variety is the CUT: a plane with normal n at offset uCut removes the camera's side,
+    // and the face it leaves IS the circle-packing picture, the tunnels behind it in relief.
+    const FS_KLEIN = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uTime; uniform float uCut; uniform float uAngle; uniform float uTilt;
+    uniform float uIter; uniform float uGlow; uniform float uZoom;
+    out vec4 o;
+    const float KA = 1.95859103, KB = 0.0112785606;
+    float kleinRaw(vec3 z, int it){
+      vec3 lz = z + 1.0, llz = z - 1.0;
+      float df = 1.0;
+      for (int i = 0; i < 48; i++) {
+        if (i >= it) break;
+        z.x += KB / KA * z.y;
+        z.xz -= 2.0 * floor((z.xz + 1.0) * 0.5);
+        z.x -= KB / KA * z.y;
+        float sx = z.x + KB * 0.5;
+        if (z.y >= KA * 0.5 + (2.0 * KA - 1.95) * 0.25 * sign(sx) * (1.0 - exp(-(7.2 - (1.95 - KA) * 15.0) * abs(sx)))) z = vec3(-KB, KA, 0.0) - z;
+        float ir = 1.0 / dot(z, z);
+        z *= -ir; z.x = -KB - z.x; z.y += KA;
+        df *= max(1.0, ir);
+        if (dot(z - llz, z - llz) < 1e-5) break;
+        llz = lz; lz = z;
+      }
+      return min(min(z.y, KA - z.y), 0.3) / max(df, 2.0);
+    }
+    void main(){
+      vec2 uv = (gl_FragCoord.xy - 0.5 * uSize) / uSize.y / uZoom;
+      int it = int(clamp(uIter, 8.0, 48.0));
+      vec3 n = vec3(sin(uAngle) * cos(uTilt), sin(uTilt), cos(uAngle) * cos(uTilt));
+      vec3 side = normalize(vec3(n.z, 0.0, -n.x));
+      vec3 c0 = vec3(0.0, KA * 0.5, 0.0) + side * (uTime * 0.11);
+      c0 += vec3(n.x, 0.0, n.z) / cos(uTilt) * ((uCut - dot(c0, n)) / cos(uTilt));   // slide level, not along n
+      vec3 f = -normalize(n + side * 0.18 * sin(uTime * 0.21) + vec3(0.0, 0.12 * sin(uTime * 0.13), 0.0));
+      vec3 ro = c0 - f * 4.2;
+      vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
+      vec3 rd = normalize(mat3(r, cross(f, r), f) * vec3(uv, 1.7));
+      float t = 0.0, halo = 9.0, heat = 0.0;
+      for (int i = 0; i < 140; i++) {
+        vec3 p = ro + rd * t;
+        float k = kleinRaw(p, it);
+        float d = max(k, dot(p, n) - uCut);
+        if (t > 3.0) halo = min(halo, k / t);
+        if (d < 0.0007 * t) {
+          float depth = uCut - dot(p, n);
+          if (depth < 0.004) {
+            vec3 up = cross(n, side); float e = 0.004 * t, rim = 0.0, th = 0.002 * t;
+            rim += step(th, kleinRaw(p + side * e, it)) + step(th, kleinRaw(p - side * e, it));
+            rim += step(th, kleinRaw(p + up * e, it)) + step(th, kleinRaw(p - up * e, it));
+            heat = 0.48 + 0.12 * rim;
+          } else {
+            float e = 0.0009 * t;
+            vec2 h = vec2(1.0, -1.0) * 0.5773;
+            vec3 nrm = normalize(h.xyy * kleinRaw(p + h.xyy * e, it) + h.yyx * kleinRaw(p + h.yyx * e, it) + h.yxy * kleinRaw(p + h.yxy * e, it) + h.xxx * kleinRaw(p + h.xxx * e, it));
+            float dif = max(0.0, dot(nrm, normalize(n + vec3(0.3, 0.6, 0.0))));
+            heat = (0.1 + 0.75 * dif) * exp(-depth * 0.8);
+          }
+          break;
+        }
+        t += d * 0.8;
+        if (t > 9.0) break;
+      }
+      heat += uGlow * 0.3 * exp(-max(halo, 0.0) * 1200.0);
+      o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // MANDELBOX: box-fold then sphere-fold then scale, which is a completely different family
     // from the Mandelbulb's power map -- it makes hard architectural shells rather than organic
     // lobes. Negative Scale values give the classic hollow forms.

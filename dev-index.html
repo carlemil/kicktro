@@ -4719,6 +4719,76 @@
       heat += uGlow * 0.45 * exp(-halo * 16.0);
       o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
+    // KLEINIAN LIMIT SET (Jos Leys / Knighty): the Maskit slice's two generators -- a shift
+    // folded into a period-2 cell in x and z, and an inversion -- applied until the point
+    // settles in a 2-cycle. The set is an infinite slab between y = 0 and y = KA, everything
+    // outside it counts as solid. The group is PINNED at the classic Maskit trace: off that
+    // edge the set just shatters (the Quaternion Julia lesson in EFFECTS-IDEAS.md). The
+    // variety is the CUT: a plane with normal n at offset uCut removes the camera's side,
+    // and the face it leaves IS the circle-packing picture, the tunnels behind it in relief.
+    const FS_KLEIN = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uTime; uniform float uCut; uniform float uAngle; uniform float uTilt;
+    uniform float uIter; uniform float uGlow; uniform float uZoom;
+    out vec4 o;
+    const float KA = 1.95859103, KB = 0.0112785606;
+    float kleinRaw(vec3 z, int it){
+      vec3 lz = z + 1.0, llz = z - 1.0;
+      float df = 1.0;
+      for (int i = 0; i < 48; i++) {
+        if (i >= it) break;
+        z.x += KB / KA * z.y;
+        z.xz -= 2.0 * floor((z.xz + 1.0) * 0.5);
+        z.x -= KB / KA * z.y;
+        float sx = z.x + KB * 0.5;
+        if (z.y >= KA * 0.5 + (2.0 * KA - 1.95) * 0.25 * sign(sx) * (1.0 - exp(-(7.2 - (1.95 - KA) * 15.0) * abs(sx)))) z = vec3(-KB, KA, 0.0) - z;
+        float ir = 1.0 / dot(z, z);
+        z *= -ir; z.x = -KB - z.x; z.y += KA;
+        df *= max(1.0, ir);
+        if (dot(z - llz, z - llz) < 1e-5) break;
+        llz = lz; lz = z;
+      }
+      return min(min(z.y, KA - z.y), 0.3) / max(df, 2.0);
+    }
+    void main(){
+      vec2 uv = (gl_FragCoord.xy - 0.5 * uSize) / uSize.y / uZoom;
+      int it = int(clamp(uIter, 8.0, 48.0));
+      vec3 n = vec3(sin(uAngle) * cos(uTilt), sin(uTilt), cos(uAngle) * cos(uTilt));
+      vec3 side = normalize(vec3(n.z, 0.0, -n.x));
+      vec3 c0 = vec3(0.0, KA * 0.5, 0.0) + side * (uTime * 0.11);
+      c0 += vec3(n.x, 0.0, n.z) / cos(uTilt) * ((uCut - dot(c0, n)) / cos(uTilt));   // slide level, not along n
+      vec3 f = -normalize(n + side * 0.18 * sin(uTime * 0.21) + vec3(0.0, 0.12 * sin(uTime * 0.13), 0.0));
+      vec3 ro = c0 - f * 4.2;
+      vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
+      vec3 rd = normalize(mat3(r, cross(f, r), f) * vec3(uv, 1.7));
+      float t = 0.0, halo = 9.0, heat = 0.0;
+      for (int i = 0; i < 140; i++) {
+        vec3 p = ro + rd * t;
+        float k = kleinRaw(p, it);
+        float d = max(k, dot(p, n) - uCut);
+        if (t > 3.0) halo = min(halo, k / t);
+        if (d < 0.0007 * t) {
+          float depth = uCut - dot(p, n);
+          if (depth < 0.004) {
+            vec3 up = cross(n, side); float e = 0.004 * t, rim = 0.0, th = 0.002 * t;
+            rim += step(th, kleinRaw(p + side * e, it)) + step(th, kleinRaw(p - side * e, it));
+            rim += step(th, kleinRaw(p + up * e, it)) + step(th, kleinRaw(p - up * e, it));
+            heat = 0.48 + 0.12 * rim;
+          } else {
+            float e = 0.0009 * t;
+            vec2 h = vec2(1.0, -1.0) * 0.5773;
+            vec3 nrm = normalize(h.xyy * kleinRaw(p + h.xyy * e, it) + h.yyx * kleinRaw(p + h.yyx * e, it) + h.yxy * kleinRaw(p + h.yxy * e, it) + h.xxx * kleinRaw(p + h.xxx * e, it));
+            float dif = max(0.0, dot(nrm, normalize(n + vec3(0.3, 0.6, 0.0))));
+            heat = (0.1 + 0.75 * dif) * exp(-depth * 0.8);
+          }
+          break;
+        }
+        t += d * 0.8;
+        if (t > 9.0) break;
+      }
+      heat += uGlow * 0.3 * exp(-max(halo, 0.0) * 1200.0);
+      o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // MANDELBOX: box-fold then sphere-fold then scale, which is a completely different family
     // from the Mandelbulb's power map -- it makes hard architectural shells rather than organic
     // lobes. Negative Scale values give the classic hollow forms.
@@ -8132,6 +8202,7 @@
     glProg.godray = camProg(VS_QUAD, FS_GODRAY, ["uSize", "uTime", "uDecay", "uWeight", "uScale", "uSpread", "uZoom"]);
     glProg.terrain = camProg(VS_QUAD, FS_TERRAIN, ["uSize", "uTime", "uHeight", "uScale", "uOct", "uFog", "uZoom"]);
     glProg.apollo = camProg(VS_QUAD, FS_APOLLO, ["uSize", "uTime", "uScale", "uIter", "uGlow", "uZoom", "uThin"]);
+    glProg.klein = camProg(VS_QUAD, FS_KLEIN, ["uSize", "uTime", "uCut", "uAngle", "uTilt", "uIter", "uGlow", "uZoom"]);
     glProg.mbox = camProg(VS_QUAD, FS_MBOX, ["uSize", "uTime", "uScale", "uIter", "uGlow", "uZoom", "uFold"]);
     glProg.gyroid = camProg(VS_QUAD, FS_GYROID, ["uSize", "uTime", "uFreq", "uThick", "uGlow", "uZoom", "uWarp"]);
     glProg.csg = camProg(VS_QUAD, FS_CSG, ["uSize", "uTime", "uOrbit", "uBlend", "uShine", "uWidth", "uZoom", "uCount", "uObj", "uPath", "uSpin", "uPhase"]);
@@ -12696,6 +12767,65 @@
       return 0.35 * Math.abs(py) / sc;
     }, 2.4, 0.2, s.t * 0.2, s.zoom, 26);
   }
+  // Kleinian limit set: same group, cut and camera as FS_KLEIN, fewer group moves and march
+  // steps -- the cut face and the biggest bubbles survive, the deep filigree does not.
+  let klSlice = 0, klAngle = 22, klTilt = 12, klIter = 28, klGlow = 0.4, klSpeed = 1, klTime = 0;
+  function kleinSeed(dt) {
+    klTime += dt * klSpeed;
+    return { t: klTime, cut: klSlice + klTime * 0.06, angle: klAngle * Math.PI / 180, tilt: klTilt * Math.PI / 180, iter: klIter, glow: klGlow, zoom };
+  }
+  const KL_A = 1.95859103, KL_B = 0.0112785606;
+  function kleinDE(x, y, z, it) {
+    let lx = x + 1, ly = y + 1, lz = z + 1, mx = x - 1, my = y - 1, mz = z - 1, df = 1;
+    for (let i = 0; i < it; i++) {
+      x += KL_B / KL_A * y;
+      x -= 2 * Math.floor((x + 1) * 0.5); z -= 2 * Math.floor((z + 1) * 0.5);
+      x -= KL_B / KL_A * y;
+      const sx = x + KL_B * 0.5;
+      if (y >= KL_A * 0.5 + (2 * KL_A - 1.95) * 0.25 * Math.sign(sx) * (1 - Math.exp(-(7.2 - (1.95 - KL_A) * 15) * Math.abs(sx)))) { x = -KL_B - x; y = KL_A - y; z = -z; }
+      const ir = 1 / (x * x + y * y + z * z);
+      x = -KL_B + x * ir; y = KL_A - y * ir; z = -z * ir;
+      df *= Math.max(1, ir);
+      if ((x - mx) * (x - mx) + (y - my) * (y - my) + (z - mz) * (z - mz) < 1e-5) break;
+      mx = lx; my = ly; mz = lz; lx = x; ly = y; lz = z;
+    }
+    return Math.min(Math.min(y, KL_A - y), 0.3) / Math.max(df, 2);
+  }
+  function klein(s) {
+    const it = Math.min(16, Math.round(s.iter));
+    const n = [Math.sin(s.angle) * Math.cos(s.tilt), Math.sin(s.tilt), Math.cos(s.angle) * Math.cos(s.tilt)];
+    const sl = Math.hypot(n[2], n[0]) || 1, side = [n[2] / sl, 0, -n[0] / sl];
+    const c = [side[0] * s.t * 0.11, KL_A * 0.5, side[2] * s.t * 0.11];
+    const off = s.cut - (c[0] * n[0] + c[1] * n[1] + c[2] * n[2]);
+    const ct = Math.cos(s.tilt); c[0] += n[0] / ct * off / ct; c[2] += n[2] / ct * off / ct;
+    const sw = 0.18 * Math.sin(s.t * 0.21), lift = 0.12 * Math.sin(s.t * 0.13);
+    let f = [n[0] + side[0] * sw, n[1] + lift, n[2] + side[2] * sw];
+    const fl = Math.hypot(f[0], f[1], f[2]); f = [-f[0] / fl, -f[1] / fl, -f[2] / fl];
+    const ro = [c[0] - f[0] * 4.2, c[1] - f[1] * 4.2, c[2] - f[2] * 4.2];
+    const rl = Math.hypot(f[2], f[0]) || 1, r = [f[2] / rl, 0, -f[0] / rl];
+    const u = [f[1] * r[2] - f[2] * r[1], f[2] * r[0] - f[0] * r[2], f[0] * r[1] - f[1] * r[0]];
+    let idx = 0;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      camPix(x, y);
+      const ux = (camPX - 0.5 * fw) / fh / s.zoom, uy = (camPY - 0.5 * fh) / fh / s.zoom;
+      let dx = r[0] * ux + u[0] * uy + f[0] * 1.7, dy = r[1] * ux + u[1] * uy + f[1] * 1.7, dz = r[2] * ux + u[2] * uy + f[2] * 1.7;
+      const dl = Math.hypot(dx, dy, dz); dx /= dl; dy /= dl; dz /= dl;
+      let t = 0, heat = 0;
+      for (let i = 0; i < 40; i++) {
+        const px = ro[0] + dx * t, py = ro[1] + dy * t, pz = ro[2] + dz * t;
+        const k = kleinDE(px, py, pz, it), pn = px * n[0] + py * n[1] + pz * n[2];
+        const d = Math.max(k, pn - s.cut);
+        if (d < 0.003 * t) {
+          const depth = s.cut - pn;
+          heat = depth < 0.01 ? 0.5 : 0.5 * Math.exp(-depth * 0.8);
+          break;
+        }
+        t += d * 0.9;
+        if (t > 9) break;
+      }
+      fire[idx++] = Math.max(0, Math.min(1, heat)) * 255;
+    }
+  }
   let bxScale = -1.7, bxIter = 8, bxGlow = 0.5, bxFold = 1, bxSpeed = 1, bxTime = 0;
   function mboxSeedFn(dt) { bxTime += dt * bxSpeed; return { t: bxTime, scale: bxScale, iter: bxIter, glow: bxGlow, fold: bxFold, zoom }; }
   function mbox(s) {
@@ -15392,6 +15522,12 @@
     { key: "gumerge", host: "fx", group: "goo", type: "dual", label: "Merge", valId: "vGuMerge", min: 0, max: 2, step: 0.02, lo: 1.2, hi: 1.2, fmt: v => sig3(v), apply: v => guMerge = v, durScale: 10 },
     { key: "guspeed", host: "fx", group: "goo", type: "dual", label: "Speed", valId: "vGuSpeed", min: 0, max: 3, step: 0.05, lo: 0.6, hi: 0.6, fmt: v => sig3(v) + "×", apply: v => guSpeed = v, durScale: 10 },
     { key: "gurim", host: "fx", group: "goo", type: "dual", label: "Edge glow", valId: "vGuRim", min: 0, max: 1.5, step: 0.02, lo: 0.35, hi: 0.35, fmt: v => sig3(v), apply: v => guRim = v, durScale: 10 },
+    { key: "klslice", host: "fx", group: "klein", type: "dual", label: "Slice", valId: "vKlSlice", min: 0, max: 2, step: 0.005, lo: 0, hi: 0, fmt: v => sig3(v), apply: v => klSlice = v, durScale: 10 },
+    { key: "klangle", host: "fx", group: "klein", type: "dual", label: "Cut angle", valId: "vKlAngle", min: -90, max: 90, step: 0.5, lo: 22, hi: 22, fmt: v => sig3(v) + "°", apply: v => klAngle = v, durScale: 10 },
+    { key: "kltilt", host: "fx", group: "klein", type: "dual", label: "Cut tilt", valId: "vKlTilt", min: -60, max: 60, step: 0.5, lo: 12, hi: 12, fmt: v => sig3(v) + "°", apply: v => klTilt = v, durScale: 10 },
+    { key: "kliter", host: "fx", group: "klein", type: "dual", single: true, label: "Detail", valId: "vKlIter", min: 8, max: 48, step: 1, lo: 28, hi: 28, fmt: v => sig3(Math.round(v)), apply: v => klIter = Math.round(v), durScale: 10 },
+    { key: "klglow", host: "fx", group: "klein", type: "dual", label: "Glow", valId: "vKlGlow", min: 0, max: 2, step: 0.01, lo: 0.4, hi: 0.4, fmt: v => sig3(v), apply: v => klGlow = v, durScale: 10 },
+    { key: "klspeed", host: "fx", group: "klein", type: "dual", label: "Drift", valId: "vKlSpeed", min: 0, max: 3, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => klSpeed = v, durScale: 10 },
     { key: "vbcount", host: "fx", group: "vballs", type: "dual", single: true, label: "Balls", valId: "vVbCount", min: 6, max: 48, step: 1, lo: 24, hi: 24, fmt: v => sig3(Math.round(v)), apply: v => vbCount = Math.round(v), durScale: 10 },
     { key: "vbshape", host: "fx", group: "vballs", type: "dual", single: true, label: "Formation", valId: "vVbShape", min: 0, max: 3, step: 1, lo: 1, hi: 1, fmt: v => ["Lattice", "Sphere", "Ring", "Helix"][Math.round(v)] || "", apply: v => vbShape = Math.round(v), durScale: 10 },
     { key: "vbsize", host: "fx", group: "vballs", type: "dual", label: "Ball size", valId: "vVbSize", min: 0.08, max: 0.6, step: 0.005, lo: 0.30, hi: 0.30, fmt: v => sig3(v), apply: v => vbRad = v, durScale: 10 },
@@ -16290,7 +16426,7 @@
     solids: "Bouncing solids", sun: "Sun surface", kefrens: "Kefrens bars", twister: "Twister",
     chladni: "Cymatics", storm: "Lightning storm", bulb: "Mandelbulb", flames: "Fractal flames",
     stars: "Starfield", aurora: "Aurora", rd: "Reaction-diffusion", ca: "Cellular automata", cg: "Crystal growth", menger: "Menger sponge",
-    boids: "Boids", galaxy: "Galaxy", harmo: "Harmonograph", poly: "Polypinski", a3: "Attractor 3D", goo: "Metaball goo", vballs: "Vector balls", ocean: "Ocean",
+    boids: "Boids", galaxy: "Galaxy", harmo: "Harmonograph", poly: "Polypinski", a3: "Attractor 3D", goo: "Metaball goo", klein: "Kleinian limit set", vballs: "Vector balls", ocean: "Ocean",
     torus: "Doughnut", trees: "Trees", ribbons: "Flying ribbons", glass: "Glass ball", world: "Shared 3D world",
     bhole: "Black hole", qjulia: "Quaternion Julia",
     camera: "Camera", other: "Other",
@@ -16433,6 +16569,7 @@
     ["teTime", () => teTime, v => teTime = v],
     ["rbTime", () => rbTime, v => rbTime = v],
     ["apTime", () => apTime, v => apTime = v],
+    ["klTime", () => klTime, v => klTime = v],
     ["mbTime", () => mbTime, v => mbTime = v],
     ["gyTime", () => gyTime, v => gyTime = v],
     ["csgTime", () => csgTime, v => csgTime = v],
@@ -18793,6 +18930,12 @@
       draw: dt => { const s = gooSeed(dt); if (useGL) glShaderDraw("goo", u => { gl.uniform4fv(u.uPos, s.pos); gl.uniform1f(u.uCount, s.count); gl.uniform1f(u.uRim, s.rim); gl.uniform1f(u.uK, s.k); gl.uniform1f(u.uZoom, s.zoom); }); else solids(s, gooMap); },
       defaults: { palcycle: [0, 0], palhold: [0, 0], gucount: [6, 6], gusize: [0.22, 0.22], gumerge: [1.2, 1.2], guspeed: [0.6, 0.6], gurim: [0.35, 0.35], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
       beat: {}, extras: { palette: "1", morph: false, showBox: true, randSeed: true } },
+    { id: "klein", name: "Kleinian limit set", subtitle: "Kleinian · a Maskit group's limit set, sliced",
+      help: "The limit set of a Kleinian group — two Möbius maps of 3D space, one a shift and one an inversion, applied over and over — which is an infinite slab of bubbles nested inside bubbles, every gap holding a smaller copy of the whole. It is drawn the way a geologist reads a rock: SLICED. A cutting plane shears the slab open and you look straight at the polished face, the famous circle-packing picture, with the tunnels behind it dropping away into the dark. The group itself is fixed at the classic Maskit value, because nudging it off that edge only breaks the set apart; the variety is in the cut. **Slice** slides the plane through the slab (it repeats every 2), **Cut angle** turns it about the vertical and **Cut tilt** leans it forward, and every orientation is a different picture. **Drift** pushes the slice and pans the camera on its own; Detail is how many group moves are tried per sample, Glow the near-miss halo.",
+      params: ["klslice", "klangle", "kltilt", "kliter", "klglow", "klspeed", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "klein", "band"], bakesOwnZoom: true,
+      draw: dt => { const s = kleinSeed(dt); if (useGL) glShaderDraw("klein", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uCut, s.cut); gl.uniform1f(u.uAngle, s.angle); gl.uniform1f(u.uTilt, s.tilt); gl.uniform1f(u.uIter, s.iter); gl.uniform1f(u.uGlow, s.glow); gl.uniform1f(u.uZoom, s.zoom); }); else klein(s); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], klslice: [0, 0], klangle: [22, 22], kltilt: [12, 12], kliter: [28, 28], klglow: [0.4, 0.4], klspeed: [1, 1] },
+      beat: {}, extras: { palette: "7", morph: false } },
   ];
   // DISPLAY order only: every effect dropdown lists by name (twenty-odd effects in registry
   // order are a pile to hunt through), while EFFECTS keeps its own order — the runtime
@@ -18804,7 +18947,7 @@
   // rather than disappearing from the list, which is the safe way to be wrong.
   const EFFECT_CATS = [
     { name: "Fractals", desc: "the classic escape-time sets and their 3D relatives",
-      ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
+      ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "klein", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
     { name: "3D & raymarched", desc: "solids, surfaces and landscapes traced through space",
       ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds", "goo"] },
     { name: "Demoscene classics", desc: "the effects the scene has been writing since the 90s",
@@ -27044,6 +27187,12 @@
       { n: "Gap", w: "poly", t: "Polypinski only — the space between the shrunken copies. At 0 each step is worked out from the corners so the copies just touch: 0.5 for the triangle, tetrahedron and octahedron, less for more corners. Positive values shrink the copies and open the holes wider; negative values let them overlap until the solid fills in." },
       { n: "Wiggle", w: "poly", t: "Polypinski only — how far each corner wanders about its home on the sphere. 0 holds the formation rigid (only the tumble moves), 1 lets the corners roam the whole ball." },
       { n: "Depth fade", w: "poly", t: "Polypinski only — brightness as a function of distance from you. 0 lights every point the same; positive values dim the far side of the ball (1 makes the back vanish), negative values dim the near side so the back glows through." },
+      { n: "Slice", w: "klein", t: "Kleinian limit set only — where the cutting plane sits in the slab. The set repeats every 2, so 0 and 2 are the same picture; Drift moves it for you." },
+      { n: "Cut angle", w: "klein", t: "Kleinian limit set only — turns the cutting plane about the vertical. 0 is the textbook circle packing face-on; the further round, the more the bubbles stretch into lenses and the nesting shears." },
+      { n: "Cut tilt", w: "klein", t: "Kleinian limit set only — leans the cutting plane forward or back, so the slice runs diagonally through the slab and the two walls it is bounded by come into view." },
+      { n: "Detail", w: "klein", t: "Kleinian limit set only — how many group moves each sample may take before it gives up. Low leaves the smallest bubbles blurred together; high costs GPU." },
+      { n: "Glow", w: "klein", t: "Kleinian limit set only — the halo where a ray grazes the set without touching it." },
+      { n: "Drift", w: "klein", t: "Kleinian limit set only — how fast the slice slides through the slab and the camera pans along it. 0 holds the cut still." },
       { n: "Blobs", w: "goo", t: "Metaball goo only — how many blobs share the room, up to 8." },
       { n: "Blob size", w: "goo", t: "Metaball goo only — the radius of each blob, which is also the radius it bounces off the walls on." },
       { n: "Merge", w: "goo", t: "Metaball goo only — how far apart two blobs begin to flow into each other, as a multiple of Blob size. 0 keeps hard spheres that simply intersect; around 1 they bulge toward each other and draw a neck as they pass; 2 melts the whole set into one slow mass." },

@@ -71,6 +71,7 @@ const EXPECT = [
   "a3kind",   // Attractor 3D: Lorenz / Thomas / Aizawa
   "cgcells",   // Crystal growth: a grid width
   "gucount",   // Metaball goo: a blob count
+  "kliter",    // Kleinian limit set: group moves per sample
   // Doughnut: both are single because the flute pattern cos(flute·(ang + twist·arc))
   // only closes across the atan2 branch cut when flute·twist is a whole number.
   "dnflute",

@@ -485,6 +485,12 @@
       draw: dt => { const s = gooSeed(dt); if (useGL) glShaderDraw("goo", u => { gl.uniform4fv(u.uPos, s.pos); gl.uniform1f(u.uCount, s.count); gl.uniform1f(u.uRim, s.rim); gl.uniform1f(u.uK, s.k); gl.uniform1f(u.uZoom, s.zoom); }); else solids(s, gooMap); },
       defaults: { palcycle: [0, 0], palhold: [0, 0], gucount: [6, 6], gusize: [0.22, 0.22], gumerge: [1.2, 1.2], guspeed: [0.6, 0.6], gurim: [0.35, 0.35], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
       beat: {}, extras: { palette: "1", morph: false, showBox: true, randSeed: true } },
+    { id: "klein", name: "Kleinian limit set", subtitle: "Kleinian · a Maskit group's limit set, sliced",
+      help: "The limit set of a Kleinian group — two Möbius maps of 3D space, one a shift and one an inversion, applied over and over — which is an infinite slab of bubbles nested inside bubbles, every gap holding a smaller copy of the whole. It is drawn the way a geologist reads a rock: SLICED. A cutting plane shears the slab open and you look straight at the polished face, the famous circle-packing picture, with the tunnels behind it dropping away into the dark. The group itself is fixed at the classic Maskit value, because nudging it off that edge only breaks the set apart; the variety is in the cut. **Slice** slides the plane through the slab (it repeats every 2), **Cut angle** turns it about the vertical and **Cut tilt** leans it forward, and every orientation is a different picture. **Drift** pushes the slice and pans the camera on its own; Detail is how many group moves are tried per sample, Glow the near-miss halo.",
+      params: ["klslice", "klangle", "kltilt", "kliter", "klglow", "klspeed", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "klein", "band"], bakesOwnZoom: true,
+      draw: dt => { const s = kleinSeed(dt); if (useGL) glShaderDraw("klein", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uCut, s.cut); gl.uniform1f(u.uAngle, s.angle); gl.uniform1f(u.uTilt, s.tilt); gl.uniform1f(u.uIter, s.iter); gl.uniform1f(u.uGlow, s.glow); gl.uniform1f(u.uZoom, s.zoom); }); else klein(s); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], klslice: [0, 0], klangle: [22, 22], kltilt: [12, 12], kliter: [28, 28], klglow: [0.4, 0.4], klspeed: [1, 1] },
+      beat: {}, extras: { palette: "7", morph: false } },
   ];
   // DISPLAY order only: every effect dropdown lists by name (twenty-odd effects in registry
   // order are a pile to hunt through), while EFFECTS keeps its own order — the runtime
@@ -496,7 +502,7 @@
   // rather than disappearing from the list, which is the safe way to be wrong.
   const EFFECT_CATS = [
     { name: "Fractals", desc: "the classic escape-time sets and their 3D relatives",
-      ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
+      ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "klein", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
     { name: "3D & raymarched", desc: "solids, surfaces and landscapes traced through space",
       ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds", "goo"] },
     { name: "Demoscene classics", desc: "the effects the scene has been writing since the 90s",

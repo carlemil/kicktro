@@ -37,7 +37,7 @@ that are inherently "one animated scalar field" rank above ones that need real R
 | ~~**Mandelbulb**~~ ✅ | SHIPPED in 1.16.0 | 64-step raymarch, Power 2–12, halo on misses |
 | ~~**Menger sponge flythrough**~~ ✅ | SHIPPED post-1.16.0 | infinite periodic lattice, dive + roll |
 | ~~**Quaternion Julia (4D)**~~ ✅ | SHIPPED post-1.25.0 | seed rides `juliaSeed` + the Orbit editor; Slice / Cut angle are the 4D knobs — a `c` component is NOT (see below) |
-| **Kleinian limit set** | Wada-basin sphere packings — the exotic showpiece | Raymarch; niche but jaw-dropping |
+| ~~**Kleinian limit set**~~ ✅ | SHIPPED post-1.82.0 | Jos Leys / Knighty Maskit DE, group pinned at the classic trace; the knobs are the cut plane (Slice, Cut angle, Cut tilt) per the lesson below; cut face lit flat with a 4-tap in-plane rim |
 | ~~**Black hole**~~ ✅ | SHIPPED post-1.25.0 | photon INTEGRATION (weak-field deflection), disk collected on plane crossings, Keplerian shear + Doppler beaming |
 | ~~**3D metaball goo**~~ ✅ | SHIPPED post-1.82.0 as "Metaball goo" | the solids' bodies as sphere centres (`L.goo`), IQ polynomial smooth-min, 56-step march; the solids' CPU marcher takes the map as an argument |
 
@@ -79,9 +79,7 @@ What remains, strongest first:
 **The recommended build order is now empty — all eight shipped.** What is left is the
 "also open" list below, which was never ranked.
 
-Also still open: Sine scroller (needs a glyph source), Crystal growth (reaction–diffusion's
-state-texture machinery now exists to build on), Volumetric nebula, 3D metaball goo,
-Kleinian, Shadebobs, Anaglyph split.
+Also still open: Sine scroller (needs a glyph source), Volumetric nebula, Shadebobs.
 
 ## Lesson from Quaternion Julia (shipped post-1.25.0)
 
