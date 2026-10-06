@@ -851,6 +851,75 @@
     }
   }
 
+  // ---- Attractor 3D: Lorenz / Thomas / Aizawa flows (point effect) ----
+  // One trajectory of a 3D strange attractor, integrated (midpoint RK2) over a FIXED span of
+  // flow time per kind and stamped through Tetrafyer's view: Rotation yaws (spinAngle), Box nod
+  // pitches (nodAmp·sin(nodPhase)), pin-hole projection. dt = span / n, so Points (and Zoom's
+  // zoom² count) only refine the same curve. The first tenth is the transient off the fixed start
+  // and is not drawn. No randomness at all: same sliders, same picture, every frame.
+  // FITTED BY MOMENTS, not by bounds: the points are buffered, then centred on their MEAN and
+  // scaled by their RMS radius -- both smooth in Shape, where a bounding box jumps with every
+  // outlier lap. Shape walks each family's own parameter (Lorenz ρ 28..100, Thomas b 0.21..0.08,
+  // Aizawa ε 0.1..0.5); chaotic bands and periodic knots alternate along it, both on purpose.
+  // Each family's own vertical axis (z) is screen-up. `tools/attr3dprobe.js`.
+  let a3Kind = 0, a3Shape = 0.15, a3Spin = 0.5, a3Depth = 0.45, a3Phase = 0;
+  const A3_SPAN = [60, 1200, 250];
+  let a3Buf = new Float64Array(0);
+  function a3Deriv(k, s, x, y, z, o) {
+    if (k === 1) {
+      const b = 0.21 - 0.13 * s;
+      o[0] = Math.sin(y) - b * x; o[1] = Math.sin(z) - b * y; o[2] = Math.sin(x) - b * z;
+    } else if (k === 2) {
+      const e = 0.1 + 0.4 * s, zb = z - 0.7, r2 = x * x + y * y;
+      o[0] = zb * x - 3.5 * y; o[1] = 3.5 * x + zb * y;
+      o[2] = 0.6 + 0.95 * z - z * z * z / 3 - r2 * (1 + e * z) + 0.1 * z * x * x * x;
+    } else {
+      const r = 28 + 72 * s;
+      o[0] = 10 * (y - x); o[1] = x * (r - z) - y; o[2] = x * y - 8 / 3 * z;
+    }
+  }
+  // Fills a3Buf with n points (x, y, z) and returns how many are valid. Pure apart from the buffer.
+  const a3d0 = [0, 0, 0], a3d1 = [0, 0, 0];
+  function a3Trace(k, s, n) {
+    if (a3Buf.length < n * 3) a3Buf = new Float64Array(n * 3);
+    const dt = A3_SPAN[k] / n, skip = Math.ceil(n / 10), B = a3Buf;
+    let x = 0.1, y = 0.05, z = 0.02;
+    for (let i = 0; i < n + skip; i++) {
+      a3Deriv(k, s, x, y, z, a3d0);
+      a3Deriv(k, s, x + a3d0[0] * dt * 0.5, y + a3d0[1] * dt * 0.5, z + a3d0[2] * dt * 0.5, a3d1);
+      x += a3d1[0] * dt; y += a3d1[1] * dt; z += a3d1[2] * dt;
+      if (!(Math.abs(x) + Math.abs(y) + Math.abs(z) < 1e4)) return 0;   // blown up (NaN too)
+      if (i >= skip) { const j = (i - skip) * 3; B[j] = x; B[j + 1] = y; B[j + 2] = z; }
+    }
+    return n;
+  }
+  function attr3dStamp(xL, xR, yT, yB, n) {
+    a3Phase += a3Spin * 2 / cfg.burn;               // per TICK, like pyPhase
+    const k = Math.max(0, Math.min(2, Math.round(a3Kind))), s = Math.max(0, Math.min(1, a3Shape));
+    const m = a3Trace(k, s, n), B = a3Buf;
+    if (!m) return;
+    let mx = 0, my = 0, mz = 0;
+    for (let i = 0; i < m * 3; i += 3) { mx += B[i]; my += B[i + 1]; mz += B[i + 2]; }
+    mx /= m; my /= m; mz /= m;
+    let r2 = 0;
+    for (let i = 0; i < m * 3; i += 3) { const dx = B[i] - mx, dy = B[i + 1] - my, dz = B[i + 2] - mz; r2 += dx * dx + dy * dy + dz * dz; }
+    const inv = 1 / (1.6 * Math.sqrt(r2 / m) + 1e-9);   // ~all of it inside the unit ball
+    const yaw = spinAngle + a3Phase * 0.13, pitch = nodAmp * Math.sin(nodPhase);
+    const cyw = Math.cos(yaw), syw = Math.sin(yaw), cpt = Math.cos(pitch), spt = Math.sin(pitch);
+    const cx = (xL + xR) * 0.5, cy = (yT + yB) * 0.5;
+    const F = 3.2, sc = Math.min(xR - xL, yB - yT) * 0.5 * fractalSize * (F - 1) / F;
+    const df = a3Depth, dA = Math.abs(df) * 0.5;
+    for (let i = 0; i < m * 3; i += 3) {
+      // the family's z is up: world (x, z, y) -> view (X, Y, Z), then yaw about Y, pitch about X
+      const X = (B[i] - mx) * inv, Y = (B[i + 2] - mz) * inv, Z = (B[i + 1] - my) * inv;
+      const rx = X * cyw + Z * syw, rz = Z * cyw - X * syw;
+      const py = Y * cpt - rz * spt, pz = Y * spt + rz * cpt;
+      if (pz >= F - 0.05) continue;
+      const persp = F / (F - pz);
+      plot(cx + rx * persp * sc, cy - py * persp * sc, POINT_HEAT * (1 - dA * (df >= 0 ? 1 - pz : 1 + pz)));
+    }
+  }
+
   // ---- Fractal flames: IFS chaos game with nonlinear variations (point effect) ----
   // Two affine transforms whose coefficients orbit slowly (flPhase), then one of six
   // classic flame variations applied after each affine step. Stamped ADDITIVELY

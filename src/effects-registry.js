@@ -460,6 +460,17 @@
       defaults: { palcycle: [0, 0], palhold: [0, 0], pycorners: [6, 6], pyseed: [1, 1], pyrand: [0, 0], pygap: [0, 0], pywiggle: [0.1, 0.1], pywspeed: [0.5, 0.5], pydepth: [0.45, 0.45],
         points: [20000, 20000], rise: [130, 130], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], speed: [10, 10], size: [1, 1], rot: [0, 0], layers: 1 },
       beat: {}, extras: { palette: "2", morph: false, showBox: true, randSeed: true } },
+    { id: "attr3d", name: "Attractor 3D", subtitle: "Strange attractor · Lorenz, Thomas, Aizawa",
+      help: "A 3D strange attractor: one point following a set of three differential equations for a long time, every step of its path stamped into the fire, so the shape you see is where the flow can go. Attractor picks the family — Lorenz's butterfly, Thomas's cyclically symmetric labyrinth, Aizawa's spun apple-core. Shape walks that family's own parameter: chaotic bands and closed periodic knots take turns along it, so spread the thumbs and it morphs between them. The view is Tetrahedron's: Rotation yaws it, Box nod pitches it, and Tumble adds a slow drift of its own. Depth fade dims the far side so it reads as solid. Points refines the same curve rather than making a different one; zoom in and it is re-stamped at full resolution.",
+      params: ["a3kind", "a3shape", "a3spin", "a3depth", "points", "size", "rot", "nod", "nodspd", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold"],
+      helpTags: ["all", "a3"], bakesOwnZoom: true,
+      stamp: (xL, xR, yT, yB, n) => attr3dStamp(xL, xR, yT, yB, n),
+      // Its own Points range, like Harmonograph: one continuous curve, so the count is the pen's
+      // resolution, and below a few thousand the flow breaks into dots.
+      ranges: { points: { min: 4000, max: 60000 } },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], a3kind: [0, 0], a3shape: [0.15, 0.15], a3spin: [0.5, 0.5], a3depth: [0.45, 0.45], nod: [17.2, 17.2], nodspd: [1, 1],
+        points: [24000, 24000], rise: [130, 130], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], speed: [23, 23], size: [1, 1], rot: [0, 0], layers: 1 },
+      beat: {}, extras: { palette: "6", morph: false, showBox: true, randSeed: true } },
   ];
   // DISPLAY order only: every effect dropdown lists by name (twenty-odd effects in registry
   // order are a pile to hunt through), while EFFECTS keeps its own order — the runtime
@@ -479,7 +490,7 @@
     { name: "Patterns & noise", desc: "fields, tilings and shapes built from a formula",
       ids: ["voronoi", "warpnoise", "truchet", "shapegrid", "concentric", "bounce", "cymatics", "reactdiff", "harmonograph", "ribbons"] },
     { name: "Nature & simulation", desc: "things that grow, flock, flow or weather",
-      ids: ["boids", "physarum", "curl", "trees", "galaxy", "aurora", "lightning", "sunsurface", "attractor", "godray"] },
+      ids: ["boids", "physarum", "curl", "trees", "galaxy", "aurora", "lightning", "sunsurface", "attractor", "attr3d", "godray"] },
   ];
   // id -> group index, built once. Anything unlisted sorts last, under "Other".
   const EFFECT_CAT_OF = {};

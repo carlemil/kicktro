@@ -20,7 +20,9 @@ effect ⇒ add it here and there in the same commit.
   `pyHomes`, cached per (seed, k) with the touching
   scale `pyTouch`, min over pairs of d/(d+width); Gap scales it. Random seed `pyrand` rolls into
   the Seed SLIDER via `pyRollSeed` on entry and on the user's `change`, never on synthetic input.
-  `tools/polyprobe.js`).
+  `tools/polyprobe.js`), Attractor 3D (`attr3d`, Lorenz/Thomas/Aizawa RK2-integrated over a fixed
+  flow span per family, fitted by MEAN + RMS radius, through Tetrafyer's yaw/nod view;
+  `tools/attr3dprobe.js`).
 - **Shader fractals** — Julia, Burning Ship, Multibrot, Newton.
 - **Shader pattern** — Plasma, Tunnel, Metaballs, Kaleidoscope, Rotozoomer, Moiré, Munching
   Squares, Copper Bars, Sun surface, Kefrens bars, Twister, Cymatics, Lightning storm, Starfield,

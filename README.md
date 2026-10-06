@@ -37,7 +37,7 @@ The whole thing burns, flickers, and morphs continuously — and every effect ca
 ## Effects
 
 Every row in the panel's **Layers** box carries an **Effect** chooser, switching that layer
-between fifty-five visuals that share the same palette, glow and music-reactivity pipeline —
+between fifty-six visuals that share the same palette, glow and music-reactivity pipeline —
 but each is an independent "scene" that remembers its own settings (see Controls). You can
 **stack up to four of them at once**, each with its own palette and filters — see Layers
 below:
@@ -90,6 +90,7 @@ below:
   - **Multibrot** — `z^power + c`, where **Power** sweeps continuously from 2 to 6. Whole numbers give the classic sets — each adds a bulb of symmetry — and the fractions in between morph one into the next (with a straight seam ray where the fractional exponent's branch cut lies, a signature of every fractional multibrot). The seed orbits a blend of the two neighbouring whole-power boundaries, pushed a little further out at fractional powers so the fractal keeps its filigree, and it still sprints through every cusp and eases off in between. Drift Power's two thumbs apart and the set never stops reshaping.
   - **Newton** — the three interlocking root-basins of `z³−1` with fractal borders (Root spin / Relaxation).
   - **Attractor** — a de Jong strange attractor whose four coefficients a/b/c/d morph its delicate threads. **Point jitter** scatters each stamped point to soften them — set it to 0 for the bare, hard-edged curves.
+  - **Attractor 3D** — a 3D strange attractor (**Lorenz**'s butterfly, **Thomas**'s labyrinth or **Aizawa**'s spun shell) traced as one long trajectory and stamped through Tetrahedron's view — Rotation yaws, Box nod pitches, **Tumble** drifts it. **Shape** walks the family's own parameter through chaotic bands and closed periodic knots.
   - **Polygon** — one rotating regular N-gon; **Sides** morphs triangle → square → … → circle, **Thickness** hollows it into an outline.
   - **Shape grid** — a tiled lattice of one shape, each cell breathing out of phase with its neighbours (Density / Size / Squareness / Pulse).
   - **Concentric rings** — nested polygon contours marching outward from the centre, a hypnotic shape-tunnel (Sides / Ring count / March speed / Spin).
