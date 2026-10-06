@@ -96,6 +96,8 @@
       { n: "Edge glow", w: "solids", t: "Bouncing solids only — lights the silhouettes, brightest where a surface turns away from you. Low values give flat shaded solids; high values outline every body in fire and read almost like an X-ray." },
       { n: "Shock", w: "all", t: "The Shockwave filter's wave itself: 1 puts the ring at the centre, 0 has it gone off the edge — so the value IS the ring's position. Arm its L/M/H chips and every beat snaps it to the high thumb and lets it fall, firing a wave that crosses the screen in one Trigger duration." },
       { n: "Push", w: "all", t: "How hard the Shockwave ring displaces the picture as it passes — 0 is an invisible wave, high values shove pixels aside like a blast front." },
+      { n: "Depth", w: "all", t: "The Anaglyph split filter's stereo offset in pixels — red slides one way, cyan the other, bright detail furthest. It ships as a range so the split breathes; arm its chips and it kicks on the beat." },
+      { n: "Glasses", w: "all", t: "Anaglyph split — 0 keeps the picture's own colours in each eye, 100% is classic grey red/cyan 3D-glasses stereo." },
       { n: "Ring width", w: "all", t: "How thick and soft the Shockwave ring is, from a hairline ripple to a broad swell." },
       { n: "Cell density", w: "sun", t: "Sun surface only — how many convection cells fill the screen. Low values give a few huge granules; high values a fine boiling texture like the telescope footage." },
       { n: "Churn speed", w: "sun", t: "Sun surface only — how fast the cells boil: drift, deform and brighten or dim. 1× gives each granule a lifetime of roughly 15–30 seconds; 0 freezes the surface." },

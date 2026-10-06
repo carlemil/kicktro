@@ -295,7 +295,7 @@ automaton`) — mutate retained heat inside `glBeginHeat`. No feedback filter �
   are the wire format. All need CPU mirrors.
 
 **post** (Twist, Wedge fold, Slice glitch, Pixelate, Blur/sharpen, Edge, Posterize, Halftone,
-Solarize, Chromatic aberration, Mirror, Shockwave, Pixel sort, Lens bubble, Droste zoom, Oil paint,
+Solarize, Chromatic aberration, Anaglyph split, Mirror, Shockwave, Pixel sort, Lens bubble, Droste zoom, Oil paint,
 Bloom) — read the palette-mapped image. `glPostChain()` ping-pongs `glTex.post[0]/[1]`, returns
 `glTex.native` untouched when empty. Bloom has no pass — it is the glow composite.
 

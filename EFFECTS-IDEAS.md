@@ -63,7 +63,7 @@ that are inherently "one animated scalar field" rank above ones that need real R
 | ~~**Lens bubble**~~ ✅ | SHIPPED post-1.16.0 | Lissajous wander on postTime |
 | ~~**Cellular automaton**~~ ✅ | SHIPPED in 1.16.0 | cyclic CA over retained heat, feedback stage |
 | ~~**CRT phosphor + mask**~~ ✅ | SHIPPED post-1.25.0 as "CRT phosphor" | shadow mask + asymmetric beam bleed; PERSISTENCE deliberately omitted (a post pass has no memory — Fade pixel already is it) |
-| **Anaglyph split** | Red/cyan stereo offset breathing with the beat | Post filter; cheap novelty |
+| ~~**Anaglyph split**~~ ✅ | SHIPPED post-1.82.0 | post filter `anaglyph`; pixel shift scaled by brightness (bright = nearer); Depth ships as the spread [8, 24] px so it breathes unarmed; Glasses defaults to full red/cyan |
 
 ## Considered and rejected (poor fit for this engine)
 

@@ -565,6 +565,10 @@ the layers blend together.
 - **Solarize** — invert everything above a brightness **Level**.
 - **Chromatic aberration** — split red and blue radially, so the picture fringes
   toward the corners the way a cheap lens does.
+- **Anaglyph split** — red/cyan 3D-glasses stereo: red shifted one way, cyan the
+  other, bright detail pushed nearer. **Depth** ships as a range so the split breathes
+  on its own — arm its chips and it kicks on the beat; **Glasses** goes from keeping
+  the picture's colours to classic grey red/cyan.
 - **Mirror** — fold the image about its centre, on **X**, **Y** or both.
 - **Pixel sort** — the modern glitch: pixels brighter than **Threshold** smear into
   **Streak**s along one **Direction**, dark areas stay put. Melts any effect into

@@ -406,6 +406,24 @@
       float b = texture(uSrc, clamp(vUv - d, 0.0, 1.0)).b;
       o = vec4(r, g, b, 1.0);
     }`;
+    // Anaglyph split: red/cyan stereo. Red is sampled to the left, green+blue to the right,
+    // the shift in PIXELS scaled by local brightness so bright detail sits nearer (wider
+    // parallax). uTint 0 keeps each channel's own colour, 1 is classic grey red/cyan glasses.
+    const FS_ANAGLYPH = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uDepth; uniform float uTint;
+    in vec2 vUv; out vec4 o;
+    const vec3 LW = vec3(0.299, 0.587, 0.114);
+    void main(){
+      float lc = dot(texture(uSrc, vUv).rgb, LW);
+      vec2 d = vec2(uDepth * (0.35 + 0.65 * lc) / uSize.x, 0.0);
+      vec3 a = texture(uSrc, clamp(vUv - d, 0.0, 1.0)).rgb;
+      vec3 b = texture(uSrc, clamp(vUv + d, 0.0, 1.0)).rgb;
+      vec3 keep = vec3(a.r, b.g, b.b);
+      float la = dot(a, LW), lb = dot(b, LW);
+      vec3 glasses = vec3(la, lb, lb);
+      o = vec4(mix(keep, glasses, uTint), 1.0);
+    }`;
     // Shockwave: a displacement ring travelling out from the centre, driven ENTIRELY by
     // the Shock VALUE — 1 = ring at the centre, 0 = gone past the corners. A beat-armed
     // Shock snapped to the high thumb and decaying over the Trigger duration therefore IS
@@ -896,6 +914,7 @@
     glProg.halftone = makeProg(VS_QUAD, FS_HALFTONE, ["uSrc", "uSize", "uDot", "uAmount"]);
     glProg.thresh = makeProg(VS_QUAD, FS_THRESH, ["uSrc", "uLevel", "uAmount"]);
     glProg.chroma = makeProg(VS_QUAD, FS_CHROMA, ["uSrc", "uAmount"]);
+    glProg.anaglyph = makeProg(VS_QUAD, FS_ANAGLYPH, ["uSrc", "uSize", "uDepth", "uTint"]);
     glProg.shock = makeProg(VS_QUAD, FS_SHOCK, ["uSrc", "uSize", "uAmount", "uAmp", "uWidth"]);
     glProg.pixsort = makeProg(VS_QUAD, FS_PIXSORT, ["uSrc", "uSize", "uThresh", "uLen", "uDir"]);
     glProg.cell = makeProg(VS_QUAD, FS_CELL, ["uHeat", "uSize", "uStates", "uMix", "uKeep"]);

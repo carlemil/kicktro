@@ -3044,7 +3044,8 @@
   // Post warps / colour
   let noiseAmt = 0.4, noiseSeedMode = 1, noiseFrame = 0;
   let twistAmt = 1.2, wedgeSeg = 6, wedgeRot = 0, glitchAmt = 0.05, glitchRows = 8,
-    halfDot = 4, halfAmt = 0.8, threshLevel = 0.5, threshAmt = 0.8, chromaAmt = 1;
+    halfDot = 4, halfAmt = 0.8, threshLevel = 0.5, threshAmt = 0.8, chromaAmt = 1,
+    anaDepth = 8, anaTint = 1;
   // Screen stage (after the glow, at display resolution)
   let barrelAmt = 0.15, scanAmt = 0.35, scanCount = 240, vigAmt = 0.4, grainAmt = 0.08;
   let crtMask = 0.5, crtBleed = 0.4;                     // CRT phosphor: shadow mask, beam smear
@@ -7705,6 +7706,24 @@
       float b = texture(uSrc, clamp(vUv - d, 0.0, 1.0)).b;
       o = vec4(r, g, b, 1.0);
     }`;
+    // Anaglyph split: red/cyan stereo. Red is sampled to the left, green+blue to the right,
+    // the shift in PIXELS scaled by local brightness so bright detail sits nearer (wider
+    // parallax). uTint 0 keeps each channel's own colour, 1 is classic grey red/cyan glasses.
+    const FS_ANAGLYPH = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uDepth; uniform float uTint;
+    in vec2 vUv; out vec4 o;
+    const vec3 LW = vec3(0.299, 0.587, 0.114);
+    void main(){
+      float lc = dot(texture(uSrc, vUv).rgb, LW);
+      vec2 d = vec2(uDepth * (0.35 + 0.65 * lc) / uSize.x, 0.0);
+      vec3 a = texture(uSrc, clamp(vUv - d, 0.0, 1.0)).rgb;
+      vec3 b = texture(uSrc, clamp(vUv + d, 0.0, 1.0)).rgb;
+      vec3 keep = vec3(a.r, b.g, b.b);
+      float la = dot(a, LW), lb = dot(b, LW);
+      vec3 glasses = vec3(la, lb, lb);
+      o = vec4(mix(keep, glasses, uTint), 1.0);
+    }`;
     // Shockwave: a displacement ring travelling out from the centre, driven ENTIRELY by
     // the Shock VALUE — 1 = ring at the centre, 0 = gone past the corners. A beat-armed
     // Shock snapped to the high thumb and decaying over the Trigger duration therefore IS
@@ -8195,6 +8214,7 @@
     glProg.halftone = makeProg(VS_QUAD, FS_HALFTONE, ["uSrc", "uSize", "uDot", "uAmount"]);
     glProg.thresh = makeProg(VS_QUAD, FS_THRESH, ["uSrc", "uLevel", "uAmount"]);
     glProg.chroma = makeProg(VS_QUAD, FS_CHROMA, ["uSrc", "uAmount"]);
+    glProg.anaglyph = makeProg(VS_QUAD, FS_ANAGLYPH, ["uSrc", "uSize", "uDepth", "uTint"]);
     glProg.shock = makeProg(VS_QUAD, FS_SHOCK, ["uSrc", "uSize", "uAmount", "uAmp", "uWidth"]);
     glProg.pixsort = makeProg(VS_QUAD, FS_PIXSORT, ["uSrc", "uSize", "uThresh", "uLen", "uDir"]);
     glProg.cell = makeProg(VS_QUAD, FS_CELL, ["uHeat", "uSize", "uStates", "uMix", "uKeep"]);
@@ -15530,6 +15550,8 @@
     { key: "threshlvl", host: "filter", group: "f_thresh", type: "dual", label: "Level", valId: "vThreshLvl", min: 0, max: 1, step: 0.01, lo: 0.5, hi: 0.5, fmt: v => sig3(v), apply: v => threshLevel = v, durScale: 10 },
     { key: "threshamt", host: "filter", group: "f_thresh", type: "dual", label: "Amount", valId: "vThreshAmt", min: 0, max: 1, step: 0.01, lo: 0.8, hi: 0.8, fmt: v => sig3(v), apply: v => threshAmt = v, durScale: 10 },
     { key: "chroma", host: "filter", group: "f_chroma", type: "dual", label: "Amount", valId: "vChroma", min: 0, max: 6, step: 0.05, lo: 2.8, hi: 2.8, fmt: v => sig3(v), apply: v => chromaAmt = v, durScale: 10 },
+    { key: "anadepth", host: "filter", group: "f_anaglyph", type: "dual", label: "Depth", valId: "vAnaDepth", min: 0, max: 40, step: 0.5, lo: 8, hi: 24, fmt: v => sig3(v) + "px", apply: v => anaDepth = v, durScale: 10 },
+    { key: "anatint", host: "filter", group: "f_anaglyph", type: "dual", label: "Glasses", valId: "vAnaTint", min: 0, max: 1, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v * 100) + "%", apply: v => anaTint = v, durScale: 10 },
     { key: "mirror", host: "filter", group: "f_mirror", type: "dual", single: true, label: "Axis", valId: "vMirror", min: 1, max: 3, step: 1, lo: 1, hi: 1, fmt: v => ["", "X", "Y", "Both"][Math.round(v)] || "X", apply: v => mirrorMode = Math.round(v), durScale: 10 },
     { key: "shock", host: "filter", group: "f_shock", type: "dual", label: "Shock", valId: "vShock", min: 0, max: 1, step: 0.01, lo: 0, hi: 1, fmt: v => sig3(v), apply: v => shockAmt = v, durScale: 10 },
     { key: "shockamp", host: "filter", group: "f_shock", type: "dual", label: "Push", valId: "vShockAmp", min: 0, max: 0.2, step: 0.005, lo: 0.11, hi: 0.11, fmt: v => sig3(v), apply: v => shockAmp = v, durScale: 10 },
@@ -15679,7 +15701,7 @@
     { name: "Stylise", desc: "redraw it as something else",
       ids: ["poster", "dither", "halftone", "ascii", "kuwahara", "edge", "emboss", "pixelate", "hexpix", "crt", "scanlines"] },
     { name: "Colour & tone", desc: "same shapes, different colour",
-      ids: ["thresh", "invert", "chroma", "noise", "vignette", "grain"] },
+      ids: ["thresh", "invert", "chroma", "anaglyph", "noise", "vignette", "grain"] },
     { name: "Blur & light", desc: "spread it, streak it, glow it",
       ids: ["soften", "dblur", "rblur", "anamorph", "bloom", "glitch", "pixsort"] },
   ];
@@ -16278,7 +16300,7 @@
     f_twist: "Twist", f_wedge: "Wedge fold", f_noise: "Noise", f_glitch: "Slice glitch", f_shock: "Shockwave",
     f_pixsort: "Pixel sort", f_cell: "Cellular automaton",
     f_lens: "Lens bubble", f_droste: "Droste zoom", f_kuwahara: "Oil paint",
-    f_halftone: "Halftone", f_thresh: "Solarize", f_chroma: "Chromatic aberration",
+    f_halftone: "Halftone", f_thresh: "Solarize", f_chroma: "Chromatic aberration", f_anaglyph: "Anaglyph split",
     f_barrel: "Barrel distortion", f_scanlines: "Scanlines", f_vignette: "Vignette", f_grain: "Film grain",
     f_hexpix: "Hex pixelate", f_crt: "CRT phosphor",
     palette: "Palette", banding: "Banding",
@@ -19490,6 +19512,10 @@
       help: "Split the red and blue channels radially, so the image fringes toward the corners like a cheap lens.",
       defaults: { chroma: [2.8, 2.8] },
       gl: src => postPass("chroma", src, u => gl.uniform1f(u.uAmount, chromaAmt)) },
+    { id: "anaglyph", cpuOk: false, name: "Anaglyph split", stage: "post", params: ["anadepth", "anatint"],
+      help: "Red/cyan stereo: red shifted one way, cyan the other, bright detail pushed nearer. Depth ships as a range so the split breathes; arm its chips and it kicks on the beat.",
+      defaults: { anadepth: [8, 24], anatint: [1, 1] },
+      gl: src => postPass("anaglyph", src, u => { gl.uniform1f(u.uDepth, anaDepth); gl.uniform1f(u.uTint, anaTint); }) },
     { id: "mirror", cpuOk: false, name: "Mirror", stage: "post", params: ["mirror"],
       help: "Fold the image about its centre — X, Y or both.",
       defaults: { mirror: [1, 1] },
@@ -26979,6 +27005,8 @@
       { n: "Edge glow", w: "solids", t: "Bouncing solids only — lights the silhouettes, brightest where a surface turns away from you. Low values give flat shaded solids; high values outline every body in fire and read almost like an X-ray." },
       { n: "Shock", w: "all", t: "The Shockwave filter's wave itself: 1 puts the ring at the centre, 0 has it gone off the edge — so the value IS the ring's position. Arm its L/M/H chips and every beat snaps it to the high thumb and lets it fall, firing a wave that crosses the screen in one Trigger duration." },
       { n: "Push", w: "all", t: "How hard the Shockwave ring displaces the picture as it passes — 0 is an invisible wave, high values shove pixels aside like a blast front." },
+      { n: "Depth", w: "all", t: "The Anaglyph split filter's stereo offset in pixels — red slides one way, cyan the other, bright detail furthest. It ships as a range so the split breathes; arm its chips and it kicks on the beat." },
+      { n: "Glasses", w: "all", t: "Anaglyph split — 0 keeps the picture's own colours in each eye, 100% is classic grey red/cyan 3D-glasses stereo." },
       { n: "Ring width", w: "all", t: "How thick and soft the Shockwave ring is, from a hairline ripple to a broad swell." },
       { n: "Cell density", w: "sun", t: "Sun surface only — how many convection cells fill the screen. Low values give a few huge granules; high values a fine boiling texture like the telescope footage." },
       { n: "Churn speed", w: "sun", t: "Sun surface only — how fast the cells boil: drift, deform and brighten or dim. 1× gives each granule a lifetime of roughly 15–30 seconds; 0 freezes the surface." },
