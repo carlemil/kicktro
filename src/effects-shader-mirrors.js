@@ -261,7 +261,7 @@
       const nu = Math.log(Math.log(2 + s * cr) * invLn2) * invLn2;
       const f = (i + 1 - nu) / maxIter;
       const t = hi[i] > lo[i] ? (s - lo[i]) / (hi[i] - lo[i]) : 0.5;
-      const v = (f <= 0 ? 0 : Math.sqrt(f)) + jovAmt * (0.5 - t);
+      const v = (f <= 0 ? 0 : Math.sqrt(f)) * (1 - jovAmt * t);
       fire[idx] = 255 * Math.min(1, Math.max(0, v));
     }
   }

@@ -518,7 +518,7 @@
       float f = (float(n) + 1.0 - nu) / 160.0;
       float v = f <= 0.0 ? 0.0 : sqrt(f);
       float t = hi > lo ? clamp((s - lo) / (hi - lo), 0.0, 1.0) : 0.5;
-      o = vec4(clamp(v + uAmt * (0.5 - t), 0.0, 1.0), 0.0, 0.0, 1.0);
+      o = vec4(v * (1.0 - uAmt * t), 0.0, 0.0, 1.0);
     }`;
     // old-school plasma: overloaded sin/cos interference, animated by uTime, with
     // an optional domain warp for swirl. Writes heat in .r like FS_JULIA.
