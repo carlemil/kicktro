@@ -817,6 +817,9 @@
     glProg.merge = makeProg(VS_QUAD, FS_MERGE, ["uSrc", "uGain"]);
     glProg.okmerge = makeProg(VS_QUAD, FS_OKMERGE, ["uLayer", "uAcc", "uGain", "uBlend", "uCover"]);
     glProg.julia = camProg(VS_QUAD, FS_JULIA, ["uSize", "uC", "uSpan"]);
+    glProg.jova = camProg(VS_QUAD, FS_JOVA, ["uSize", "uC", "uSpan"]);
+    glProg.jovb = makeProg(VS_JOVB, FS_JOVB, ["uA", "uGridX", "uStep"]);
+    glProg.jovc = makeProg(VS_QUAD, FS_JOVC, ["uA", "uT", "uSize", "uAmt", "uCR"]);
     glProg.plasma = camProg(VS_QUAD, FS_PLASMA, ["uSize", "uTime", "uScale", "uWarp", "uZoom"]);
     glProg.tunnel = camProg(VS_QUAD, FS_TUNNEL, ["uSize", "uTime", "uTwist", "uRings", "uZoom"]);
     glProg.metaball = camProg(VS_QUAD, FS_METABALL, ["uSize", "uTime", "uCount", "uRadius", "uGain", "uZoom"]);
@@ -998,6 +1001,13 @@
       createTex(rdI, gl.RGBA, rdT, gl.LINEAR, gl.CLAMP_TO_EDGE),
     ];
     glFbo.cg = [createFbo(glTex.cg[0]), createFbo(glTex.cg[1])];
+    // Julia overshoot: pass A's (step, overshoot) per pixel, and the per-step min/max table
+    // pass B blends into -- in the RD format, since 8 bits would stair-step a narrow step.
+    glTex.jov = createTex(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.CLAMP_TO_EDGE);
+    glFbo.jov = createFbo(glTex.jov);
+    glTex.jovTab = createTex(rdI, gl.RGBA, rdT, gl.NEAREST, gl.CLAMP_TO_EDGE);
+    resizeTex(glTex.jovTab, 160, 16);
+    glFbo.jovTab = createFbo(glTex.jovTab);
     // Per-layer state for multi-layer stacks (see the frame loop / glLayerBeginHeat).
     // Each slot gets its own persistent heat pair (so it retains its own fire/feedback),
     // its own 256×1 palette LUT, so every stacked effect keeps its own colours. The
@@ -1108,6 +1118,7 @@
     resizeTex(glTex.post[1], fw, fh);
     resizeTex(glTex.prev, fw, fh);
     resizeTex(glTex.layer, fw, fh);
+    resizeTex(glTex.jov, fw, fh);
     resizeTex(glTex.halfLayer, wbW(), wbH());
     resizeTex(glTex.rd[0], fw, fh); resizeTex(glTex.rd[1], fw, fh);
     rdNeedSeed = true;                 // a resized dish is blank — re-seed the culture
@@ -2200,6 +2211,34 @@
     glColorTex = null;              // the live pass below decides its own
   }
   function glJulia(s) { glShaderDraw("julia", u => { gl.uniform2f(u.uC, s.cx, s.cy); gl.uniform2f(u.uSpan, s.spanX, s.spanY); }); }
+  // Julia overshoot: A writes (step, overshoot) per pixel, B blends every step's overshoot
+  // range into glTex.jovTab, C (the glShaderDraw) ranks each pixel inside its step's range.
+  // B samples every `st`-th pixel so it never scatters more than ~0.5M points.
+  function glJuliaOver(s) {
+    const A = glProg.jova;
+    bindFbo(glFbo.jov, fw, fh);
+    gl.disable(gl.BLEND);
+    gl.useProgram(A.p);
+    gl.uniform2f(A.u.uSize, fw, fh);
+    gl.uniform4f(A.u.uCam, camRX, camRY, camRZ, camFov); gl.uniform2f(A.u.uCamSize, fw, fh);
+    gl.uniform2f(A.u.uC, s.cx, s.cy); gl.uniform2f(A.u.uSpan, s.spanX, s.spanY);
+    drawQuad();
+    const B = glProg.jovb, st = Math.max(1, Math.round(Math.sqrt(fw * fh / 5e5)));
+    const gx = Math.ceil(fw / st), gy = Math.ceil(fh / st);
+    bindFbo(glFbo.jovTab, 160, 16);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND); gl.blendEquation(gl.MAX);
+    gl.useProgram(B.p);
+    bindTexUnit(0, glTex.jov); gl.uniform1i(B.u.uA, 0);
+    gl.uniform1i(B.u.uGridX, gx); gl.uniform1i(B.u.uStep, st);
+    gl.bindVertexArray(quadVao); gl.drawArrays(gl.POINTS, 0, gx * gy);
+    gl.disable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD);
+    glShaderDraw("jovc", u => {
+      bindTexUnit(0, glTex.jov); gl.uniform1i(u.uA, 0);
+      bindTexUnit(1, glTex.jovTab); gl.uniform1i(u.uT, 1);
+      gl.uniform1f(u.uAmt, jovAmt); gl.uniform1f(u.uCR, 2 + Math.hypot(s.cx, s.cy));
+    });
+  }
   function glPlasma(s) { glShaderDraw("plasma", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uScale, s.scale); gl.uniform1f(u.uWarp, s.warp); gl.uniform1f(u.uZoom, s.zoom); }); }
 
   // display: heat→palette, optional zoom, blurred additive glow, to the screen

@@ -7,7 +7,7 @@ all sharing one palette + glow + banding pipeline —
   Jong strange attractor, an Apophysis-style fractal flame, a Victorian harmonograph,
   a log-spiral galaxy, a row of fractal trees bending in a wind that can gust on the beat,
   or a wheeling boids murmuration stamped as fresh heat into a classic rising-fire buffer.
-- **Shader fractals** — animated Julia, Burning Ship, Multibrot and Newton.
+- **Shader fractals** — animated Julia (plain, and coloured by each step's overshoot), Burning Ship, Multibrot and Newton.
 - **Coordinate / pattern classics** — plasma, tunnel, metaballs, kaleidoscope,
   rotozoomer, moiré, munching squares, copper bars, Kefrens bars, a twister
   column, Amiga vector balls, Chladni-plate cymatics, a beat-fired lightning storm, a hyperspace
@@ -37,7 +37,7 @@ The whole thing burns, flickers, and morphs continuously — and every effect ca
 ## Effects
 
 Every row in the panel's **Layers** box carries an **Effect** chooser, switching that layer
-between fifty-nine visuals that share the same palette, glow and music-reactivity pipeline —
+between sixty visuals that share the same palette, glow and music-reactivity pipeline —
 but each is an independent "scene" that remembers its own settings (see Controls). You can
 **stack up to four of them at once**, each with its own palette and filters — see Layers
 below:
@@ -86,6 +86,7 @@ below:
   - **Moiré** — two drifting concentric-ring sets interfering into shimmering fringes.
   - **Munching Squares** — the hypnotic `(x XOR y) + t` pattern with self-similar nested squares.
   - **Copper Bars** — horizontal gradient raster bars sliding up and down on sine motion.
+  - **Julia overshoot** — the Julia set coloured by two things: how many steps a point took to escape, and how far its last jump flew past the escape circle compared with every other point that escaped on the same step that frame. Each step's band turns into its own gradient, carving the set into relief. **Overshoot** sets how strongly (0 is the plain Julia); the orbit controls are Julia's.
   - **Burning Ship** — a jagged, flame-like fractal (Julia's abs-fold cousin), sharing Julia's controls.
   - **Multibrot** — `z^power + c`, where **Power** sweeps continuously from 2 to 6. Whole numbers give the classic sets — each adds a bulb of symmetry — and the fractions in between morph one into the next (with a straight seam ray where the fractional exponent's branch cut lies, a signature of every fractional multibrot). The seed orbits a blend of the two neighbouring whole-power boundaries, pushed a little further out at fractional powers so the fractal keeps its filigree, and it still sprints through every cusp and eases off in between. Drift Power's two thumbs apart and the set never stops reshaping.
   - **Newton** — the three interlocking root-basins of `z³−1` with fractal borders (Root spin / Relaxation).

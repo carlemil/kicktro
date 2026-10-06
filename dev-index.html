@@ -4332,6 +4332,78 @@
       }
       o = vec4(clamp(v, 0.0, 255.0)/255.0, 0.0, 0.0, 1.0);
     }`;
+    // Julia overshoot, pass A: FS_JULIA's loop, but it keeps the escape step in .r and how far
+    // the LAST jump went past radius 2 in .gb (16 bits), as s = (|z| - 2) / (2 + |c|), which
+    // is 0..1 because |z_prev| <= 2 bounds |z| by 4 + |c|. Step 160 = never escaped.
+    const FS_JOVA = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform vec2 uC; uniform vec2 uSpan;
+    out vec4 o;
+    void main(){
+      float zx = (floor(gl_FragCoord.x)/uSize.x - 0.5) * uSpan.x;
+      float zy = (floor(gl_FragCoord.y)/uSize.y - 0.5) * uSpan.y;
+      float zx2 = zx*zx, zy2 = zy*zy;
+      int i = 0;
+      for (int k = 0; k < 160; k++) {
+        if (zx2 + zy2 > 4.0) break;
+        zy = 2.0*zx*zy + uC.y;
+        zx = zx2 - zy2 + uC.x;
+        zx2 = zx*zx; zy2 = zy*zy;
+        i++;
+      }
+      float s = clamp((sqrt(zx2 + zy2) - 2.0) / (2.0 + length(uC)), 0.0, 1.0);
+      float q = floor(s * 65535.0 + 0.5), hi = floor(q / 256.0);
+      o = vec4(float(i), hi, q - hi*256.0, 255.0) / 255.0;
+    }`;
+    // Pass B: one POINT per (strided) pixel of pass A, landing in column = its escape step of
+    // a 160x16 table (the row only spreads the blending contention). MAX blending keeps, per
+    // step, the largest overshoot in .r and the largest (1 - overshoot) in .g, i.e. the min.
+    const VS_JOVB = `#version 300 es
+    uniform highp sampler2D uA; uniform int uGridX; uniform int uStep;
+    out vec2 vS;
+    void main(){
+      ivec2 p = ivec2(gl_VertexID % uGridX, gl_VertexID / uGridX) * uStep;
+      vec4 a = texelFetch(uA, p, 0);
+      int n = int(a.r*255.0 + 0.5);
+      float s = (floor(a.g*255.0 + 0.5)*256.0 + floor(a.b*255.0 + 0.5)) / 65535.0;
+      vS = vec2(s, 1.0 - s);
+      float row = float(gl_VertexID % 16);
+      gl_Position = n >= 160 ? vec4(2.0, 2.0, 0.0, 1.0)
+        : vec4((float(n) + 0.5)/80.0 - 1.0, (row + 0.5)/8.0 - 1.0, 0.0, 1.0);
+      gl_PointSize = 1.0;
+    }`;
+    const FS_JOVB = `#version 300 es
+    precision highp float;
+    in vec2 vS; out vec4 o;
+    void main(){ o = vec4(vS, 0.0, 1.0); }`;
+    // Pass C: FS_JULIA's smooth heat, then shaded up or down by where this pixel's overshoot
+    // sits between the smallest and largest overshoot of every pixel that escaped on the
+    // SAME step (biggest jump = darkest, the way the smooth count leans). Pass A already
+    // applied the camera, so this one reads it texel for texel. The table is strided, so a
+    // pixel may fall just outside its step's range: clamp.
+    const FS_JOVC = `#version 300 es
+    precision highp float;
+    uniform highp sampler2D uA; uniform highp sampler2D uT;
+    uniform vec2 uSize; uniform float uAmt; uniform float uCR;
+    out vec4 o;
+    const float INVLN2 = 1.4426950408889634;
+    void main(){
+      vec4 a = texelFetch(uA, ivec2(gl_FragCoord.xy), 0);
+      int n = int(a.r*255.0 + 0.5);
+      if (n >= 160) { o = vec4(1.0, 0.0, 0.0, 1.0); return; }
+      float s = (floor(a.g*255.0 + 0.5)*256.0 + floor(a.b*255.0 + 0.5)) / 65535.0;
+      float hi = 0.0, lo = 1.0;
+      for (int k = 0; k < 16; k++) {
+        vec4 t = texelFetch(uT, ivec2(n, k), 0);
+        hi = max(hi, t.r); lo = min(lo, 1.0 - t.g);
+      }
+      float r = 2.0 + s * uCR;
+      float nu = log(log(r) * INVLN2) * INVLN2;
+      float f = (float(n) + 1.0 - nu) / 160.0;
+      float v = f <= 0.0 ? 0.0 : sqrt(f);
+      float t = hi > lo ? clamp((s - lo) / (hi - lo), 0.0, 1.0) : 0.5;
+      o = vec4(clamp(v + uAmt * (0.5 - t), 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // old-school plasma: overloaded sin/cos interference, animated by uTime, with
     // an optional domain warp for swirl. Writes heat in .r like FS_JULIA.
     const FS_PLASMA = `#version 300 es
@@ -8187,6 +8259,9 @@
     glProg.merge = makeProg(VS_QUAD, FS_MERGE, ["uSrc", "uGain"]);
     glProg.okmerge = makeProg(VS_QUAD, FS_OKMERGE, ["uLayer", "uAcc", "uGain", "uBlend", "uCover"]);
     glProg.julia = camProg(VS_QUAD, FS_JULIA, ["uSize", "uC", "uSpan"]);
+    glProg.jova = camProg(VS_QUAD, FS_JOVA, ["uSize", "uC", "uSpan"]);
+    glProg.jovb = makeProg(VS_JOVB, FS_JOVB, ["uA", "uGridX", "uStep"]);
+    glProg.jovc = makeProg(VS_QUAD, FS_JOVC, ["uA", "uT", "uSize", "uAmt", "uCR"]);
     glProg.plasma = camProg(VS_QUAD, FS_PLASMA, ["uSize", "uTime", "uScale", "uWarp", "uZoom"]);
     glProg.tunnel = camProg(VS_QUAD, FS_TUNNEL, ["uSize", "uTime", "uTwist", "uRings", "uZoom"]);
     glProg.metaball = camProg(VS_QUAD, FS_METABALL, ["uSize", "uTime", "uCount", "uRadius", "uGain", "uZoom"]);
@@ -8368,6 +8443,13 @@
       createTex(rdI, gl.RGBA, rdT, gl.LINEAR, gl.CLAMP_TO_EDGE),
     ];
     glFbo.cg = [createFbo(glTex.cg[0]), createFbo(glTex.cg[1])];
+    // Julia overshoot: pass A's (step, overshoot) per pixel, and the per-step min/max table
+    // pass B blends into -- in the RD format, since 8 bits would stair-step a narrow step.
+    glTex.jov = createTex(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.CLAMP_TO_EDGE);
+    glFbo.jov = createFbo(glTex.jov);
+    glTex.jovTab = createTex(rdI, gl.RGBA, rdT, gl.NEAREST, gl.CLAMP_TO_EDGE);
+    resizeTex(glTex.jovTab, 160, 16);
+    glFbo.jovTab = createFbo(glTex.jovTab);
     // Per-layer state for multi-layer stacks (see the frame loop / glLayerBeginHeat).
     // Each slot gets its own persistent heat pair (so it retains its own fire/feedback),
     // its own 256×1 palette LUT, so every stacked effect keeps its own colours. The
@@ -8478,6 +8560,7 @@
     resizeTex(glTex.post[1], fw, fh);
     resizeTex(glTex.prev, fw, fh);
     resizeTex(glTex.layer, fw, fh);
+    resizeTex(glTex.jov, fw, fh);
     resizeTex(glTex.halfLayer, wbW(), wbH());
     resizeTex(glTex.rd[0], fw, fh); resizeTex(glTex.rd[1], fw, fh);
     rdNeedSeed = true;                 // a resized dish is blank — re-seed the culture
@@ -9570,6 +9653,34 @@
     glColorTex = null;              // the live pass below decides its own
   }
   function glJulia(s) { glShaderDraw("julia", u => { gl.uniform2f(u.uC, s.cx, s.cy); gl.uniform2f(u.uSpan, s.spanX, s.spanY); }); }
+  // Julia overshoot: A writes (step, overshoot) per pixel, B blends every step's overshoot
+  // range into glTex.jovTab, C (the glShaderDraw) ranks each pixel inside its step's range.
+  // B samples every `st`-th pixel so it never scatters more than ~0.5M points.
+  function glJuliaOver(s) {
+    const A = glProg.jova;
+    bindFbo(glFbo.jov, fw, fh);
+    gl.disable(gl.BLEND);
+    gl.useProgram(A.p);
+    gl.uniform2f(A.u.uSize, fw, fh);
+    gl.uniform4f(A.u.uCam, camRX, camRY, camRZ, camFov); gl.uniform2f(A.u.uCamSize, fw, fh);
+    gl.uniform2f(A.u.uC, s.cx, s.cy); gl.uniform2f(A.u.uSpan, s.spanX, s.spanY);
+    drawQuad();
+    const B = glProg.jovb, st = Math.max(1, Math.round(Math.sqrt(fw * fh / 5e5)));
+    const gx = Math.ceil(fw / st), gy = Math.ceil(fh / st);
+    bindFbo(glFbo.jovTab, 160, 16);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND); gl.blendEquation(gl.MAX);
+    gl.useProgram(B.p);
+    bindTexUnit(0, glTex.jov); gl.uniform1i(B.u.uA, 0);
+    gl.uniform1i(B.u.uGridX, gx); gl.uniform1i(B.u.uStep, st);
+    gl.bindVertexArray(quadVao); gl.drawArrays(gl.POINTS, 0, gx * gy);
+    gl.disable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD);
+    glShaderDraw("jovc", u => {
+      bindTexUnit(0, glTex.jov); gl.uniform1i(u.uA, 0);
+      bindTexUnit(1, glTex.jovTab); gl.uniform1i(u.uT, 1);
+      gl.uniform1f(u.uAmt, jovAmt); gl.uniform1f(u.uCR, 2 + Math.hypot(s.cx, s.cy));
+    });
+  }
   function glPlasma(s) { glShaderDraw("plasma", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uScale, s.scale); gl.uniform1f(u.uWarp, s.warp); gl.uniform1f(u.uZoom, s.zoom); }); }
 
   // display: heat→palette, optional zoom, blurred additive glow, to the screen
@@ -10989,6 +11100,49 @@
         else { const nu = Math.log(0.5 * Math.log(mag2) * invLn2) / Math.log(d); const f = (i + 1 - nu) / maxIter; v = f <= 0 ? 0 : 255 * Math.sqrt(f); }  // outer base = degree d, not 2 (see FS_MULTIBROT)
         fire[idx++] = v;
       }
+    }
+  }
+
+  // ---- Julia overshoot: Julia, shaded per escape step by how far the last jump went ----
+  // Same orbit and escape test as julia(); an escaped pixel's heat is the smooth count plus
+  // jovAmt × (½ − t), t = its overshoot past radius 2 ranked between the smallest and largest
+  // overshoot of every pixel that escaped on the SAME step this frame. Two passes, because
+  // the ranking needs the whole frame. Overshoot is FS_JOVA's s = (|z| − 2) / (2 + |c|).
+  let jovAmt = 0.5, jovN = null, jovS = null;
+  function juliaOver(seed) {                // CPU fallback — mirrors FS_JOVA/JOVB/JOVC
+    const cx = seed.cx, cy = seed.cy, spanX = seed.spanX, spanY = seed.spanY;
+    const maxIter = JULIA_MAX_ITER, invLn2 = JULIA_INV_LN2, cr = 2 + Math.hypot(cx, cy), n = fw * fh;
+    if (!jovN || jovN.length !== n) { jovN = new Uint8Array(n); jovS = new Float32Array(n); }
+    const lo = new Float32Array(maxIter).fill(1), hi = new Float32Array(maxIter);
+    let idx = 0;
+    for (let y = 0; y < fh; y++) {
+      for (let x = 0; x < fw; x++, idx++) {
+        camPix(x, y);
+        let zx = (camPX / fw - 0.5) * spanX, zy = (camPY / fh - 0.5) * spanY;
+        let zx2 = zx * zx, zy2 = zy * zy, i = 0;
+        while (zx2 + zy2 <= 4 && i < maxIter) {
+          zy = 2 * zx * zy + cy;
+          zx = zx2 - zy2 + cx;
+          zx2 = zx * zx; zy2 = zy * zy;
+          i++;
+        }
+        jovN[idx] = i;
+        if (i >= maxIter) continue;
+        const s = Math.min(1, Math.max(0, (Math.sqrt(zx2 + zy2) - 2) / cr));
+        jovS[idx] = s;
+        if (s < lo[i]) lo[i] = s;
+        if (s > hi[i]) hi[i] = s;
+      }
+    }
+    for (idx = 0; idx < n; idx++) {
+      const i = jovN[idx];
+      if (i >= maxIter) { fire[idx] = 255; continue; }
+      const s = jovS[idx];
+      const nu = Math.log(Math.log(2 + s * cr) * invLn2) * invLn2;
+      const f = (i + 1 - nu) / maxIter;
+      const t = hi[i] > lo[i] ? (s - lo[i]) / (hi[i] - lo[i]) : 0.5;
+      const v = (f <= 0 ? 0 : Math.sqrt(f)) + jovAmt * (0.5 - t);
+      fire[idx] = 255 * Math.min(1, Math.max(0, v));
     }
   }
 
@@ -15343,6 +15497,7 @@
     // part of the look, not a bug. (The old measurement — ~40–55% of a lap inside the
     // locus riding the RAW fractional curve — is what the blend fixes; juliaprobe pins it.)
     { key: "mbexp", host: "fx", group: "multibrot", type: "dual", label: "Power", valId: "vMbExp", min: 2, max: 6, step: 0.05, lo: 2, hi: 4, fmt: v => sig3(v), apply: v => mbPower = v, durScale: 10 },
+    { key: "jovamt", host: "fx", group: "jov", type: "dual", label: "Overshoot", valId: "vJovAmt", min: 0, max: 1, step: 0.01, lo: 0.5, hi: 0.5, fmt: v => sig3(v), apply: v => jovAmt = v, durScale: 10 },
     { key: "cbcount", host: "fx", group: "copper", type: "dual", single: true, label: "Bar count", valId: "vCbCount", min: 1, max: 12, step: 1, lo: 5, hi: 5, fmt: v => sig3(v), apply: v => cbCount = Math.round(v), durScale: 10 },
     { key: "cbspeed", host: "fx", group: "copper", type: "dual", label: "Bar speed", valId: "vCbSpeed", min: 0, max: 3, step: 0.05, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => cbSpeed = v, durScale: 10 },
     { key: "cbwidth", host: "fx", group: "copper", type: "dual", label: "Bar width", valId: "vCbWidth", min: 0.02, max: 0.3, step: 0.005, lo: 0.12, hi: 0.12, fmt: v => sig3(v), apply: v => cbWidth = v, durScale: 10 },
@@ -16421,7 +16576,7 @@
   const CTL_GROUPS = {
     shape: "Shape & motion", cardioid: "Cardioid seed", plasma: "Plasma", tunnel: "Tunnel",
     metaball: "Metaballs", kaleido: "Kaleidoscope", rotozoom: "Rotozoomer", munch: "Munching squares",
-    moire: "Moiré", newton: "Newton", multibrot: "Multibrot", copper: "Copper bars",
+    moire: "Moiré", newton: "Newton", multibrot: "Multibrot", jov: "Julia overshoot",copper: "Copper bars",
     attractor: "Attractor", physarum: "Slime mould", curl: "Curl flow", csg: "Smooth CSG", clouds: "Volumetric clouds", godray: "God rays", terrain: "Terrain", apollo: "Apollonian gasket", mbox: "Mandelbox", gyroid: "Gyroid", voronoi: "Voronoi cells", warpnoise: "Flow noise", truchet: "Truchet tiles", shapegrid: "Shape grid", concentric: "Concentric rings", bounce: "Bouncing shapes",
     solids: "Bouncing solids", sun: "Sun surface", kefrens: "Kefrens bars", twister: "Twister",
     chladni: "Cymatics", storm: "Lightning storm", bulb: "Mandelbulb", flames: "Fractal flames",
@@ -18936,6 +19091,12 @@
       draw: dt => { const s = kleinSeed(dt); if (useGL) glShaderDraw("klein", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uCut, s.cut); gl.uniform1f(u.uAngle, s.angle); gl.uniform1f(u.uTilt, s.tilt); gl.uniform1f(u.uIter, s.iter); gl.uniform1f(u.uGlow, s.glow); gl.uniform1f(u.uZoom, s.zoom); }); else klein(s); },
       defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], klslice: [0, 0], klangle: [22, 22], kltilt: [12, 12], kliter: [28, 28], klglow: [0.4, 0.4], klspeed: [1, 1] },
       beat: {}, extras: { palette: "7", morph: false } },
+    { id: "juliaov", name: "Julia overshoot", subtitle: "Julia set · coloured by each step's overshoot",
+      help: "The Julia set again, with the same orbiting seed, but coloured by TWO things instead of one. As usual, how many steps a point took to escape. And how far its last jump flew past the escape circle, compared with every other point that escaped on the same step this frame: the biggest overshoot of that step shades one way, the smallest the other. Each step's band becomes its own gradient, which carves the bands into relief. **Overshoot** sets how strongly; 0 is the plain Julia.",
+      params: ["jovamt", "rpm", "ratio", "inrad", "outrad", "phase", "cardx", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim", "randseed"], helpTags: ["all", "julia", "band", "jov"],
+      bakesOwnZoom: true, cardioid: true, onEnter: () => reseedJulia(), draw: dt => { const s = juliaSeed(dt); if (useGL) glJuliaOver(s); else juliaOver(s); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], zoom: [1, 1], rpm: [0.28, 0.28], ratio: [8.5, 8.5], inrad: [0.03, 0.03], outrad: [1, 1], phase: [0, 0], cardx: [0, 0], jovamt: [0.5, 0.5] },
+      beat: {}, extras: { palette: "5", morph: false, showBox: true, randSeed: true } },
   ];
   // DISPLAY order only: every effect dropdown lists by name (twenty-odd effects in registry
   // order are a pile to hunt through), while EFFECTS keeps its own order — the runtime
@@ -18947,7 +19108,7 @@
   // rather than disappearing from the list, which is the safe way to be wrong.
   const EFFECT_CATS = [
     { name: "Fractals", desc: "the classic escape-time sets and their 3D relatives",
-      ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "klein", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
+      ids: ["animejulia", "juliaov", "burningship", "multibrot","newton", "mandelbulb", "qjulia", "menger", "apollo", "klein", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
     { name: "3D & raymarched", desc: "solids, surfaces and landscapes traced through space",
       ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds", "goo"] },
     { name: "Demoscene classics", desc: "the effects the scene has been writing since the 90s",
@@ -27131,6 +27292,7 @@
       { n: "Blend", w: "moire", t: "Moiré only — fades the two ring sets between multiply (0, dark webs) and add (1, bright overlaps)." },
       { n: "Root spin", w: "newton", t: "Newton only — rotates the whole basin structure; negative spins the other way." },
       { n: "Relaxation", w: "newton", t: "Newton only — the Newton step size (1 = standard). Away from 1 warps and swirls the basin boundaries." },
+      { n: "Overshoot", w: "jov", t: "Julia overshoot only — how strongly each point is shaded by its last jump past the escape circle, ranked against every point that escaped on the same step. 0 is the plain Julia; 1 spreads each step's band across a full swing of the palette." },
       { n: "Power", w: "multibrot", t: "Multibrot only — the exponent in z^power + c, a whole number. 2 is the Julia set; step up for more symmetric bulbs (3, 4, …). It also sets the shape of the seed orbit: the cardioid gains a cusp per step, and the seed sprints through each cusp and slows between them." },
       { n: "Bar count", w: "copper", t: "Copper bars only — how many horizontal bars slide up and down (1–12)." },
       { n: "Bar speed", w: "copper", t: "Copper bars only — how fast the bars bob on their sine paths (0 holds them still)." },

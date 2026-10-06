@@ -23,7 +23,10 @@ effect ⇒ add it here and there in the same commit.
   `tools/polyprobe.js`), Attractor 3D (`attr3d`, Lorenz/Thomas/Aizawa RK2-integrated over a fixed
   flow span per family, fitted by MEAN + RMS radius, through Tetrafyer's yaw/nod view;
   `tools/attr3dprobe.js`).
-- **Shader fractals** — Julia, Burning Ship, Multibrot, Newton.
+- **Shader fractals** — Julia, Burning Ship, Multibrot, Newton, Julia overshoot (`juliaov`, three
+  passes: `FS_JOVA` writes (step, overshoot past |z|=2) to `glTex.jov`, `VS_JOVB` scatters
+  points MAX-blended into the per-step min/max table `glTex.jovTab` (160×16, RD format), `FS_JOVC`
+  ranks each pixel inside its step's range; same frame, no lag).
 - **Shader pattern** — Plasma, Tunnel, Metaballs, Kaleidoscope, Rotozoomer, Moiré, Munching
   Squares, Copper Bars, Sun surface, Kefrens bars, Twister, Cymatics, Lightning storm, Starfield,
   Aurora, Reaction-diffusion, Voronoi cells (`voronoi`), Flow noise (`warpnoise`), Truchet tiles

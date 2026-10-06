@@ -67,6 +67,7 @@
     // part of the look, not a bug. (The old measurement — ~40–55% of a lap inside the
     // locus riding the RAW fractional curve — is what the blend fixes; juliaprobe pins it.)
     { key: "mbexp", host: "fx", group: "multibrot", type: "dual", label: "Power", valId: "vMbExp", min: 2, max: 6, step: 0.05, lo: 2, hi: 4, fmt: v => sig3(v), apply: v => mbPower = v, durScale: 10 },
+    { key: "jovamt", host: "fx", group: "jov", type: "dual", label: "Overshoot", valId: "vJovAmt", min: 0, max: 1, step: 0.01, lo: 0.5, hi: 0.5, fmt: v => sig3(v), apply: v => jovAmt = v, durScale: 10 },
     { key: "cbcount", host: "fx", group: "copper", type: "dual", single: true, label: "Bar count", valId: "vCbCount", min: 1, max: 12, step: 1, lo: 5, hi: 5, fmt: v => sig3(v), apply: v => cbCount = Math.round(v), durScale: 10 },
     { key: "cbspeed", host: "fx", group: "copper", type: "dual", label: "Bar speed", valId: "vCbSpeed", min: 0, max: 3, step: 0.05, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => cbSpeed = v, durScale: 10 },
     { key: "cbwidth", host: "fx", group: "copper", type: "dual", label: "Bar width", valId: "vCbWidth", min: 0.02, max: 0.3, step: 0.005, lo: 0.12, hi: 0.12, fmt: v => sig3(v), apply: v => cbWidth = v, durScale: 10 },
@@ -1145,7 +1146,7 @@
   const CTL_GROUPS = {
     shape: "Shape & motion", cardioid: "Cardioid seed", plasma: "Plasma", tunnel: "Tunnel",
     metaball: "Metaballs", kaleido: "Kaleidoscope", rotozoom: "Rotozoomer", munch: "Munching squares",
-    moire: "Moiré", newton: "Newton", multibrot: "Multibrot", copper: "Copper bars",
+    moire: "Moiré", newton: "Newton", multibrot: "Multibrot", jov: "Julia overshoot",copper: "Copper bars",
     attractor: "Attractor", physarum: "Slime mould", curl: "Curl flow", csg: "Smooth CSG", clouds: "Volumetric clouds", godray: "God rays", terrain: "Terrain", apollo: "Apollonian gasket", mbox: "Mandelbox", gyroid: "Gyroid", voronoi: "Voronoi cells", warpnoise: "Flow noise", truchet: "Truchet tiles", shapegrid: "Shape grid", concentric: "Concentric rings", bounce: "Bouncing shapes",
     solids: "Bouncing solids", sun: "Sun surface", kefrens: "Kefrens bars", twister: "Twister",
     chladni: "Cymatics", storm: "Lightning storm", bulb: "Mandelbulb", flames: "Fractal flames",
