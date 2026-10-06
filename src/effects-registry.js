@@ -491,12 +491,6 @@
       draw: dt => { const s = kleinSeed(dt); if (useGL) glShaderDraw("klein", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uCut, s.cut); gl.uniform1f(u.uAngle, s.angle); gl.uniform1f(u.uTilt, s.tilt); gl.uniform1f(u.uIter, s.iter); gl.uniform1f(u.uGlow, s.glow); gl.uniform1f(u.uZoom, s.zoom); }); else klein(s); },
       defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], klslice: [0, 0], klangle: [22, 22], kltilt: [12, 12], kliter: [28, 28], klglow: [0.4, 0.4], klspeed: [1, 1] },
       beat: {}, extras: { palette: "7", morph: false } },
-    { id: "juliaov", name: "Julia overshoot", subtitle: "Julia set · coloured by each step's overshoot",
-      help: "The Julia set again, with the same orbiting seed, but coloured by TWO things instead of one. As usual, how many steps a point took to escape. And how far its last jump flew past the escape circle, compared with every other point that escaped on the same step this frame: the biggest overshoot of that step shades one way, the smallest the other. Each step's band becomes its own gradient, which carves the bands into relief. **Overshoot** sets how strongly; 0 is the plain Julia.",
-      params: ["jovamt", "rpm", "ratio", "inrad", "outrad", "phase", "cardx", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim", "randseed"], helpTags: ["all", "julia", "band", "jov"],
-      bakesOwnZoom: true, cardioid: true, onEnter: () => reseedJulia(), draw: dt => { const s = juliaSeed(dt); if (useGL) glJuliaOver(s); else juliaOver(s); },
-      defaults: { palcycle: [0, 0], palhold: [0, 0], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], zoom: [1, 1], rpm: [0.28, 0.28], ratio: [8.5, 8.5], inrad: [0.03, 0.03], outrad: [1, 1], phase: [0, 0], cardx: [0, 0], jovamt: [0.5, 0.5] },
-      beat: {}, extras: { palette: "5", morph: false, showBox: true, randSeed: true } },
   ];
   // DISPLAY order only: every effect dropdown lists by name (twenty-odd effects in registry
   // order are a pile to hunt through), while EFFECTS keeps its own order — the runtime
@@ -508,7 +502,7 @@
   // rather than disappearing from the list, which is the safe way to be wrong.
   const EFFECT_CATS = [
     { name: "Fractals", desc: "the classic escape-time sets and their 3D relatives",
-      ids: ["animejulia", "juliaov", "burningship", "multibrot","newton", "mandelbulb", "qjulia", "menger", "apollo", "klein", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
+      ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "klein", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
     { name: "3D & raymarched", desc: "solids, surfaces and landscapes traced through space",
       ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds", "goo"] },
     { name: "Demoscene classics", desc: "the effects the scene has been writing since the 90s",

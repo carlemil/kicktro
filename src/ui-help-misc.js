@@ -79,7 +79,6 @@
       { n: "Blend", w: "moire", t: "Moiré only — fades the two ring sets between multiply (0, dark webs) and add (1, bright overlaps)." },
       { n: "Root spin", w: "newton", t: "Newton only — rotates the whole basin structure; negative spins the other way." },
       { n: "Relaxation", w: "newton", t: "Newton only — the Newton step size (1 = standard). Away from 1 warps and swirls the basin boundaries." },
-      { n: "Overshoot", w: "jov", t: "Julia overshoot only — how strongly each point is shaded by its last jump past the escape circle, ranked against every point that escaped on the same step. 0 is the plain Julia; 1 spreads each step's band across a full swing of the palette." },
       { n: "Power", w: "multibrot", t: "Multibrot only — the exponent in z^power + c, a whole number. 2 is the Julia set; step up for more symmetric bulbs (3, 4, …). It also sets the shape of the seed orbit: the cardioid gains a cusp per step, and the seed sprints through each cusp and slows between them." },
       { n: "Bar count", w: "copper", t: "Copper bars only — how many horizontal bars slide up and down (1–12)." },
       { n: "Bar speed", w: "copper", t: "Copper bars only — how fast the bars bob on their sine paths (0 holds them still)." },

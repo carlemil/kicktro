@@ -223,49 +223,6 @@
     }
   }
 
-  // ---- Julia overshoot: Julia, shaded per escape step by how far the last jump went ----
-  // Same orbit and escape test as julia(); an escaped pixel's heat is the smooth count plus
-  // jovAmt × (½ − t), t = its overshoot past radius 2 ranked between the smallest and largest
-  // overshoot of every pixel that escaped on the SAME step this frame. Two passes, because
-  // the ranking needs the whole frame. Overshoot is FS_JOVA's s = (|z| − 2) / (2 + |c|).
-  let jovAmt = 0.5, jovN = null, jovS = null;
-  function juliaOver(seed) {                // CPU fallback — mirrors FS_JOVA/JOVB/JOVC
-    const cx = seed.cx, cy = seed.cy, spanX = seed.spanX, spanY = seed.spanY;
-    const maxIter = JULIA_MAX_ITER, invLn2 = JULIA_INV_LN2, cr = 2 + Math.hypot(cx, cy), n = fw * fh;
-    if (!jovN || jovN.length !== n) { jovN = new Uint8Array(n); jovS = new Float32Array(n); }
-    const lo = new Float32Array(maxIter).fill(1), hi = new Float32Array(maxIter);
-    let idx = 0;
-    for (let y = 0; y < fh; y++) {
-      for (let x = 0; x < fw; x++, idx++) {
-        camPix(x, y);
-        let zx = (camPX / fw - 0.5) * spanX, zy = (camPY / fh - 0.5) * spanY;
-        let zx2 = zx * zx, zy2 = zy * zy, i = 0;
-        while (zx2 + zy2 <= 4 && i < maxIter) {
-          zy = 2 * zx * zy + cy;
-          zx = zx2 - zy2 + cx;
-          zx2 = zx * zx; zy2 = zy * zy;
-          i++;
-        }
-        jovN[idx] = i;
-        if (i >= maxIter) continue;
-        const s = Math.min(1, Math.max(0, (Math.sqrt(zx2 + zy2) - 2) / cr));
-        jovS[idx] = s;
-        if (s < lo[i]) lo[i] = s;
-        if (s > hi[i]) hi[i] = s;
-      }
-    }
-    for (idx = 0; idx < n; idx++) {
-      const i = jovN[idx];
-      if (i >= maxIter) { fire[idx] = 255; continue; }
-      const s = jovS[idx];
-      const nu = Math.log(Math.log(2 + s * cr) * invLn2) * invLn2;
-      const f = (i + 1 - nu) / maxIter;
-      const t = hi[i] > lo[i] ? (s - lo[i]) / (hi[i] - lo[i]) : 0.5;
-      const v = (f <= 0 ? 0 : Math.sqrt(f)) * (1 - jovAmt * t);
-      fire[idx] = 255 * Math.min(1, Math.max(0, v));
-    }
-  }
-
   // ---- Copper bars: horizontal gradient bars sliding on sine motion (shader effect) ----
   let cbCount = 5, cbSpeed = 1, cbWidth = 0.12, cbTime = 0;
   function copperSeed(dt) {
