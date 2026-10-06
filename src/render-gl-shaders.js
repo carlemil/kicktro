@@ -1277,6 +1277,49 @@
       }
       o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
+    // Metaball goo: the lava lamp done in 3D. Up to 8 spheres whose centres come from the
+    // Bouncing solids physics on the CPU (gooSeed, uPos.xyz centre, uPos.w radius), joined by
+    // IQ's polynomial smooth-min with blend radius uK. The smooth union never exceeds the
+    // plain min, so it is still a safe (if slower-converging) march bound. Shading is the
+    // solids' key light plus a tight specular, which is what reads as wet.
+    const FS_GOO = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uZoom; uniform float uCount; uniform float uRim; uniform float uK;
+    uniform vec4 uPos[8];
+    out vec4 o;
+    float map(vec3 p){
+      float d = 1e9; int n = int(uCount);
+      for (int i = 0; i < 8; i++){
+        if (i >= n) break;
+        float b = length(p - uPos[i].xyz) - uPos[i].w;
+        float h = max(uK - abs(d - b), 0.0) / max(uK, 1e-4);
+        d = min(d, b) - h*h*uK*0.25;
+      }
+      return d;
+    }
+    void main(){
+      vec2 uv = gl_FragCoord.xy/uSize - 0.5; uv.x *= uSize.x/uSize.y; uv /= uZoom;
+      vec3 ro = vec3(0.0, 0.0, -3.2), rd = normalize(vec3(uv, 1.4));
+      const vec3 L = vec3(-0.4557, 0.7295, -0.5104);
+      float t = 0.0, heat = 0.0;
+      for (int i = 0; i < 56; i++){
+        vec3 p = ro + rd*t;
+        float d = map(p);
+        if (d < 0.002){
+          vec2 e = vec2(1.0, -1.0)*0.0015;
+          vec3 n = normalize(e.xyy*map(p + e.xyy) + e.yyx*map(p + e.yyx)
+                           + e.yxy*map(p + e.yxy) + e.xxx*map(p + e.xxx));
+          float dif = max(0.0, dot(n, L));
+          float spec = pow(max(0.0, dot(reflect(rd, n), L)), 28.0);
+          float rim = pow(max(0.0, 1.0 - dot(n, -rd)), 2.5);
+          heat = (0.14 + 0.6*dif + 0.35*spec + uRim*rim) * (1.0 - smoothstep(1.5, 7.0, t));
+          break;
+        }
+        t += d;
+        if (t > 7.0) break;
+      }
+      o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // Sun surface: DKIST-style solar granulation — animated Voronoi cells (bright
     // convective centres, dark intergranular lanes), slow per-cell churn, tiny bright
     // points sparking in the lanes, and an optional sunspot (dark umbra + radiating

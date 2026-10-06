@@ -39,7 +39,7 @@ that are inherently "one animated scalar field" rank above ones that need real R
 | ~~**Quaternion Julia (4D)**~~ ✅ | SHIPPED post-1.25.0 | seed rides `juliaSeed` + the Orbit editor; Slice / Cut angle are the 4D knobs — a `c` component is NOT (see below) |
 | **Kleinian limit set** | Wada-basin sphere packings — the exotic showpiece | Raymarch; niche but jaw-dropping |
 | ~~**Black hole**~~ ✅ | SHIPPED post-1.25.0 | photon INTEGRATION (weak-field deflection), disk collected on plane crossings, Keplerian shear + Doppler beaming |
-| **3D metaball goo** | Smooth-min blobs merging in 3D (the lava lamp done properly) | Raymarch; reuse the solids physics for blob centres |
+| ~~**3D metaball goo**~~ ✅ | SHIPPED post-1.82.0 as "Metaball goo" | the solids' bodies as sphere centres (`L.goo`), IQ polynomial smooth-min, 56-step march; the solids' CPU marcher takes the map as an argument |
 
 ## D. Point-accumulation (the underused family — 3 of 21 effects)
 

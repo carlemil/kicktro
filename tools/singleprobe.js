@@ -69,6 +69,7 @@ const EXPECT = [
   "vbcount", "vbshape", "gxarms", "gosurf",
   "pycorners", "pyseed", "pyrand",   // Polypinski: a corner count, a roll of the dice, Random Off/On
   "a3kind",   // Attractor 3D: Lorenz / Thomas / Aizawa
+  "gucount",   // Metaball goo: a blob count
   // Doughnut: both are single because the flute pattern cos(flute·(ang + twist·arc))
   // only closes across the atan2 branch cut when flute·twist is a whole number.
   "dnflute",

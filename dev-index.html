@@ -5159,6 +5159,49 @@
       }
       o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
+    // Metaball goo: the lava lamp done in 3D. Up to 8 spheres whose centres come from the
+    // Bouncing solids physics on the CPU (gooSeed, uPos.xyz centre, uPos.w radius), joined by
+    // IQ's polynomial smooth-min with blend radius uK. The smooth union never exceeds the
+    // plain min, so it is still a safe (if slower-converging) march bound. Shading is the
+    // solids' key light plus a tight specular, which is what reads as wet.
+    const FS_GOO = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uZoom; uniform float uCount; uniform float uRim; uniform float uK;
+    uniform vec4 uPos[8];
+    out vec4 o;
+    float map(vec3 p){
+      float d = 1e9; int n = int(uCount);
+      for (int i = 0; i < 8; i++){
+        if (i >= n) break;
+        float b = length(p - uPos[i].xyz) - uPos[i].w;
+        float h = max(uK - abs(d - b), 0.0) / max(uK, 1e-4);
+        d = min(d, b) - h*h*uK*0.25;
+      }
+      return d;
+    }
+    void main(){
+      vec2 uv = gl_FragCoord.xy/uSize - 0.5; uv.x *= uSize.x/uSize.y; uv /= uZoom;
+      vec3 ro = vec3(0.0, 0.0, -3.2), rd = normalize(vec3(uv, 1.4));
+      const vec3 L = vec3(-0.4557, 0.7295, -0.5104);
+      float t = 0.0, heat = 0.0;
+      for (int i = 0; i < 56; i++){
+        vec3 p = ro + rd*t;
+        float d = map(p);
+        if (d < 0.002){
+          vec2 e = vec2(1.0, -1.0)*0.0015;
+          vec3 n = normalize(e.xyy*map(p + e.xyy) + e.yyx*map(p + e.yyx)
+                           + e.yxy*map(p + e.yxy) + e.xxx*map(p + e.xxx));
+          float dif = max(0.0, dot(n, L));
+          float spec = pow(max(0.0, dot(reflect(rd, n), L)), 28.0);
+          float rim = pow(max(0.0, 1.0 - dot(n, -rd)), 2.5);
+          heat = (0.14 + 0.6*dif + 0.35*spec + uRim*rim) * (1.0 - smoothstep(1.5, 7.0, t));
+          break;
+        }
+        t += d;
+        if (t > 7.0) break;
+      }
+      o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // Sun surface: DKIST-style solar granulation — animated Voronoi cells (bright
     // convective centres, dark intergranular lanes), slow per-cell churn, tiny bright
     // points sparking in the lanes, and an optional sunspot (dark umbra + radiating
@@ -7998,6 +8041,7 @@
     glProg.concentric = camProg(VS_QUAD, FS_CONCENTRIC, ["uSize", "uTime", "uSides", "uCount", "uThick", "uSpin", "uZoom"]);
     glProg.bounce = camProg(VS_QUAD, FS_BOUNCE, ["uSize", "uPos", "uCount", "uRad", "uSquare", "uZoom", "uMix", "uTime", "uSpin"]);
     glProg.solids = camProg(VS_QUAD, FS_SOLIDS, ["uSize", "uZoom", "uCount", "uRim", "uPos", "uQuat", "uShape"]);
+    glProg.goo = camProg(VS_QUAD, FS_GOO, ["uSize", "uZoom", "uCount", "uRim", "uK", "uPos"]);
     glProg.sun = camProg(VS_QUAD, FS_SUN, ["uSize", "uTime", "uDensity", "uLane", "uGlow", "uSpot", "uZoom"]);
     glProg.kefrens = camProg(VS_QUAD, FS_KEFRENS, ["uSize", "uTime", "uBars", "uSway", "uWidth", "uZoom"]);
     glProg.twister = camProg(VS_QUAD, FS_TWISTER, ["uSize", "uTime", "uCols", "uWidth", "uTwist", "uZoom"]);
@@ -13669,6 +13713,44 @@
     return { pos: sdPos, quat: sdQuat, shape: sdShape, count: n, rim: sdRim, zoom };
   }
 
+  // ---- Metaball goo: the solids' physics, spheres joined by a smooth-min ----------------
+  // Same rigid bodies, same walls, same hashed start (makeSolid / solidStep); only the radius,
+  // count and speed are the goo's own, and the orientation is carried but never drawn. Bodies
+  // do not collide with each other -- they never did -- so blobs sail through one another and
+  // the smooth union (FS_GOO, gooMap) is what makes them merge and pinch apart. The list lives
+  // on the layer (L.goo) for the same reason L.solids does.
+  let guCount = 6, guSize = 0.22, guSpeed = 0.6, guMerge = 1.2, guRim = 0.35;
+  let guBodies = [];
+  const guPos = new Float32Array(SD_MAX * 4);
+  function installGoo(L) {
+    L.goo = L.goo || [];
+    const n = Math.max(1, Math.min(SD_MAX, Math.round(guCount))), salt = layerSalt(L) + 0x6007;
+    while (L.goo.length < n) L.goo.push(makeSolid(L.goo.length, salt, guSize));
+    guBodies = L.goo;
+  }
+  function gooSeed(dt) {
+    SOLID_BOX[0] = SOLID_BOX[1] * (fw / fh);
+    const n = Math.max(1, Math.min(SD_MAX, Math.round(guCount)));
+    while (guBodies.length < n) guBodies.push(makeSolid(guBodies.length, 0x6007, guSize));
+    const step = Math.min(0.05, dt) * guSpeed;
+    for (let i = 0; i < n; i++) {
+      const S = guBodies[i];
+      solidStep(S, step, guSize);
+      guPos[i * 4] = S.P[0]; guPos[i * 4 + 1] = S.P[1]; guPos[i * 4 + 2] = S.P[2]; guPos[i * 4 + 3] = guSize;
+    }
+    return { pos: guPos, count: n, rim: guRim, k: guMerge * guSize, zoom };
+  }
+  function gooMap(s, x, y, z) {
+    let d = 1e9;
+    const k = s.k;
+    for (let i = 0; i < s.count; i++) {
+      const b = Math.hypot(x - s.pos[i * 4], y - s.pos[i * 4 + 1], z - s.pos[i * 4 + 2]) - s.pos[i * 4 + 3];
+      const h = Math.max(k - Math.abs(d - b), 0) / Math.max(k, 1e-4);
+      d = Math.min(d, b) - h * h * k * 0.25;
+    }
+    return d;
+  }
+
   // ---- CPU mirror of FS_SOLIDS ---------------------------------------------
   // Same scene, same marcher, fewer steps: this only runs on the Canvas2D fallback (no
   // WebGL2 at all), where every other shader effect is likewise a full per-pixel JS loop.
@@ -13716,7 +13798,9 @@
     }
     return d;
   }
-  function solids(s) {
+  // `map` lets Metaball goo reuse this marcher with its smooth union (gooMap).
+  function solids(s, map) {
+    if (!map) map = sdMap;
     const asp = fw / fh, ro = -3.2, foc = 1.4;
     // Light direction, normalised once — the same vector FS_SOLIDS hardcodes.
     const lx = -0.4557, ly = 0.7295, lz = -0.5104;
@@ -13728,12 +13812,12 @@
       let t = 0, heat = 0;
       for (let i = 0; i < SD_CPU_STEPS; i++) {
         const px = rx * t, py = ry * t, pz = ro + rz * t;
-        const d = sdMap(s, px, py, pz);
+        const d = map(s, px, py, pz);
         if (d < SD_CPU_EPS) {
           const e = 0.0015;                                   // central-difference normal
-          const nx = sdMap(s, px + e, py, pz) - sdMap(s, px - e, py, pz);
-          const ny = sdMap(s, px, py + e, pz) - sdMap(s, px, py - e, pz);
-          const nz = sdMap(s, px, py, pz + e) - sdMap(s, px, py, pz - e);
+          const nx = map(s, px + e, py, pz) - map(s, px - e, py, pz);
+          const ny = map(s, px, py + e, pz) - map(s, px, py - e, pz);
+          const nz = map(s, px, py, pz + e) - map(s, px, py, pz - e);
           const nl = Math.hypot(nx, ny, nz) || 1;
           const dif = Math.max(0, (nx * lx + ny * ly + nz * lz) / nl);
           const fac = Math.max(0, 1 + (nx * rx + ny * ry + nz * rz) / nl);   // 1 − n·(−rd)
@@ -15078,6 +15162,11 @@
     { key: "a3shape", host: "fx", group: "a3", type: "dual", label: "Shape", valId: "vA3Shape", min: 0, max: 1, step: 0.005, lo: 0.15, hi: 0.15, fmt: v => sig3(v), apply: v => a3Shape = v, durScale: 10 },
     { key: "a3spin", host: "fx", group: "a3", type: "dual", label: "Tumble", valId: "vA3Spin", min: 0, max: 3, step: 0.02, lo: 0.5, hi: 0.5, fmt: v => sig3(v) + "×", apply: v => a3Spin = v, durScale: 10 },
     { key: "a3depth", host: "fx", group: "a3", type: "dual", label: "Depth fade", valId: "vA3Depth", min: -1, max: 1, step: 0.01, lo: 0.45, hi: 0.45, fmt: v => sig3(v), apply: v => a3Depth = v, durScale: 10 },
+    { key: "gucount", host: "fx", group: "goo", type: "dual", single: true, label: "Blobs", valId: "vGuCount", min: 1, max: 8, step: 1, lo: 6, hi: 6, fmt: v => sig3(Math.round(v)), apply: v => guCount = Math.round(v), durScale: 10 },
+    { key: "gusize", host: "fx", group: "goo", type: "dual", label: "Blob size", valId: "vGuSize", min: 0.08, max: 0.45, step: 0.005, lo: 0.22, hi: 0.22, fmt: v => sig3(v), apply: v => guSize = v, durScale: 10 },
+    { key: "gumerge", host: "fx", group: "goo", type: "dual", label: "Merge", valId: "vGuMerge", min: 0, max: 2, step: 0.02, lo: 1.2, hi: 1.2, fmt: v => sig3(v), apply: v => guMerge = v, durScale: 10 },
+    { key: "guspeed", host: "fx", group: "goo", type: "dual", label: "Speed", valId: "vGuSpeed", min: 0, max: 3, step: 0.05, lo: 0.6, hi: 0.6, fmt: v => sig3(v) + "×", apply: v => guSpeed = v, durScale: 10 },
+    { key: "gurim", host: "fx", group: "goo", type: "dual", label: "Edge glow", valId: "vGuRim", min: 0, max: 1.5, step: 0.02, lo: 0.35, hi: 0.35, fmt: v => sig3(v), apply: v => guRim = v, durScale: 10 },
     { key: "vbcount", host: "fx", group: "vballs", type: "dual", single: true, label: "Balls", valId: "vVbCount", min: 6, max: 48, step: 1, lo: 24, hi: 24, fmt: v => sig3(Math.round(v)), apply: v => vbCount = Math.round(v), durScale: 10 },
     { key: "vbshape", host: "fx", group: "vballs", type: "dual", single: true, label: "Formation", valId: "vVbShape", min: 0, max: 3, step: 1, lo: 1, hi: 1, fmt: v => ["Lattice", "Sphere", "Ring", "Helix"][Math.round(v)] || "", apply: v => vbShape = Math.round(v), durScale: 10 },
     { key: "vbsize", host: "fx", group: "vballs", type: "dual", label: "Ball size", valId: "vVbSize", min: 0.08, max: 0.6, step: 0.005, lo: 0.30, hi: 0.30, fmt: v => sig3(v), apply: v => vbRad = v, durScale: 10 },
@@ -15974,7 +16063,7 @@
     solids: "Bouncing solids", sun: "Sun surface", kefrens: "Kefrens bars", twister: "Twister",
     chladni: "Cymatics", storm: "Lightning storm", bulb: "Mandelbulb", flames: "Fractal flames",
     stars: "Starfield", aurora: "Aurora", rd: "Reaction-diffusion", ca: "Cellular automata", menger: "Menger sponge",
-    boids: "Boids", galaxy: "Galaxy", harmo: "Harmonograph", poly: "Polypinski", a3: "Attractor 3D", vballs: "Vector balls", ocean: "Ocean",
+    boids: "Boids", galaxy: "Galaxy", harmo: "Harmonograph", poly: "Polypinski", a3: "Attractor 3D", goo: "Metaball goo", vballs: "Vector balls", ocean: "Ocean",
     torus: "Doughnut", trees: "Trees", ribbons: "Flying ribbons", glass: "Glass ball", world: "Shared 3D world",
     bhole: "Black hole", qjulia: "Quaternion Julia",
     camera: "Camera", other: "Other",
@@ -17234,6 +17323,7 @@
     // live on the layer and this points the globals at THIS layer's set before it draws.
     // Without it two Bouncing solids layers would share one set and render as one.
     if (EFFECTS[L.fx].solids) installSolids(L);
+    if (EFFECTS[L.fx].goo) installGoo(L);
     // Boids follow the identical arrangement: the flock is a list on the layer, not a
     // scalar clock, so it can't ride PHASE_VARS either.
     if (EFFECTS[L.fx].boids) installBoids(L);
@@ -18462,6 +18552,13 @@
       defaults: { palcycle: [0, 0], palhold: [0, 0], a3kind: [0, 0], a3shape: [0.15, 0.15], a3spin: [0.5, 0.5], a3depth: [0.45, 0.45], nod: [17.2, 17.2], nodspd: [1, 1],
         points: [24000, 24000], rise: [130, 130], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], speed: [23, 23], size: [1, 1], rot: [0, 0], layers: 1 },
       beat: {}, extras: { palette: "6", morph: false, showBox: true, randSeed: true } },
+    { id: "goo", name: "Metaball goo", subtitle: "Goo · smooth-min blobs in 3D",
+      help: "The lava lamp done properly: a handful of glossy blobs drifting through an invisible room, raymarched in 3D and joined by a smooth minimum, so where two pass close they swell into one another and stretch a neck between them before pinching apart. The blobs move on the same physics as Bouncing solids — they ricochet off the walls and sail straight through each other. Blobs is how many, Blob size how big, Merge how far apart two blobs start to join (0 keeps them hard spheres; high values melt the whole lot into one mass), Speed how fast they travel and Edge glow lights the silhouettes. Tick Fade pixel for trails.",
+      params: ["gucount", "gusize", "gumerge", "guspeed", "gurim", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "goo", "band"],
+      bakesOwnZoom: true, goo: true,
+      draw: dt => { const s = gooSeed(dt); if (useGL) glShaderDraw("goo", u => { gl.uniform4fv(u.uPos, s.pos); gl.uniform1f(u.uCount, s.count); gl.uniform1f(u.uRim, s.rim); gl.uniform1f(u.uK, s.k); gl.uniform1f(u.uZoom, s.zoom); }); else solids(s, gooMap); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], gucount: [6, 6], gusize: [0.22, 0.22], gumerge: [1.2, 1.2], guspeed: [0.6, 0.6], gurim: [0.35, 0.35], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
+      beat: {}, extras: { palette: "1", morph: false, showBox: true, randSeed: true } },
   ];
   // DISPLAY order only: every effect dropdown lists by name (twenty-odd effects in registry
   // order are a pile to hunt through), while EFFECTS keeps its own order — the runtime
@@ -18475,7 +18572,7 @@
     { name: "Fractals", desc: "the classic escape-time sets and their 3D relatives",
       ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
     { name: "3D & raymarched", desc: "solids, surfaces and landscapes traced through space",
-      ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds"] },
+      ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds", "goo"] },
     { name: "Demoscene classics", desc: "the effects the scene has been writing since the 90s",
       ids: ["plasma", "tunnel", "copperbars", "kefrens", "twister", "rotozoom", "munch", "moire", "metaballs", "starfield", "kaleidoscope"] },
     { name: "Patterns & noise", desc: "fields, tilings and shapes built from a formula",
@@ -26707,6 +26804,11 @@
       { n: "Gap", w: "poly", t: "Polypinski only — the space between the shrunken copies. At 0 each step is worked out from the corners so the copies just touch: 0.5 for the triangle, tetrahedron and octahedron, less for more corners. Positive values shrink the copies and open the holes wider; negative values let them overlap until the solid fills in." },
       { n: "Wiggle", w: "poly", t: "Polypinski only — how far each corner wanders about its home on the sphere. 0 holds the formation rigid (only the tumble moves), 1 lets the corners roam the whole ball." },
       { n: "Depth fade", w: "poly", t: "Polypinski only — brightness as a function of distance from you. 0 lights every point the same; positive values dim the far side of the ball (1 makes the back vanish), negative values dim the near side so the back glows through." },
+      { n: "Blobs", w: "goo", t: "Metaball goo only — how many blobs share the room, up to 8." },
+      { n: "Blob size", w: "goo", t: "Metaball goo only — the radius of each blob, which is also the radius it bounces off the walls on." },
+      { n: "Merge", w: "goo", t: "Metaball goo only — how far apart two blobs begin to flow into each other, as a multiple of Blob size. 0 keeps hard spheres that simply intersect; around 1 they bulge toward each other and draw a neck as they pass; 2 melts the whole set into one slow mass." },
+      { n: "Speed", w: "goo", t: "Metaball goo only — how fast the blobs travel. 0 freezes them." },
+      { n: "Edge glow", w: "goo", t: "Metaball goo only — lights the silhouettes, brightest where the surface turns away from you." },
       { n: "Attractor", w: "a3", t: "Attractor 3D only — which family of equations the point follows. Lorenz is the butterfly: two lobes the orbit flips between at unpredictable moments. Thomas is a cyclically symmetric labyrinth of tubes. Aizawa is a sphere-like shell spun about a central tube." },
       { n: "Shape", w: "a3", t: "Attractor 3D only — the family's own parameter (Lorenz ρ, Thomas b, Aizawa ε), 0 to 1. Chaotic bands and closed periodic knots alternate along it, so a small move can turn a cloud into a single clean loop and back. Spread the thumbs to sweep through them." },
       { n: "Tumble", w: "a3", t: "Attractor 3D only — a slow yaw drift of its own on top of Rotation, so the shape turns and reads as 3D. 0 holds it at whatever angle Rotation and Box nod give." },

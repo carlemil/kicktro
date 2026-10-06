@@ -145,6 +145,44 @@
     return { pos: sdPos, quat: sdQuat, shape: sdShape, count: n, rim: sdRim, zoom };
   }
 
+  // ---- Metaball goo: the solids' physics, spheres joined by a smooth-min ----------------
+  // Same rigid bodies, same walls, same hashed start (makeSolid / solidStep); only the radius,
+  // count and speed are the goo's own, and the orientation is carried but never drawn. Bodies
+  // do not collide with each other -- they never did -- so blobs sail through one another and
+  // the smooth union (FS_GOO, gooMap) is what makes them merge and pinch apart. The list lives
+  // on the layer (L.goo) for the same reason L.solids does.
+  let guCount = 6, guSize = 0.22, guSpeed = 0.6, guMerge = 1.2, guRim = 0.35;
+  let guBodies = [];
+  const guPos = new Float32Array(SD_MAX * 4);
+  function installGoo(L) {
+    L.goo = L.goo || [];
+    const n = Math.max(1, Math.min(SD_MAX, Math.round(guCount))), salt = layerSalt(L) + 0x6007;
+    while (L.goo.length < n) L.goo.push(makeSolid(L.goo.length, salt, guSize));
+    guBodies = L.goo;
+  }
+  function gooSeed(dt) {
+    SOLID_BOX[0] = SOLID_BOX[1] * (fw / fh);
+    const n = Math.max(1, Math.min(SD_MAX, Math.round(guCount)));
+    while (guBodies.length < n) guBodies.push(makeSolid(guBodies.length, 0x6007, guSize));
+    const step = Math.min(0.05, dt) * guSpeed;
+    for (let i = 0; i < n; i++) {
+      const S = guBodies[i];
+      solidStep(S, step, guSize);
+      guPos[i * 4] = S.P[0]; guPos[i * 4 + 1] = S.P[1]; guPos[i * 4 + 2] = S.P[2]; guPos[i * 4 + 3] = guSize;
+    }
+    return { pos: guPos, count: n, rim: guRim, k: guMerge * guSize, zoom };
+  }
+  function gooMap(s, x, y, z) {
+    let d = 1e9;
+    const k = s.k;
+    for (let i = 0; i < s.count; i++) {
+      const b = Math.hypot(x - s.pos[i * 4], y - s.pos[i * 4 + 1], z - s.pos[i * 4 + 2]) - s.pos[i * 4 + 3];
+      const h = Math.max(k - Math.abs(d - b), 0) / Math.max(k, 1e-4);
+      d = Math.min(d, b) - h * h * k * 0.25;
+    }
+    return d;
+  }
+
   // ---- CPU mirror of FS_SOLIDS ---------------------------------------------
   // Same scene, same marcher, fewer steps: this only runs on the Canvas2D fallback (no
   // WebGL2 at all), where every other shader effect is likewise a full per-pixel JS loop.
@@ -192,7 +230,9 @@
     }
     return d;
   }
-  function solids(s) {
+  // `map` lets Metaball goo reuse this marcher with its smooth union (gooMap).
+  function solids(s, map) {
+    if (!map) map = sdMap;
     const asp = fw / fh, ro = -3.2, foc = 1.4;
     // Light direction, normalised once — the same vector FS_SOLIDS hardcodes.
     const lx = -0.4557, ly = 0.7295, lz = -0.5104;
@@ -204,12 +244,12 @@
       let t = 0, heat = 0;
       for (let i = 0; i < SD_CPU_STEPS; i++) {
         const px = rx * t, py = ry * t, pz = ro + rz * t;
-        const d = sdMap(s, px, py, pz);
+        const d = map(s, px, py, pz);
         if (d < SD_CPU_EPS) {
           const e = 0.0015;                                   // central-difference normal
-          const nx = sdMap(s, px + e, py, pz) - sdMap(s, px - e, py, pz);
-          const ny = sdMap(s, px, py + e, pz) - sdMap(s, px, py - e, pz);
-          const nz = sdMap(s, px, py, pz + e) - sdMap(s, px, py, pz - e);
+          const nx = map(s, px + e, py, pz) - map(s, px - e, py, pz);
+          const ny = map(s, px, py + e, pz) - map(s, px, py - e, pz);
+          const nz = map(s, px, py, pz + e) - map(s, px, py, pz - e);
           const nl = Math.hypot(nx, ny, nz) || 1;
           const dif = Math.max(0, (nx * lx + ny * ly + nz * lz) / nl);
           const fac = Math.max(0, 1 + (nx * rx + ny * ry + nz * rz) / nl);   // 1 − n·(−rd)

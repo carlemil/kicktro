@@ -1046,6 +1046,7 @@
     // live on the layer and this points the globals at THIS layer's set before it draws.
     // Without it two Bouncing solids layers would share one set and render as one.
     if (EFFECTS[L.fx].solids) installSolids(L);
+    if (EFFECTS[L.fx].goo) installGoo(L);
     // Boids follow the identical arrangement: the flock is a list on the layer, not a
     // scalar clock, so it can't ride PHASE_VARS either.
     if (EFFECTS[L.fx].boids) installBoids(L);

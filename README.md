@@ -37,7 +37,7 @@ The whole thing burns, flickers, and morphs continuously — and every effect ca
 ## Effects
 
 Every row in the panel's **Layers** box carries an **Effect** chooser, switching that layer
-between fifty-six visuals that share the same palette, glow and music-reactivity pipeline —
+between fifty-seven visuals that share the same palette, glow and music-reactivity pipeline —
 but each is an independent "scene" that remembers its own settings (see Controls). You can
 **stack up to four of them at once**, each with its own palette and filters — see Layers
 below:
@@ -96,6 +96,7 @@ below:
   - **Concentric rings** — nested polygon contours marching outward from the centre, a hypnotic shape-tunnel (Sides / Ring count / March speed / Spin).
   - **Bouncing shapes** — a handful of circles↔squares drifting and bouncing off the edges, DVD-logo style. Tick a Fade or Fire filter for glowing trails.
   - **Bouncing solids** — the 3D one: solid **spheres, boxes, doughnuts, capsules, octahedra and cylinders** tumbling and ricocheting around an invisible room, raymarched as signed-distance fields and shaded into the palette by surface angle and depth. **Count** sets how many bodies, **Size** how big (it is also the radius they bounce on, so bigger ones turn sooner), **Shape mix** how many different primitives are in play (1 = all spheres, 6 = one of each), **Speed** how fast they travel, **Tumble** how hard they spin — a wall hit turns slide into roll, so an angled clip kicks a body into a tumble — and **Edge glow** lights the silhouettes.
+  - **Metaball goo** — the lava lamp done properly: glossy blobs drifting through the same invisible room as Bouncing solids, raymarched in 3D and joined by a smooth minimum, so two that pass close flow into one and pinch apart again. **Blobs** sets how many, **Blob size** how big, **Merge** how far apart they start to melt together, **Speed** how fast they travel and **Edge glow** lights the silhouettes.
   - **Sun surface** — the sun's boiling granulation, Inouye-telescope style: a full-screen field of bright convection cells split by narrow dark lanes (animated Voronoi), each cell drifting, deforming and brightening on its own slow cycle, with tiny bright points sparking in the lanes. **Cell density** sets how fine the boil is, **Churn speed** how fast, **Lane width** how fat the dark cracks are, and **Sunspot** sinks a dark umbra ringed by radiating penumbral filaments into the middle (0 = the clean surface from the telescope footage). Amber/Fire/Ember palettes give it its colour.
   - **Kefrens bars** — the classic Amiga effect: vertical ribbons redrawn at a per-scanline phase offset, weaving impossibly through each other. **Bars**, **Sway**, **Speed** and **Bar width** shape the tangle.
   - **Twister** — the classic twisting column, each face shaded by its angle with bright seams on the edges. **Twist** wrings it, **Speed** turns it, **Columns** stands up to three side by side.

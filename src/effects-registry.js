@@ -471,6 +471,13 @@
       defaults: { palcycle: [0, 0], palhold: [0, 0], a3kind: [0, 0], a3shape: [0.15, 0.15], a3spin: [0.5, 0.5], a3depth: [0.45, 0.45], nod: [17.2, 17.2], nodspd: [1, 1],
         points: [24000, 24000], rise: [130, 130], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], speed: [23, 23], size: [1, 1], rot: [0, 0], layers: 1 },
       beat: {}, extras: { palette: "6", morph: false, showBox: true, randSeed: true } },
+    { id: "goo", name: "Metaball goo", subtitle: "Goo · smooth-min blobs in 3D",
+      help: "The lava lamp done properly: a handful of glossy blobs drifting through an invisible room, raymarched in 3D and joined by a smooth minimum, so where two pass close they swell into one another and stretch a neck between them before pinching apart. The blobs move on the same physics as Bouncing solids — they ricochet off the walls and sail straight through each other. Blobs is how many, Blob size how big, Merge how far apart two blobs start to join (0 keeps them hard spheres; high values melt the whole lot into one mass), Speed how fast they travel and Edge glow lights the silhouettes. Tick Fade pixel for trails.",
+      params: ["gucount", "gusize", "gumerge", "guspeed", "gurim", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "goo", "band"],
+      bakesOwnZoom: true, goo: true,
+      draw: dt => { const s = gooSeed(dt); if (useGL) glShaderDraw("goo", u => { gl.uniform4fv(u.uPos, s.pos); gl.uniform1f(u.uCount, s.count); gl.uniform1f(u.uRim, s.rim); gl.uniform1f(u.uK, s.k); gl.uniform1f(u.uZoom, s.zoom); }); else solids(s, gooMap); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], gucount: [6, 6], gusize: [0.22, 0.22], gumerge: [1.2, 1.2], guspeed: [0.6, 0.6], gurim: [0.35, 0.35], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
+      beat: {}, extras: { palette: "1", morph: false, showBox: true, randSeed: true } },
   ];
   // DISPLAY order only: every effect dropdown lists by name (twenty-odd effects in registry
   // order are a pile to hunt through), while EFFECTS keeps its own order — the runtime
@@ -484,7 +491,7 @@
     { name: "Fractals", desc: "the classic escape-time sets and their 3D relatives",
       ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
     { name: "3D & raymarched", desc: "solids, surfaces and landscapes traced through space",
-      ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds"] },
+      ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds", "goo"] },
     { name: "Demoscene classics", desc: "the effects the scene has been writing since the 90s",
       ids: ["plasma", "tunnel", "copperbars", "kefrens", "twister", "rotozoom", "munch", "moire", "metaballs", "starfield", "kaleidoscope"] },
     { name: "Patterns & noise", desc: "fields, tilings and shapes built from a formula",
