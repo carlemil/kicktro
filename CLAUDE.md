@@ -973,7 +973,9 @@ its own). What each pins:
   out of a `new Function`, not `eval`.
 - **`slimeprobe`** — drift of a 3×2 block map (not per-cell churn), determinism, field on layer.
 - **`palprobe`** — frozen `PAL_IDS`, codec round trip, deletion fallback never a tombstone.
-- **`uiprobe`** — dialog invariants from one table; `setOff`; one-layer floor before `confirm`.
+- **`uiprobe`** — dialog invariants from one table; `setOff`; one-layer floor before `confirm`; HELP rows
+  never shadow a control's `?` (no shared label under overlapping tags; no `"all"` row named
+  like a filter param that a non-filter control also carries).
 - **`stackprobe`** — stack-item lifecycle invariants; `fullSnapshot`/`applyBlob` key symmetry.
 - **`shareprobe`** — share codec round trip. **`cloudprobe`** — cloud shares the codec; empty
   apiKey ⇒ zero requests. Plus `docsprobe`, `worldprobe`, `glassprobe`, `asciiprobe`,

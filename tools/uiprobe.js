@@ -231,5 +231,35 @@ for (const d of DIALOGS.filter(x => !x.modal)) {
      "#" + d.id + " does NOT trap focus (it is used while the scene runs)");
 }
 
+// ---- 9. HELP rows never shadow another control's ? -------------------------------------
+// #8's first cut added Stained glass rows "Cell size" and "Shimmer" tagged "all"; ctlHelpBlurb
+// takes the first row whose `w` the live effect carries, and every effect carries "all", so
+// Gyroid's Cell size and Cymatics'/Aurora's Shimmer showed the filter's text. Review caught
+// it, no probe did. Markers: `const HELP = {` .. `const helpEl` (pure data, so new Function).
+const hA = js.indexOf("const HELP = {"), hB = js.indexOf("const helpEl", hA);
+ok(hA >= 0 && hB > hA, "HELP literal found between its markers");
+const HELP_ROWS = hA >= 0 && hB > hA ? new Function(js.slice(hA, hB) + "; return HELP;")().sliders : [];
+const TAG_SETS = [...js.matchAll(/helpTags:\s*(\[[^\]]*\])/g)].map(m => JSON.parse(m[1]));
+const CTLS = [...js.matchAll(/\{ key: "(\w+)", host: "(\w+)"[^\n]*?label: "([^"]+)"/g)]
+  .map(m => ({ key: m[1], host: m[2], label: m[3] }));
+ok(HELP_ROWS.length > 0 && TAG_SETS.length > 0 && CTLS.length > 0,
+   "HELP rows, effect helpTags and CONTROLS labels all parsed",
+   HELP_ROWS.length + " / " + TAG_SETS.length + " / " + CTLS.length);
+const helpKey = n => n.split(" / ")[0];   // ctlHelpBlurb's own label match
+// (a) two rows with one label that some effect sees both of: the earlier row wins the ?.
+const pairs = [];
+for (let i = 0; i < HELP_ROWS.length; i++) for (let j = i + 1; j < HELP_ROWS.length; j++) {
+  const a = HELP_ROWS[i], b = HELP_ROWS[j];
+  if (helpKey(a.n) === helpKey(b.n) && TAG_SETS.some(t => t.includes(a.w) && t.includes(b.w)))
+    pairs.push(a.n + " [" + a.w + "] vs [" + b.w + "]");
+}
+ok(pairs.length === 0, "no two HELP rows an effect sees share a label", pairs.join(", "));
+// (b) an "all" row for a filter param is never read by that param's ? (FILTERS[].help is),
+// so all it can do is hijack a non-filter control of the same label — even one with no row.
+const filterLabels = new Set(CTLS.filter(c => c.host === "filter").map(c => c.label));
+const hijacks = HELP_ROWS.filter(s => s.w === "all" && filterLabels.has(helpKey(s.n)))
+  .flatMap(s => CTLS.filter(c => c.host !== "filter" && c.label === helpKey(s.n)).map(c => s.n + " -> " + c.key));
+ok(hijacks.length === 0, "no \"all\" HELP row named like a filter param shadows another control", hijacks.join(", "));
+
 console.log("\n" + (fail ? fail + " FAILED, " + pass + " passed" : "all " + pass + " passed"));
 process.exit(fail ? 1 : 0);
