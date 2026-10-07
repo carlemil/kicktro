@@ -15,6 +15,23 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.83.0] — 2026-10-07
+
+### Added
+- **Attractor 3D** — a new point effect: the Lorenz butterfly, the Thomas labyrinth and the Aizawa shell, three strange attractors traced in 3D and turned so you can see their depth. **Attractor** picks the family; **Shape** walks its own parameter, where clouds of chaos and single clean loops alternate (spread the thumbs to sweep through them); **Tumble** adds a slow turn of its own; **Depth fade** dims the far side (or, negative, the near side).
+- **Metaball goo** — a new 3D effect: soft blobs bouncing around the room on the Bouncing solids physics that flow into each other when they meet and pinch apart as they leave. **Blobs** (up to 8), **Blob size**, **Merge** (0 keeps hard spheres, around 1 draws a neck between passing blobs, 2 melts the lot into one mass), **Speed** and **Edge glow**.
+- **Crystal growth** — a new effect: frost creeping across a pane from a few seeds, branching as it goes, then thawing from each seed out to its tips before new crystals start. **Detail** sets how fine the frost is, **Growth** how fast it creeps, **Branching** thin far-reaching dendrites versus dense bushy frost, **Lifetime** how long it grows before the thaw, and **Nucleation** how often new crystals appear (arm its chips and each beat sows a few).
+- **Kleinian limit set** — a new 3D effect: the endlessly nested bubbles of a Kleinian group's limit set, raymarched and cut open by a plane. **Slice** moves the cut through the set, **Cut angle** turns it (0 is the textbook circle packing face-on), **Cut tilt** leans it so the walls come into view; **Detail**, **Glow** and **Drift** (the cut slides and the camera pans by itself) finish it.
+- **Anaglyph split** — a new filter: red/cyan 3D-glasses stereo, with red pushed one way, cyan the other and bright detail standing out nearest. **Depth** ships as a range so the split breathes; arm its chips and it kicks on the beat. **Glasses** goes from the picture's own colours to classic grey red/cyan.
+- **Stained glass** — a new filter: the picture broken into an irregular mosaic of glass panes, each filled flat with the colour under it and held in dark lead. **Cell size** sets the pane size, **Lead** its thickness (a range, so it breathes; arm its chips and it slams thick on the beat), **Shimmer** how far the panes drift and reshape.
+
+### Fixed
+- The **?** help on **Trees → Depth** showed the Anaglyph split filter's text; it now shows the Trees help again.
+
+### Internal
+- `tools/attr3dprobe.js` pins Attractor 3D's fit and integration; `uiprobe` now fails when a help row would shadow another control's help.
+- `promo/` (local promo videos) is no longer tracked; promo music credits added.
+
 ## [1.82.0] — 2026-09-14
 
 ### Added
