@@ -2629,7 +2629,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.82.0",
+    version: "1.83.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -3044,7 +3044,8 @@
   // Post warps / colour
   let noiseAmt = 0.4, noiseSeedMode = 1, noiseFrame = 0;
   let twistAmt = 1.2, wedgeSeg = 6, wedgeRot = 0, glitchAmt = 0.05, glitchRows = 8,
-    halfDot = 4, halfAmt = 0.8, threshLevel = 0.5, threshAmt = 0.8, chromaAmt = 1;
+    halfDot = 4, halfAmt = 0.8, threshLevel = 0.5, threshAmt = 0.8, chromaAmt = 1,
+    anaDepth = 8, anaTint = 1, stgSize = 28, stgLead = 0.06, stgWob = 0.6;
   // Screen stage (after the glow, at display resolution)
   let barrelAmt = 0.15, scanAmt = 0.35, scanCount = 240, vigAmt = 0.4, grainAmt = 0.08;
   let crtMask = 0.5, crtBleed = 0.4;                     // CRT phosphor: shadow mask, beam smear
@@ -3059,6 +3060,7 @@
   // is a var on purpose — initGL assigns it while later slices' lets are still in TDZ.
   let rdNeedSeed = true, rdSalt = 1;
   let caNeedSeed = true, caSalt = 1;      // Cellular automata: same arrangement, its own grid
+  let cgNeedSeed = true, cgSalt = 1;      // Crystal growth: the same again
   var rdIsFloat = false;
   // Wall time for the post/screen passes that animate on their own (Slice glitch,
   // Grain). Accumulated from the frame loop's dt, never read off performance.now(),
@@ -4717,6 +4719,76 @@
       heat += uGlow * 0.45 * exp(-halo * 16.0);
       o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
+    // KLEINIAN LIMIT SET (Jos Leys / Knighty): the Maskit slice's two generators -- a shift
+    // folded into a period-2 cell in x and z, and an inversion -- applied until the point
+    // settles in a 2-cycle. The set is an infinite slab between y = 0 and y = KA, everything
+    // outside it counts as solid. The group is PINNED at the classic Maskit trace: off that
+    // edge the set just shatters (the Quaternion Julia lesson in EFFECTS-IDEAS.md). The
+    // variety is the CUT: a plane with normal n at offset uCut removes the camera's side,
+    // and the face it leaves IS the circle-packing picture, the tunnels behind it in relief.
+    const FS_KLEIN = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uTime; uniform float uCut; uniform float uAngle; uniform float uTilt;
+    uniform float uIter; uniform float uGlow; uniform float uZoom;
+    out vec4 o;
+    const float KA = 1.95859103, KB = 0.0112785606;
+    float kleinRaw(vec3 z, int it){
+      vec3 lz = z + 1.0, llz = z - 1.0;
+      float df = 1.0;
+      for (int i = 0; i < 48; i++) {
+        if (i >= it) break;
+        z.x += KB / KA * z.y;
+        z.xz -= 2.0 * floor((z.xz + 1.0) * 0.5);
+        z.x -= KB / KA * z.y;
+        float sx = z.x + KB * 0.5;
+        if (z.y >= KA * 0.5 + (2.0 * KA - 1.95) * 0.25 * sign(sx) * (1.0 - exp(-(7.2 - (1.95 - KA) * 15.0) * abs(sx)))) z = vec3(-KB, KA, 0.0) - z;
+        float ir = 1.0 / dot(z, z);
+        z *= -ir; z.x = -KB - z.x; z.y += KA;
+        df *= max(1.0, ir);
+        if (dot(z - llz, z - llz) < 1e-5) break;
+        llz = lz; lz = z;
+      }
+      return min(min(z.y, KA - z.y), 0.3) / max(df, 2.0);
+    }
+    void main(){
+      vec2 uv = (gl_FragCoord.xy - 0.5 * uSize) / uSize.y / uZoom;
+      int it = int(clamp(uIter, 8.0, 48.0));
+      vec3 n = vec3(sin(uAngle) * cos(uTilt), sin(uTilt), cos(uAngle) * cos(uTilt));
+      vec3 side = normalize(vec3(n.z, 0.0, -n.x));
+      vec3 c0 = vec3(0.0, KA * 0.5, 0.0) + side * (uTime * 0.11);
+      c0 += vec3(n.x, 0.0, n.z) / cos(uTilt) * ((uCut - dot(c0, n)) / cos(uTilt));   // slide level, not along n
+      vec3 f = -normalize(n + side * 0.18 * sin(uTime * 0.21) + vec3(0.0, 0.12 * sin(uTime * 0.13), 0.0));
+      vec3 ro = c0 - f * 4.2;
+      vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
+      vec3 rd = normalize(mat3(r, cross(f, r), f) * vec3(uv, 1.7));
+      float t = 0.0, halo = 9.0, heat = 0.0;
+      for (int i = 0; i < 140; i++) {
+        vec3 p = ro + rd * t;
+        float k = kleinRaw(p, it);
+        float d = max(k, dot(p, n) - uCut);
+        if (t > 3.0) halo = min(halo, k / t);
+        if (d < 0.0007 * t) {
+          float depth = uCut - dot(p, n);
+          if (depth < 0.004) {
+            vec3 up = cross(n, side); float e = 0.004 * t, rim = 0.0, th = 0.002 * t;
+            rim += step(th, kleinRaw(p + side * e, it)) + step(th, kleinRaw(p - side * e, it));
+            rim += step(th, kleinRaw(p + up * e, it)) + step(th, kleinRaw(p - up * e, it));
+            heat = 0.48 + 0.12 * rim;
+          } else {
+            float e = 0.0009 * t;
+            vec2 h = vec2(1.0, -1.0) * 0.5773;
+            vec3 nrm = normalize(h.xyy * kleinRaw(p + h.xyy * e, it) + h.yyx * kleinRaw(p + h.yyx * e, it) + h.yxy * kleinRaw(p + h.yxy * e, it) + h.xxx * kleinRaw(p + h.xxx * e, it));
+            float dif = max(0.0, dot(nrm, normalize(n + vec3(0.3, 0.6, 0.0))));
+            heat = (0.1 + 0.75 * dif) * exp(-depth * 0.8);
+          }
+          break;
+        }
+        t += d * 0.8;
+        if (t > 9.0) break;
+      }
+      heat += uGlow * 0.3 * exp(-max(halo, 0.0) * 1200.0);
+      o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // MANDELBOX: box-fold then sphere-fold then scale, which is a completely different family
     // from the Mandelbulb's power map -- it makes hard architectural shells rather than organic
     // lobes. Negative Scale values give the classic hollow forms.
@@ -5152,6 +5224,49 @@
           float dif = max(0.0, dot(n, L));
           float rim = pow(max(0.0, 1.0 - dot(n, -rd)), 2.5);   // bright silhouette edges
           heat = (0.18 + 0.72*dif + uRim*rim) * (1.0 - smoothstep(1.5, 7.0, t));   // ...fading with depth
+          break;
+        }
+        t += d;
+        if (t > 7.0) break;
+      }
+      o = vec4(clamp(heat, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
+    // Metaball goo: the lava lamp done in 3D. Up to 8 spheres whose centres come from the
+    // Bouncing solids physics on the CPU (gooSeed, uPos.xyz centre, uPos.w radius), joined by
+    // IQ's polynomial smooth-min with blend radius uK. The smooth union never exceeds the
+    // plain min, so it is still a safe (if slower-converging) march bound. Shading is the
+    // solids' key light plus a tight specular, which is what reads as wet.
+    const FS_GOO = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uZoom; uniform float uCount; uniform float uRim; uniform float uK;
+    uniform vec4 uPos[8];
+    out vec4 o;
+    float map(vec3 p){
+      float d = 1e9; int n = int(uCount);
+      for (int i = 0; i < 8; i++){
+        if (i >= n) break;
+        float b = length(p - uPos[i].xyz) - uPos[i].w;
+        float h = max(uK - abs(d - b), 0.0) / max(uK, 1e-4);
+        d = min(d, b) - h*h*uK*0.25;
+      }
+      return d;
+    }
+    void main(){
+      vec2 uv = gl_FragCoord.xy/uSize - 0.5; uv.x *= uSize.x/uSize.y; uv /= uZoom;
+      vec3 ro = vec3(0.0, 0.0, -3.2), rd = normalize(vec3(uv, 1.4));
+      const vec3 L = vec3(-0.4557, 0.7295, -0.5104);
+      float t = 0.0, heat = 0.0;
+      for (int i = 0; i < 56; i++){
+        vec3 p = ro + rd*t;
+        float d = map(p);
+        if (d < 0.002){
+          vec2 e = vec2(1.0, -1.0)*0.0015;
+          vec3 n = normalize(e.xyy*map(p + e.xyy) + e.yyx*map(p + e.yyx)
+                           + e.yxy*map(p + e.yxy) + e.xxx*map(p + e.xxx));
+          float dif = max(0.0, dot(n, L));
+          float spec = pow(max(0.0, dot(reflect(rd, n), L)), 28.0);
+          float rim = pow(max(0.0, 1.0 - dot(n, -rd)), 2.5);
+          heat = (0.14 + 0.6*dif + 0.35*spec + uRim*rim) * (1.0 - smoothstep(1.5, 7.0, t));
           break;
         }
         t += d;
@@ -7171,6 +7286,87 @@
       vec2 s = texture(uState, uv).rg;
       o = vec4(clamp(max(s.r*0.85, s.g*0.7)*uGain, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
+    // Crystal growth -- DIFFUSION-LIMITED frost on the Cellular automata arrangement (its own
+    // pair glTex.cg, sized by Detail, read with texelFetch) in the Reaction-diffusion format
+    // (RGBA16F where it renders: vapour and age both move far below 1/255 a step). State:
+    // frozen in .r, vapour in .g, age of the ice in .b (0 at freezing, 1 at the end of the
+    // growing phase). Ice holds no vapour, so the crystal is an absorbing wall and the field
+    // starves the fjords between branches -- the tips see the most vapour and outgrow the
+    // rest, which is what makes it branch at all. That only works while diffusion is FAST
+    // against growth (branch scale ~ D/V): FS_CGDIFF runs CG_DIFF extra diffusion passes per
+    // freezing step, and a wet cell beside ice freezes with probability Branching x vapour.
+    // Measured offline first: one diffusion pass a step and a high sticking rate fill the
+    // dish with a sponge of ice and holes in ~300 steps, which reads as noise.
+    // THE CYCLE IS GLOBAL, from the CPU (cgSeedFn): grow for Lifetime, then THAW -- uMelt
+    // sweeps from 1 to 0 and ice older than it sublimates, so every crystal dissolves from its
+    // seed out to its tips -- then re-seed. Per-cell melting was tried and rejected: the
+    // freed cells regrow in uniformly re-humidified air, which is Eden growth, i.e. noise.
+    const FS_CGDIFF = `#version 300 es
+    precision highp float;
+    uniform sampler2D uPrev; uniform vec2 uSize;
+    out vec4 o;
+    vec4 at(ivec2 p){ return texelFetch(uPrev, clamp(p, ivec2(0), ivec2(uSize) - 1), 0); }
+    void main(){
+      ivec2 p = ivec2(gl_FragCoord.xy);
+      vec4 c = at(p);
+      if (c.r > 0.5) { o = c; return; }
+      float lap = at(p + ivec2(1, 0)).g + at(p - ivec2(1, 0)).g + at(p + ivec2(0, 1)).g + at(p - ivec2(0, 1)).g - 4.0*c.g;
+      o = vec4(0.0, clamp(c.g + 0.2*lap, 0.0, 1.0), 0.0, 1.0);
+    }`;
+    const FS_CGSTEP = `#version 300 es
+    precision highp float;
+    uniform sampler2D uPrev; uniform vec2 uSize; uniform float uSalt;
+    uniform float uStick; uniform float uFade; uniform float uNuc; uniform float uFeed; uniform float uMelt;
+    out vec4 o;
+    float nh(ivec3 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    vec4 at(ivec2 p){ return texelFetch(uPrev, clamp(p, ivec2(0), ivec2(uSize) - 1), 0); }
+    void main(){
+      ivec2 p = ivec2(gl_FragCoord.xy);
+      vec4 c = at(p);
+      if (c.r > 0.5) {
+        float age = min(c.b + uFade, 1.0);
+        o = age > uMelt ? vec4(0.0, 0.0, 0.0, 1.0) : vec4(1.0, 0.0, age, 1.0);
+        return;
+      }
+      vec4 e = at(p + ivec2(1, 0)), w = at(p - ivec2(1, 0)), n = at(p + ivec2(0, 1)), s = at(p - ivec2(0, 1));
+      float diag = at(p + ivec2(1, 1)).r + at(p + ivec2(-1, 1)).r + at(p + ivec2(1, -1)).r + at(p + ivec2(-1, -1)).r;
+      float v = c.g + 0.2*(e.g + w.g + n.g + s.g - 4.0*c.g);
+      v = clamp(v + uFeed*(1.0 - v), 0.0, 1.0);
+      float ice = e.r + w.r + n.r + s.r + 0.5*diag;
+      bool freeze = ice > 0.25 && nh(ivec3(p, int(uSalt))) < uStick*v;
+      if (!freeze && v > 0.6 && nh(ivec3(p, int(uSalt)) + ivec3(11, 7, 3)) < uNuc) freeze = true;
+      o = freeze ? vec4(1.0, 0.0, 0.0, 1.0) : vec4(0.0, v, 0.0, 1.0);
+    }`;
+    const FS_CGSEED = `#version 300 es
+    precision highp float;
+    uniform vec2 uSize; uniform float uSalt; uniform float uSeedP;
+    out vec4 o;
+    float nh(ivec3 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    void main(){
+      bool ice = nh(ivec3(ivec2(gl_FragCoord.xy), int(uSalt)) + ivec3(5)) < uSeedP;
+      o = ice ? vec4(1.0, 0.0, 0.0, 1.0) : vec4(0.0, 1.0, 0.0, 1.0);
+    }`;
+    // Fresh ice is brightest and dims as it ages: the growing rims burn, the old core fades
+    // to a ghost before it sublimates. Age is divided back out of the filtered sample so a
+    // linear blend with an empty neighbour does not read as young ice.
+    const FS_CGSHOW = `#version 300 es
+    precision highp float;
+    uniform sampler2D uState; uniform vec2 uSize; uniform float uGain; uniform float uZoom;
+    out vec4 o;
+    void main(){
+      vec2 uv = (gl_FragCoord.xy/uSize - 0.5)/uZoom + 0.5;
+      vec3 s = texture(uState, uv).rgb;
+      float a = 1.0 - clamp(s.b/max(s.r, 1e-3), 0.0, 1.0);
+      o = vec4(clamp(s.r*(0.22 + 0.78*a*a)*uGain, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // heat → palette colour (fire-oriented, no flip yet)
     // ---- post-FX passes. All RGB, all read the palette-mapped image, so they
     // behave as named (an Edge in palette-INDEX space would find edges where there
@@ -7200,6 +7396,54 @@
       vec2 b = mod(p - h, r) - h;
       vec2 c = dot(a, a) < dot(b, b) ? p - a : p - b;      // nearer candidate = this hex's centre
       o = vec4(texture(uSrc, c*s/uSize).rgb, 1.0);
+    }`;
+    // Stained glass: a Voronoi mosaic. One jittered seed per grid cell (uCell px); every pixel
+    // takes the colour under its nearest seed, and the exact distance to the cell border
+    // (Inigo Quilez's second pass) draws the lead. Lead is a MULTIPLY to black, so it reads in
+    // every palette. Seeds wander about their home spot on postTime (Shimmer).
+    // INTEGER hash, never fract(sin()) -- see the ascHash note: a sin-hash changes when the
+    // driver recompiles the shader, and the whole mosaic would reshuffle on screen.
+    const FS_STAINED = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uCell; uniform float uLead;
+    uniform float uWob; uniform float uTime;
+    in vec2 vUv; out vec4 o;
+    uint stgHash(uvec2 p){
+      uint h = p.x*374761393u + p.y*668265263u;
+      h = (h ^ (h >> 13)) * 1274126177u;
+      return h ^ (h >> 16);
+    }
+    vec2 stgSeed(vec2 c){
+      uint h = stgHash(uvec2(ivec2(c)));
+      vec2 r = vec2(float(h & 0xffffu), float(h >> 16)) / 65536.0;
+      vec2 w = vec2(sin(uTime*(0.7 + r.y) + 6.2831853*r.x), cos(uTime*(0.6 + r.x) + 6.2831853*r.y));
+      return c + clamp(0.15 + 0.7*r + 0.2*uWob*w, 0.05, 0.95);
+    }
+    void main(){
+      float cs = max(4.0, uCell);
+      vec2 p = vUv*uSize/cs;
+      vec2 g = floor(p);
+      vec2 best = vec2(0.0), bc = g; float d1 = 1e9;
+      for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++){
+        vec2 s = stgSeed(g + vec2(i, j));
+        float d = dot(s - p, s - p);
+        if (d < d1){ d1 = d; best = s; bc = g + vec2(i, j); }
+      }
+      // Border pass is 5x5 around the NEAREST SEED'S cell (as in IQ's original), not 3x3
+      // around this pixel's: a seed sits anywhere in its cell, so a bordering neighbour can be
+      // two cells from g, and missing it thinned or dropped lead at diagonal corners.
+      float bd = 1e9;
+      for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++){
+        vec2 s = stgSeed(bc + vec2(i, j));
+        vec2 e = s - best;
+        if (dot(e, e) > 1e-6) bd = min(bd, dot(0.5*(best + s) - p, normalize(e)));
+      }
+      vec3 c = texture(uSrc, clamp(best*cs/uSize, 0.0, 1.0)).rgb;
+      c *= 1.0 + 0.18*(1.0 - clamp(sqrt(d1)*1.6, 0.0, 1.0));     // glass bevel: lit centre
+      float px = 1.0/cs;
+      // Lead 0 means NO lead -- without the step the 1.5px antialias ramp still drew a seam.
+      float lead = mix(1.0, smoothstep(uLead*0.5, uLead*0.5 + 1.5*px, bd), step(1e-4, uLead));
+      o = vec4(clamp(c, 0.0, 1.0) * lead, 1.0);
     }`;
     // CRT phosphor: the shadow mask and the beam's bandwidth limit — the two things
     // Scanlines and Barrel leave out of the retro set.
@@ -7579,6 +7823,24 @@
       float g = texture(uSrc, vUv).g;
       float b = texture(uSrc, clamp(vUv - d, 0.0, 1.0)).b;
       o = vec4(r, g, b, 1.0);
+    }`;
+    // Anaglyph split: red/cyan stereo. Red is sampled to the left, green+blue to the right,
+    // the shift in PIXELS scaled by local brightness so bright detail sits nearer (wider
+    // parallax). uTint 0 keeps each channel's own colour, 1 is classic grey red/cyan glasses.
+    const FS_ANAGLYPH = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uDepth; uniform float uTint;
+    in vec2 vUv; out vec4 o;
+    const vec3 LW = vec3(0.299, 0.587, 0.114);
+    void main(){
+      float lc = dot(texture(uSrc, vUv).rgb, LW);
+      vec2 d = vec2(uDepth * (0.35 + 0.65 * lc) / uSize.x, 0.0);
+      vec3 a = texture(uSrc, clamp(vUv - d, 0.0, 1.0)).rgb;
+      vec3 b = texture(uSrc, clamp(vUv + d, 0.0, 1.0)).rgb;
+      vec3 keep = vec3(a.r, b.g, b.b);
+      float la = dot(a, LW), lb = dot(b, LW);
+      vec3 glasses = vec3(la, lb, lb);
+      o = vec4(mix(keep, glasses, uTint), 1.0);
     }`;
     // Shockwave: a displacement ring travelling out from the centre, driven ENTIRELY by
     // the Shock VALUE — 1 = ring at the centre, 0 = gone past the corners. A beat-armed
@@ -7988,6 +8250,7 @@
     glProg.godray = camProg(VS_QUAD, FS_GODRAY, ["uSize", "uTime", "uDecay", "uWeight", "uScale", "uSpread", "uZoom"]);
     glProg.terrain = camProg(VS_QUAD, FS_TERRAIN, ["uSize", "uTime", "uHeight", "uScale", "uOct", "uFog", "uZoom"]);
     glProg.apollo = camProg(VS_QUAD, FS_APOLLO, ["uSize", "uTime", "uScale", "uIter", "uGlow", "uZoom", "uThin"]);
+    glProg.klein = camProg(VS_QUAD, FS_KLEIN, ["uSize", "uTime", "uCut", "uAngle", "uTilt", "uIter", "uGlow", "uZoom"]);
     glProg.mbox = camProg(VS_QUAD, FS_MBOX, ["uSize", "uTime", "uScale", "uIter", "uGlow", "uZoom", "uFold"]);
     glProg.gyroid = camProg(VS_QUAD, FS_GYROID, ["uSize", "uTime", "uFreq", "uThick", "uGlow", "uZoom", "uWarp"]);
     glProg.csg = camProg(VS_QUAD, FS_CSG, ["uSize", "uTime", "uOrbit", "uBlend", "uShine", "uWidth", "uZoom", "uCount", "uObj", "uPath", "uSpin", "uPhase"]);
@@ -7998,6 +8261,7 @@
     glProg.concentric = camProg(VS_QUAD, FS_CONCENTRIC, ["uSize", "uTime", "uSides", "uCount", "uThick", "uSpin", "uZoom"]);
     glProg.bounce = camProg(VS_QUAD, FS_BOUNCE, ["uSize", "uPos", "uCount", "uRad", "uSquare", "uZoom", "uMix", "uTime", "uSpin"]);
     glProg.solids = camProg(VS_QUAD, FS_SOLIDS, ["uSize", "uZoom", "uCount", "uRim", "uPos", "uQuat", "uShape"]);
+    glProg.goo = camProg(VS_QUAD, FS_GOO, ["uSize", "uZoom", "uCount", "uRim", "uK", "uPos"]);
     glProg.sun = camProg(VS_QUAD, FS_SUN, ["uSize", "uTime", "uDensity", "uLane", "uGlow", "uSpot", "uZoom"]);
     glProg.kefrens = camProg(VS_QUAD, FS_KEFRENS, ["uSize", "uTime", "uBars", "uSway", "uWidth", "uZoom"]);
     glProg.twister = camProg(VS_QUAD, FS_TWISTER, ["uSize", "uTime", "uCols", "uWidth", "uTwist", "uZoom"]);
@@ -8040,12 +8304,17 @@
     glProg.rdstep = makeProg(VS_QUAD, FS_RDSTEP, ["uPrev", "uSize", "uFeed", "uKill"]);
     glProg.rdseed = makeProg(VS_QUAD, FS_RDSEED, ["uSize", "uSalt"]);
     glProg.rdshow = camProg(VS_QUAD, FS_RDSHOW, ["uState", "uSize", "uGain", "uZoom"]);
+    glProg.cgdiff = makeProg(VS_QUAD, FS_CGDIFF, ["uPrev", "uSize"]);
+    glProg.cgstep = makeProg(VS_QUAD, FS_CGSTEP, ["uPrev", "uSize", "uSalt", "uStick", "uFade", "uNuc", "uFeed", "uMelt"]);
+    glProg.cgseed = makeProg(VS_QUAD, FS_CGSEED, ["uSize", "uSalt", "uSeedP"]);
+    glProg.cgshow = camProg(VS_QUAD, FS_CGSHOW, ["uState", "uSize", "uGain", "uZoom"]);
     glProg.castep = makeProg(VS_QUAD, FS_CASTEP, ["uPrev", "uSize", "uBirth", "uSurvive", "uRain", "uSalt", "uFade"]);
     glProg.caseed = makeProg(VS_QUAD, FS_CASEED, ["uSize", "uSalt"]);
     glProg.cashow = camProg(VS_QUAD, FS_CASHOW, ["uState", "uSize", "uGain", "uZoom"]);
     glProg.pixelate = makeProg(VS_QUAD, FS_PIXELATE, ["uSrc", "uSize", "uBlock"]);
     glProg.posterize = makeProg(VS_QUAD, FS_POSTERIZE, ["uSrc", "uLevels"]);
     glProg.hexpix = makeProg(VS_QUAD, FS_HEXPIX, ["uSrc", "uSize", "uSize2"]);
+    glProg.stained = makeProg(VS_QUAD, FS_STAINED, ["uSrc", "uSize", "uCell", "uLead", "uWob", "uTime"]);
     glProg.crt = makeProg(VS_QUAD, FS_CRT, ["uSrc", "uSize", "uMask", "uBleed"]);
     glProg.mirror = makeProg(VS_QUAD, FS_MIRROR, ["uSrc", "uMode"]);
     glProg.soften = makeProg(VS_QUAD, FS_SOFTEN, ["uSrc", "uSize", "uRadius", "uAmount"]);
@@ -8065,6 +8334,7 @@
     glProg.halftone = makeProg(VS_QUAD, FS_HALFTONE, ["uSrc", "uSize", "uDot", "uAmount"]);
     glProg.thresh = makeProg(VS_QUAD, FS_THRESH, ["uSrc", "uLevel", "uAmount"]);
     glProg.chroma = makeProg(VS_QUAD, FS_CHROMA, ["uSrc", "uAmount"]);
+    glProg.anaglyph = makeProg(VS_QUAD, FS_ANAGLYPH, ["uSrc", "uSize", "uDepth", "uTint"]);
     glProg.shock = makeProg(VS_QUAD, FS_SHOCK, ["uSrc", "uSize", "uAmount", "uAmp", "uWidth"]);
     glProg.pixsort = makeProg(VS_QUAD, FS_PIXSORT, ["uSrc", "uSize", "uThresh", "uLen", "uDir"]);
     glProg.cell = makeProg(VS_QUAD, FS_CELL, ["uHeat", "uSize", "uStates", "uMix", "uKeep"]);
@@ -8140,6 +8410,13 @@
       createTex(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.REPEAT),
     ];
     glFbo.ca = [createFbo(glTex.ca[0]), createFbo(glTex.ca[1])];
+    // Crystal growth: sized by glCGTick from Detail, in the RD format (the vapour and the
+    // age move far below 1/255 a step). LINEAR for the display only -- the step uses texelFetch.
+    glTex.cg = [
+      createTex(rdI, gl.RGBA, rdT, gl.LINEAR, gl.CLAMP_TO_EDGE),
+      createTex(rdI, gl.RGBA, rdT, gl.LINEAR, gl.CLAMP_TO_EDGE),
+    ];
+    glFbo.cg = [createFbo(glTex.cg[0]), createFbo(glTex.cg[1])];
     // Per-layer state for multi-layer stacks (see the frame loop / glLayerBeginHeat).
     // Each slot gets its own persistent heat pair (so it retains its own fire/feedback),
     // its own 256×1 palette LUT, so every stacked effect keeps its own colours. The
@@ -9479,6 +9756,41 @@
       gl.uniform1f(P.u.uRain, s.rain); gl.uniform1f(P.u.uSalt, caSalt); gl.uniform1f(P.u.uFade, s.fade);
       drawQuad();
       caCur = dst;
+    }
+  }
+  // Crystal growth driver, glCATick's shape: (re)size to Detail, seed on demand (entering the
+  // effect, a resize, the end of a thaw), then `steps` freezing steps, each CG_DIFF diffusion
+  // passes and one freezing pass, ping-ponging the pair. A deliberate singleton like the RD
+  // dish (a stack of two shows one pane).
+  let cgCur = 0, cgW = 0, cgH = 0;
+  function glCGTick(s) {
+    const w = s.cols, h = Math.max(4, Math.round(s.cols * fh / fw));
+    if (w !== cgW || h !== cgH) { cgW = w; cgH = h; resizeTex(glTex.cg[0], w, h); resizeTex(glTex.cg[1], w, h); cgNeedSeed = true; }
+    if (cgNeedSeed) {
+      cgNeedSeed = false;
+      cgSalt = (cgSalt + 1) % 65536;
+      bindFbo(glFbo.cg[0], w, h);
+      gl.useProgram(glProg.cgseed.p);
+      gl.uniform2f(glProg.cgseed.u.uSize, w, h);
+      gl.uniform1f(glProg.cgseed.u.uSalt, cgSalt);
+      gl.uniform1f(glProg.cgseed.u.uSeedP, CG_SEEDS / (w * h));
+      drawQuad();
+      cgCur = 0;
+    }
+    const D = glProg.cgdiff, P = glProg.cgstep;
+    const pass = () => { const dst = 1 - cgCur; bindFbo(glFbo.cg[dst], w, h); bindTexUnit(0, glTex.cg[cgCur]); return dst; };
+    for (let k = 0; k < s.steps; k++) {
+      gl.useProgram(D.p);
+      gl.uniform2f(D.u.uSize, w, h);
+      for (let j = 0; j < CG_DIFF; j++) { const dst = pass(); gl.uniform1i(D.u.uPrev, 0); drawQuad(); cgCur = dst; }
+      cgSalt = (cgSalt + 1) % 65536;         // a fresh draw of the dice every step
+      gl.useProgram(P.p);
+      const dst = pass(); gl.uniform1i(P.u.uPrev, 0);
+      gl.uniform2f(P.u.uSize, w, h);
+      gl.uniform1f(P.u.uSalt, cgSalt); gl.uniform1f(P.u.uStick, s.stick); gl.uniform1f(P.u.uFade, s.fade);
+      gl.uniform1f(P.u.uNuc, s.nuc); gl.uniform1f(P.u.uFeed, CG_FEED); gl.uniform1f(P.u.uMelt, s.melt);
+      drawQuad();
+      cgCur = dst;
     }
   }
   // ---- THE ASCII MOSAIC'S GLYPH SETS ---------------------------------------------------
@@ -11137,6 +11449,78 @@
     }
   }
 
+  // ---- Crystal growth -- CPU sim mirror of FS_CGDIFF + FS_CGSTEP ----------------------
+  // Same rules on a quarter-width grid with the step count capped (JS budget): coarser,
+  // same frost. Hash is sunH21, not the shader's integer hash (look-equivalent).
+  // The CYCLE lives here and drives both paths: grow for Lifetime seconds, then a CG_THAW
+  // second thaw (melt threshold 1 -> 0, oldest ice first), then a fresh seed. One clock for
+  // the one shared pane, so it is not on PHASE_VARS (two layers would fight over it).
+  const CG_FEED = 0.0005, CG_SEEDS = 5, CG_DIFF = 7, CG_THAW = 2.5;
+  let cgCols = 400, cgSpeedV = 90, cgStick = 0.15, cgLife = 12, cgNucV = 0.2;
+  let cgAcc = 0, cgClock = 0, cgCpu = null, cgCpu2 = null, cgCpuW = 0, cgCpuH = 0, cgCpuSeed = true;
+  function cgSeedFn(dt) {
+    cgClock += dt;
+    if (cgClock > cgLife + CG_THAW) { cgClock = 0; cgNeedSeed = true; cgCpuSeed = true; }
+    const thaw = cgClock > cgLife;
+    // steps per SECOND from dt (real time at any frame rate), capped per frame with a
+    // bounded backlog -- the CA's accumulator
+    cgAcc = Math.min(cgAcc + cgSpeedV * dt, 24);
+    const steps = Math.min(12, Math.floor(cgAcc)); cgAcc -= steps;
+    // Nucleation is squared so the low end is fine-grained: 0.2 is a new crystal every few
+    // seconds on a 400-wide pane, 1 is a burst (arm the chips)
+    return { steps, cols: cgCols, stick: thaw ? 0 : cgStick, fade: 1 / Math.max(1, cgLife * cgSpeedV),
+             nuc: thaw ? 0 : 1e-5 * cgNucV * cgNucV, melt: thaw ? 1 - (cgClock - cgLife) / CG_THAW : 2,
+             gain: 1, zoom };
+  }
+  function cgCPU(s) {
+    const w = Math.max(16, s.cols >> 2), h = Math.max(4, Math.round(w * fh / fw)), N = w * h;
+    if (w !== cgCpuW || h !== cgCpuH) { cgCpuW = w; cgCpuH = h; cgCpu = new Float32Array(N * 3); cgCpu2 = new Float32Array(N * 3); cgCpuSeed = true; }
+    if (cgCpuSeed) {
+      cgCpuSeed = false; cgSalt = (cgSalt + 1) % 65536;
+      for (let i = 0; i < N; i++) {
+        const ice = sunH21(i % w + cgSalt, (i / w | 0) + cgSalt) < CG_SEEDS / N;
+        cgCpu[i * 3] = ice ? 1 : 0; cgCpu[i * 3 + 1] = ice ? 0 : 1; cgCpu[i * 3 + 2] = 0;
+      }
+    }
+    const A = (x, y) => (Math.min(w - 1, Math.max(0, x)) + Math.min(h - 1, Math.max(0, y)) * w) * 3;
+    // a quarter-width grid covers in a quarter of the steps, so it runs a quarter of them --
+    // still capped at 2 a frame -- and ages each one four times as fast
+    const steps = Math.min(2, Math.ceil(s.steps / 4)), fade = s.fade * Math.max(1, s.steps) / Math.max(1, steps);
+    for (let k = 0; k < steps; k++) {
+      for (let j = 0; j <= CG_DIFF; j++) {                 // diffusion; the last pass also freezes
+        const last = j === CG_DIFF;
+        if (last) cgSalt = (cgSalt + 1) % 65536;
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 3;
+          if (cgCpu[i] > 0.5) {
+            const age = last ? Math.min(1, cgCpu[i + 2] + fade) : cgCpu[i + 2], gone = age > s.melt;
+            cgCpu2[i] = gone ? 0 : 1; cgCpu2[i + 1] = 0; cgCpu2[i + 2] = gone ? 0 : age;
+            continue;
+          }
+          const e = A(x + 1, y), wv = A(x - 1, y), n = A(x, y + 1), so = A(x, y - 1);
+          let v = Math.min(1, Math.max(0, cgCpu[i + 1] + 0.2 * (cgCpu[e + 1] + cgCpu[wv + 1] + cgCpu[n + 1] + cgCpu[so + 1] - 4 * cgCpu[i + 1])));
+          let freeze = false;
+          if (last) {
+            v = Math.min(1, v + CG_FEED * (1 - v));
+            const ice = cgCpu[e] + cgCpu[wv] + cgCpu[n] + cgCpu[so]
+              + 0.5 * (cgCpu[A(x + 1, y + 1)] + cgCpu[A(x - 1, y + 1)] + cgCpu[A(x + 1, y - 1)] + cgCpu[A(x - 1, y - 1)]);
+            freeze = ice > 0.25 && sunH21(x + cgSalt * 0.37, y + cgSalt * 0.61) < s.stick * v;
+            if (!freeze && v > 0.6 && sunH21(x + cgSalt * 0.53, y + cgSalt * 0.29) < s.nuc * 64) freeze = true;   // x64: 16x fewer cells, 4x fewer steps
+          }
+          cgCpu2[i] = freeze ? 1 : 0; cgCpu2[i + 1] = freeze ? 0 : v; cgCpu2[i + 2] = 0;
+        }
+        const t = cgCpu; cgCpu = cgCpu2; cgCpu2 = t;
+      }
+    }
+    for (let y = 0; y < fh; y++) {
+      const cy = Math.min(h - 1, (y * h / fh) | 0) * w;
+      for (let x = 0; x < fw; x++) {
+        const i = (cy + Math.min(w - 1, (x * w / fw) | 0)) * 3, a = 1 - cgCpu[i + 2];
+        fire[y * fw + x] = cgCpu[i] * (0.22 + 0.78 * a * a) * s.gain * 255;
+      }
+    }
+  }
+
   // ---- Sun surface: boiling solar granulation via animated Voronoi (shader effect) ----
   // Clock starts at 0, not unix time (float32 uTime — same trap plasmaTime documents).
   // The mirror is look-equivalent, not bit-identical: sites are cached per frame per CELL
@@ -12432,6 +12816,65 @@
       return 0.35 * Math.abs(py) / sc;
     }, 2.4, 0.2, s.t * 0.2, s.zoom, 26);
   }
+  // Kleinian limit set: same group, cut and camera as FS_KLEIN, fewer group moves and march
+  // steps -- the cut face and the biggest bubbles survive, the deep filigree does not.
+  let klSlice = 0, klAngle = 22, klTilt = 12, klIter = 28, klGlow = 0.4, klSpeed = 1, klTime = 0;
+  function kleinSeed(dt) {
+    klTime += dt * klSpeed;
+    return { t: klTime, cut: klSlice + klTime * 0.06, angle: klAngle * Math.PI / 180, tilt: klTilt * Math.PI / 180, iter: klIter, glow: klGlow, zoom };
+  }
+  const KL_A = 1.95859103, KL_B = 0.0112785606;
+  function kleinDE(x, y, z, it) {
+    let lx = x + 1, ly = y + 1, lz = z + 1, mx = x - 1, my = y - 1, mz = z - 1, df = 1;
+    for (let i = 0; i < it; i++) {
+      x += KL_B / KL_A * y;
+      x -= 2 * Math.floor((x + 1) * 0.5); z -= 2 * Math.floor((z + 1) * 0.5);
+      x -= KL_B / KL_A * y;
+      const sx = x + KL_B * 0.5;
+      if (y >= KL_A * 0.5 + (2 * KL_A - 1.95) * 0.25 * Math.sign(sx) * (1 - Math.exp(-(7.2 - (1.95 - KL_A) * 15) * Math.abs(sx)))) { x = -KL_B - x; y = KL_A - y; z = -z; }
+      const ir = 1 / (x * x + y * y + z * z);
+      x = -KL_B + x * ir; y = KL_A - y * ir; z = -z * ir;
+      df *= Math.max(1, ir);
+      if ((x - mx) * (x - mx) + (y - my) * (y - my) + (z - mz) * (z - mz) < 1e-5) break;
+      mx = lx; my = ly; mz = lz; lx = x; ly = y; lz = z;
+    }
+    return Math.min(Math.min(y, KL_A - y), 0.3) / Math.max(df, 2);
+  }
+  function klein(s) {
+    const it = Math.min(16, Math.round(s.iter));
+    const n = [Math.sin(s.angle) * Math.cos(s.tilt), Math.sin(s.tilt), Math.cos(s.angle) * Math.cos(s.tilt)];
+    const sl = Math.hypot(n[2], n[0]) || 1, side = [n[2] / sl, 0, -n[0] / sl];
+    const c = [side[0] * s.t * 0.11, KL_A * 0.5, side[2] * s.t * 0.11];
+    const off = s.cut - (c[0] * n[0] + c[1] * n[1] + c[2] * n[2]);
+    const ct = Math.cos(s.tilt); c[0] += n[0] / ct * off / ct; c[2] += n[2] / ct * off / ct;
+    const sw = 0.18 * Math.sin(s.t * 0.21), lift = 0.12 * Math.sin(s.t * 0.13);
+    let f = [n[0] + side[0] * sw, n[1] + lift, n[2] + side[2] * sw];
+    const fl = Math.hypot(f[0], f[1], f[2]); f = [-f[0] / fl, -f[1] / fl, -f[2] / fl];
+    const ro = [c[0] - f[0] * 4.2, c[1] - f[1] * 4.2, c[2] - f[2] * 4.2];
+    const rl = Math.hypot(f[2], f[0]) || 1, r = [f[2] / rl, 0, -f[0] / rl];
+    const u = [f[1] * r[2] - f[2] * r[1], f[2] * r[0] - f[0] * r[2], f[0] * r[1] - f[1] * r[0]];
+    let idx = 0;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      camPix(x, y);
+      const ux = (camPX - 0.5 * fw) / fh / s.zoom, uy = (camPY - 0.5 * fh) / fh / s.zoom;
+      let dx = r[0] * ux + u[0] * uy + f[0] * 1.7, dy = r[1] * ux + u[1] * uy + f[1] * 1.7, dz = r[2] * ux + u[2] * uy + f[2] * 1.7;
+      const dl = Math.hypot(dx, dy, dz); dx /= dl; dy /= dl; dz /= dl;
+      let t = 0, heat = 0;
+      for (let i = 0; i < 40; i++) {
+        const px = ro[0] + dx * t, py = ro[1] + dy * t, pz = ro[2] + dz * t;
+        const k = kleinDE(px, py, pz, it), pn = px * n[0] + py * n[1] + pz * n[2];
+        const d = Math.max(k, pn - s.cut);
+        if (d < 0.003 * t) {
+          const depth = s.cut - pn;
+          heat = depth < 0.01 ? 0.5 : 0.5 * Math.exp(-depth * 0.8);
+          break;
+        }
+        t += d * 0.9;
+        if (t > 9) break;
+      }
+      fire[idx++] = Math.max(0, Math.min(1, heat)) * 255;
+    }
+  }
   let bxScale = -1.7, bxIter = 8, bxGlow = 0.5, bxFold = 1, bxSpeed = 1, bxTime = 0;
   function mboxSeedFn(dt) { bxTime += dt * bxSpeed; return { t: bxTime, scale: bxScale, iter: bxIter, glow: bxGlow, fold: bxFold, zoom }; }
   function mbox(s) {
@@ -12946,6 +13389,75 @@
         const persp = F / (F - pz);
         plot(cx + px * persp * sc, cy - py * persp * sc, POINT_HEAT * (1 - dA * (df >= 0 ? 1 - pz : 1 + pz)));
       }
+    }
+  }
+
+  // ---- Attractor 3D: Lorenz / Thomas / Aizawa flows (point effect) ----
+  // One trajectory of a 3D strange attractor, integrated (midpoint RK2) over a FIXED span of
+  // flow time per kind and stamped through Tetrafyer's view: Rotation yaws (spinAngle), Box nod
+  // pitches (nodAmp·sin(nodPhase)), pin-hole projection. dt = span / n, so Points (and Zoom's
+  // zoom² count) only refine the same curve. The first tenth is the transient off the fixed start
+  // and is not drawn. No randomness at all: same sliders, same picture, every frame.
+  // FITTED BY MOMENTS, not by bounds: the points are buffered, then centred on their MEAN and
+  // scaled by their RMS radius -- both smooth in Shape, where a bounding box jumps with every
+  // outlier lap. Shape walks each family's own parameter (Lorenz ρ 28..100, Thomas b 0.21..0.08,
+  // Aizawa ε 0.1..0.5); chaotic bands and periodic knots alternate along it, both on purpose.
+  // Each family's own vertical axis (z) is screen-up. `tools/attr3dprobe.js`.
+  let a3Kind = 0, a3Shape = 0.15, a3Spin = 0.5, a3Depth = 0.45, a3Phase = 0;
+  const A3_SPAN = [60, 1200, 250];
+  let a3Buf = new Float64Array(0);
+  function a3Deriv(k, s, x, y, z, o) {
+    if (k === 1) {
+      const b = 0.21 - 0.13 * s;
+      o[0] = Math.sin(y) - b * x; o[1] = Math.sin(z) - b * y; o[2] = Math.sin(x) - b * z;
+    } else if (k === 2) {
+      const e = 0.1 + 0.4 * s, zb = z - 0.7, r2 = x * x + y * y;
+      o[0] = zb * x - 3.5 * y; o[1] = 3.5 * x + zb * y;
+      o[2] = 0.6 + 0.95 * z - z * z * z / 3 - r2 * (1 + e * z) + 0.1 * z * x * x * x;
+    } else {
+      const r = 28 + 72 * s;
+      o[0] = 10 * (y - x); o[1] = x * (r - z) - y; o[2] = x * y - 8 / 3 * z;
+    }
+  }
+  // Fills a3Buf with n points (x, y, z) and returns how many are valid. Pure apart from the buffer.
+  const a3d0 = [0, 0, 0], a3d1 = [0, 0, 0];
+  function a3Trace(k, s, n) {
+    if (a3Buf.length < n * 3) a3Buf = new Float64Array(n * 3);
+    const dt = A3_SPAN[k] / n, skip = Math.ceil(n / 10), B = a3Buf;
+    let x = 0.1, y = 0.05, z = 0.02;
+    for (let i = 0; i < n + skip; i++) {
+      a3Deriv(k, s, x, y, z, a3d0);
+      a3Deriv(k, s, x + a3d0[0] * dt * 0.5, y + a3d0[1] * dt * 0.5, z + a3d0[2] * dt * 0.5, a3d1);
+      x += a3d1[0] * dt; y += a3d1[1] * dt; z += a3d1[2] * dt;
+      if (!(Math.abs(x) + Math.abs(y) + Math.abs(z) < 1e4)) return 0;   // blown up (NaN too)
+      if (i >= skip) { const j = (i - skip) * 3; B[j] = x; B[j + 1] = y; B[j + 2] = z; }
+    }
+    return n;
+  }
+  function attr3dStamp(xL, xR, yT, yB, n) {
+    a3Phase += a3Spin * 2 / cfg.burn;               // per TICK, like pyPhase
+    const k = Math.max(0, Math.min(2, Math.round(a3Kind))), s = Math.max(0, Math.min(1, a3Shape));
+    const m = a3Trace(k, s, n), B = a3Buf;
+    if (!m) return;
+    let mx = 0, my = 0, mz = 0;
+    for (let i = 0; i < m * 3; i += 3) { mx += B[i]; my += B[i + 1]; mz += B[i + 2]; }
+    mx /= m; my /= m; mz /= m;
+    let r2 = 0;
+    for (let i = 0; i < m * 3; i += 3) { const dx = B[i] - mx, dy = B[i + 1] - my, dz = B[i + 2] - mz; r2 += dx * dx + dy * dy + dz * dz; }
+    const inv = 1 / (1.6 * Math.sqrt(r2 / m) + 1e-9);   // ~all of it inside the unit ball
+    const yaw = spinAngle + a3Phase * 0.13, pitch = nodAmp * Math.sin(nodPhase);
+    const cyw = Math.cos(yaw), syw = Math.sin(yaw), cpt = Math.cos(pitch), spt = Math.sin(pitch);
+    const cx = (xL + xR) * 0.5, cy = (yT + yB) * 0.5;
+    const F = 3.2, sc = Math.min(xR - xL, yB - yT) * 0.5 * fractalSize * (F - 1) / F;
+    const df = a3Depth, dA = Math.abs(df) * 0.5;
+    for (let i = 0; i < m * 3; i += 3) {
+      // the family's z is up: world (x, z, y) -> view (X, Y, Z), then yaw about Y, pitch about X
+      const X = (B[i] - mx) * inv, Y = (B[i + 2] - mz) * inv, Z = (B[i + 1] - my) * inv;
+      const rx = X * cyw + Z * syw, rz = Z * cyw - X * syw;
+      const py = Y * cpt - rz * spt, pz = Y * spt + rz * cpt;
+      if (pz >= F - 0.05) continue;
+      const persp = F / (F - pz);
+      plot(cx + rx * persp * sc, cy - py * persp * sc, POINT_HEAT * (1 - dA * (df >= 0 ? 1 - pz : 1 + pz)));
     }
   }
 
@@ -13600,6 +14112,44 @@
     return { pos: sdPos, quat: sdQuat, shape: sdShape, count: n, rim: sdRim, zoom };
   }
 
+  // ---- Metaball goo: the solids' physics, spheres joined by a smooth-min ----------------
+  // Same rigid bodies, same walls, same hashed start (makeSolid / solidStep); only the radius,
+  // count and speed are the goo's own, and the orientation is carried but never drawn. Bodies
+  // do not collide with each other -- they never did -- so blobs sail through one another and
+  // the smooth union (FS_GOO, gooMap) is what makes them merge and pinch apart. The list lives
+  // on the layer (L.goo) for the same reason L.solids does.
+  let guCount = 6, guSize = 0.22, guSpeed = 0.6, guMerge = 1.2, guRim = 0.35;
+  let guBodies = [];
+  const guPos = new Float32Array(SD_MAX * 4);
+  function installGoo(L) {
+    L.goo = L.goo || [];
+    const n = Math.max(1, Math.min(SD_MAX, Math.round(guCount))), salt = layerSalt(L) + 0x6007;
+    while (L.goo.length < n) L.goo.push(makeSolid(L.goo.length, salt, guSize));
+    guBodies = L.goo;
+  }
+  function gooSeed(dt) {
+    SOLID_BOX[0] = SOLID_BOX[1] * (fw / fh);
+    const n = Math.max(1, Math.min(SD_MAX, Math.round(guCount)));
+    while (guBodies.length < n) guBodies.push(makeSolid(guBodies.length, 0x6007, guSize));
+    const step = Math.min(0.05, dt) * guSpeed;
+    for (let i = 0; i < n; i++) {
+      const S = guBodies[i];
+      solidStep(S, step, guSize);
+      guPos[i * 4] = S.P[0]; guPos[i * 4 + 1] = S.P[1]; guPos[i * 4 + 2] = S.P[2]; guPos[i * 4 + 3] = guSize;
+    }
+    return { pos: guPos, count: n, rim: guRim, k: guMerge * guSize, zoom };
+  }
+  function gooMap(s, x, y, z) {
+    let d = 1e9;
+    const k = s.k;
+    for (let i = 0; i < s.count; i++) {
+      const b = Math.hypot(x - s.pos[i * 4], y - s.pos[i * 4 + 1], z - s.pos[i * 4 + 2]) - s.pos[i * 4 + 3];
+      const h = Math.max(k - Math.abs(d - b), 0) / Math.max(k, 1e-4);
+      d = Math.min(d, b) - h * h * k * 0.25;
+    }
+    return d;
+  }
+
   // ---- CPU mirror of FS_SOLIDS ---------------------------------------------
   // Same scene, same marcher, fewer steps: this only runs on the Canvas2D fallback (no
   // WebGL2 at all), where every other shader effect is likewise a full per-pixel JS loop.
@@ -13647,7 +14197,9 @@
     }
     return d;
   }
-  function solids(s) {
+  // `map` lets Metaball goo reuse this marcher with its smooth union (gooMap).
+  function solids(s, map) {
+    if (!map) map = sdMap;
     const asp = fw / fh, ro = -3.2, foc = 1.4;
     // Light direction, normalised once — the same vector FS_SOLIDS hardcodes.
     const lx = -0.4557, ly = 0.7295, lz = -0.5104;
@@ -13659,12 +14211,12 @@
       let t = 0, heat = 0;
       for (let i = 0; i < SD_CPU_STEPS; i++) {
         const px = rx * t, py = ry * t, pz = ro + rz * t;
-        const d = sdMap(s, px, py, pz);
+        const d = map(s, px, py, pz);
         if (d < SD_CPU_EPS) {
           const e = 0.0015;                                   // central-difference normal
-          const nx = sdMap(s, px + e, py, pz) - sdMap(s, px - e, py, pz);
-          const ny = sdMap(s, px, py + e, pz) - sdMap(s, px, py - e, pz);
-          const nz = sdMap(s, px, py, pz + e) - sdMap(s, px, py, pz - e);
+          const nx = map(s, px + e, py, pz) - map(s, px - e, py, pz);
+          const ny = map(s, px, py + e, pz) - map(s, px, py - e, pz);
+          const nz = map(s, px, py, pz + e) - map(s, px, py, pz - e);
           const nl = Math.hypot(nx, ny, nz) || 1;
           const dif = Math.max(0, (nx * lx + ny * ly + nz * lz) / nl);
           const fac = Math.max(0, 1 + (nx * rx + ny * ry + nz * rz) / nl);   // 1 − n·(−rd)
@@ -14988,6 +15540,11 @@
     { key: "carain", host: "fx", group: "ca", type: "dual", label: "Rain", valId: "vCaRain", min: 0, max: 0.05, step: 0.0005, lo: 0.002, hi: 0.002, fmt: v => sig3(v * 100) + "%", apply: v => caRain = v, durScale: 10 },
     { key: "catrail", host: "fx", group: "ca", type: "dual", label: "Trail", valId: "vCaTrail", min: 0, max: 200, step: 1, lo: 12, hi: 12, fmt: v => sig3(Math.round(v)) + " gens", apply: v => caTrail = v, durScale: 10 },
     { key: "cagain", host: "fx", group: "ca", type: "dual", label: "Brightness", valId: "vCaGain", min: 0.4, max: 1.5, step: 0.02, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => caGain = v, durScale: 10 },
+    { key: "cgcells", host: "fx", group: "cg", type: "dual", single: true, label: "Detail", valId: "vCgCells", min: 120, max: 720, step: 1, lo: 400, hi: 400, fmt: v => sig3(Math.round(v)) + " across", apply: v => cgCols = Math.round(v), durScale: 10 },
+    { key: "cgspeed", host: "fx", group: "cg", type: "dual", label: "Growth", valId: "vCgSpeed", min: 10, max: 300, step: 1, lo: 90, hi: 90, fmt: v => sig3(Math.round(v)) + " steps/s", apply: v => cgSpeedV = v, durScale: 10 },
+    { key: "cgstick", host: "fx", group: "cg", type: "dual", label: "Branching", valId: "vCgStick", min: 0.03, max: 0.6, step: 0.01, lo: 0.15, hi: 0.15, fmt: v => sig3(v), apply: v => cgStick = v, durScale: 10 },
+    { key: "cglife", host: "fx", group: "cg", type: "dual", label: "Lifetime", valId: "vCgLife", min: 2, max: 40, step: 0.5, lo: 12, hi: 12, fmt: v => sig3(v) + " s", apply: v => cgLife = v, durScale: 10 },
+    { key: "cgnuc", host: "fx", group: "cg", type: "dual", label: "Nucleation", valId: "vCgNuc", min: 0, max: 1, step: 0.01, lo: 0.2, hi: 0.2, fmt: v => sig3(v), apply: v => cgNucV = v, durScale: 10 },
     { key: "gxarms", host: "fx", group: "galaxy", type: "dual", single: true, label: "Arms", valId: "vGxArms", min: 1, max: 6, step: 1, lo: 2, hi: 2, fmt: v => sig3(Math.round(v)), apply: v => gxArms = Math.round(v), durScale: 10 },
     { key: "gxtwist", host: "fx", group: "galaxy", type: "dual", label: "Twist", valId: "vGxTwist", min: 0.15, max: 1.6, step: 0.01, lo: 0.55, hi: 0.55, fmt: v => sig3(v), apply: v => gxTwist = v, durScale: 10 },
     { key: "gxspin", host: "fx", group: "galaxy", type: "dual", label: "Spin", valId: "vGxSpin", min: -2, max: 2, step: 0.02, lo: 0.5, hi: 0.5, fmt: v => sig3(v) + "×", apply: v => gxSpin = v, durScale: 10 },
@@ -15005,6 +15562,21 @@
     { key: "pywiggle", host: "fx", group: "poly", type: "dual", label: "Wiggle", valId: "vPyWiggle", min: 0, max: 1, step: 0.01, lo: 0.1, hi: 0.1, fmt: v => sig3(v), apply: v => pyWiggle = v, durScale: 10 },
     { key: "pywspeed", host: "fx", group: "poly", type: "dual", label: "Wiggle speed", valId: "vPyWSpeed", min: 0, max: 3, step: 0.02, lo: 0.5, hi: 0.5, fmt: v => sig3(v) + "×", apply: v => pyWSpeed = v, durScale: 10 },
     { key: "pydepth", host: "fx", group: "poly", type: "dual", label: "Depth fade", valId: "vPyDepth", min: -1, max: 1, step: 0.01, lo: 0.45, hi: 0.45, fmt: v => sig3(v), apply: v => pyDepth = v, durScale: 10 },
+    { key: "a3kind", host: "fx", group: "a3", type: "dual", single: true, label: "Attractor", valId: "vA3Kind", min: 0, max: 2, step: 1, lo: 0, hi: 0, fmt: v => ["Lorenz", "Thomas", "Aizawa"][Math.round(v)] || "", apply: v => a3Kind = Math.round(v), durScale: 10 },
+    { key: "a3shape", host: "fx", group: "a3", type: "dual", label: "Shape", valId: "vA3Shape", min: 0, max: 1, step: 0.005, lo: 0.15, hi: 0.15, fmt: v => sig3(v), apply: v => a3Shape = v, durScale: 10 },
+    { key: "a3spin", host: "fx", group: "a3", type: "dual", label: "Tumble", valId: "vA3Spin", min: 0, max: 3, step: 0.02, lo: 0.5, hi: 0.5, fmt: v => sig3(v) + "×", apply: v => a3Spin = v, durScale: 10 },
+    { key: "a3depth", host: "fx", group: "a3", type: "dual", label: "Depth fade", valId: "vA3Depth", min: -1, max: 1, step: 0.01, lo: 0.45, hi: 0.45, fmt: v => sig3(v), apply: v => a3Depth = v, durScale: 10 },
+    { key: "gucount", host: "fx", group: "goo", type: "dual", single: true, label: "Blobs", valId: "vGuCount", min: 1, max: 8, step: 1, lo: 6, hi: 6, fmt: v => sig3(Math.round(v)), apply: v => guCount = Math.round(v), durScale: 10 },
+    { key: "gusize", host: "fx", group: "goo", type: "dual", label: "Blob size", valId: "vGuSize", min: 0.08, max: 0.45, step: 0.005, lo: 0.22, hi: 0.22, fmt: v => sig3(v), apply: v => guSize = v, durScale: 10 },
+    { key: "gumerge", host: "fx", group: "goo", type: "dual", label: "Merge", valId: "vGuMerge", min: 0, max: 2, step: 0.02, lo: 1.2, hi: 1.2, fmt: v => sig3(v), apply: v => guMerge = v, durScale: 10 },
+    { key: "guspeed", host: "fx", group: "goo", type: "dual", label: "Speed", valId: "vGuSpeed", min: 0, max: 3, step: 0.05, lo: 0.6, hi: 0.6, fmt: v => sig3(v) + "×", apply: v => guSpeed = v, durScale: 10 },
+    { key: "gurim", host: "fx", group: "goo", type: "dual", label: "Edge glow", valId: "vGuRim", min: 0, max: 1.5, step: 0.02, lo: 0.35, hi: 0.35, fmt: v => sig3(v), apply: v => guRim = v, durScale: 10 },
+    { key: "klslice", host: "fx", group: "klein", type: "dual", label: "Slice", valId: "vKlSlice", min: 0, max: 2, step: 0.005, lo: 0, hi: 0, fmt: v => sig3(v), apply: v => klSlice = v, durScale: 10 },
+    { key: "klangle", host: "fx", group: "klein", type: "dual", label: "Cut angle", valId: "vKlAngle", min: -90, max: 90, step: 0.5, lo: 22, hi: 22, fmt: v => sig3(v) + "°", apply: v => klAngle = v, durScale: 10 },
+    { key: "kltilt", host: "fx", group: "klein", type: "dual", label: "Cut tilt", valId: "vKlTilt", min: -60, max: 60, step: 0.5, lo: 12, hi: 12, fmt: v => sig3(v) + "°", apply: v => klTilt = v, durScale: 10 },
+    { key: "kliter", host: "fx", group: "klein", type: "dual", single: true, label: "Detail", valId: "vKlIter", min: 8, max: 48, step: 1, lo: 28, hi: 28, fmt: v => sig3(Math.round(v)), apply: v => klIter = Math.round(v), durScale: 10 },
+    { key: "klglow", host: "fx", group: "klein", type: "dual", label: "Glow", valId: "vKlGlow", min: 0, max: 2, step: 0.01, lo: 0.4, hi: 0.4, fmt: v => sig3(v), apply: v => klGlow = v, durScale: 10 },
+    { key: "klspeed", host: "fx", group: "klein", type: "dual", label: "Drift", valId: "vKlSpeed", min: 0, max: 3, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => klSpeed = v, durScale: 10 },
     { key: "vbcount", host: "fx", group: "vballs", type: "dual", single: true, label: "Balls", valId: "vVbCount", min: 6, max: 48, step: 1, lo: 24, hi: 24, fmt: v => sig3(Math.round(v)), apply: v => vbCount = Math.round(v), durScale: 10 },
     { key: "vbshape", host: "fx", group: "vballs", type: "dual", single: true, label: "Formation", valId: "vVbShape", min: 0, max: 3, step: 1, lo: 1, hi: 1, fmt: v => ["Lattice", "Sphere", "Ring", "Helix"][Math.round(v)] || "", apply: v => vbShape = Math.round(v), durScale: 10 },
     { key: "vbsize", host: "fx", group: "vballs", type: "dual", label: "Ball size", valId: "vVbSize", min: 0.08, max: 0.6, step: 0.005, lo: 0.30, hi: 0.30, fmt: v => sig3(v), apply: v => vbRad = v, durScale: 10 },
@@ -15163,6 +15735,11 @@
     { key: "threshlvl", host: "filter", group: "f_thresh", type: "dual", label: "Level", valId: "vThreshLvl", min: 0, max: 1, step: 0.01, lo: 0.5, hi: 0.5, fmt: v => sig3(v), apply: v => threshLevel = v, durScale: 10 },
     { key: "threshamt", host: "filter", group: "f_thresh", type: "dual", label: "Amount", valId: "vThreshAmt", min: 0, max: 1, step: 0.01, lo: 0.8, hi: 0.8, fmt: v => sig3(v), apply: v => threshAmt = v, durScale: 10 },
     { key: "chroma", host: "filter", group: "f_chroma", type: "dual", label: "Amount", valId: "vChroma", min: 0, max: 6, step: 0.05, lo: 2.8, hi: 2.8, fmt: v => sig3(v), apply: v => chromaAmt = v, durScale: 10 },
+    { key: "anadepth", host: "filter", group: "f_anaglyph", type: "dual", label: "Depth", valId: "vAnaDepth", min: 0, max: 40, step: 0.5, lo: 8, hi: 24, fmt: v => sig3(v) + "px", apply: v => anaDepth = v, durScale: 10 },
+    { key: "anatint", host: "filter", group: "f_anaglyph", type: "dual", label: "Glasses", valId: "vAnaTint", min: 0, max: 1, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v * 100) + "%", apply: v => anaTint = v, durScale: 10 },
+    { key: "stgsize", host: "filter", group: "f_stained", type: "dual", label: "Cell size", valId: "vStgSize", min: 6, max: 120, step: 1, lo: 28, hi: 28, fmt: v => sig3(v) + "px", apply: v => stgSize = v, durScale: 10 },
+    { key: "stglead", host: "filter", group: "f_stained", type: "dual", label: "Lead", valId: "vStgLead", min: 0, max: 0.5, step: 0.01, lo: 0.06, hi: 0.22, fmt: v => sig3(v), apply: v => stgLead = v, durScale: 10 },
+    { key: "stgwob", host: "filter", group: "f_stained", type: "dual", label: "Shimmer", valId: "vStgWob", min: 0, max: 2, step: 0.01, lo: 0.6, hi: 0.6, fmt: v => sig3(v), apply: v => stgWob = v, durScale: 10 },
     { key: "mirror", host: "filter", group: "f_mirror", type: "dual", single: true, label: "Axis", valId: "vMirror", min: 1, max: 3, step: 1, lo: 1, hi: 1, fmt: v => ["", "X", "Y", "Both"][Math.round(v)] || "X", apply: v => mirrorMode = Math.round(v), durScale: 10 },
     { key: "shock", host: "filter", group: "f_shock", type: "dual", label: "Shock", valId: "vShock", min: 0, max: 1, step: 0.01, lo: 0, hi: 1, fmt: v => sig3(v), apply: v => shockAmt = v, durScale: 10 },
     { key: "shockamp", host: "filter", group: "f_shock", type: "dual", label: "Push", valId: "vShockAmp", min: 0, max: 0.2, step: 0.005, lo: 0.11, hi: 0.11, fmt: v => sig3(v), apply: v => shockAmp = v, durScale: 10 },
@@ -15310,9 +15887,9 @@
     { name: "Warp & distort", desc: "move the pixels somewhere else",
       ids: ["twist", "wedge", "polar", "lens", "droste", "mirror", "shock", "barrel"] },
     { name: "Stylise", desc: "redraw it as something else",
-      ids: ["poster", "dither", "halftone", "ascii", "kuwahara", "edge", "emboss", "pixelate", "hexpix", "crt", "scanlines"] },
+      ids: ["poster", "dither", "halftone", "ascii", "kuwahara", "edge", "emboss", "pixelate", "hexpix", "stained", "crt", "scanlines"] },
     { name: "Colour & tone", desc: "same shapes, different colour",
-      ids: ["thresh", "invert", "chroma", "noise", "vignette", "grain"] },
+      ids: ["thresh", "invert", "chroma", "anaglyph", "noise", "vignette", "grain"] },
     { name: "Blur & light", desc: "spread it, streak it, glow it",
       ids: ["soften", "dblur", "rblur", "anamorph", "bloom", "glitch", "pixsort"] },
   ];
@@ -15900,8 +16477,8 @@
     attractor: "Attractor", physarum: "Slime mould", curl: "Curl flow", csg: "Smooth CSG", clouds: "Volumetric clouds", godray: "God rays", terrain: "Terrain", apollo: "Apollonian gasket", mbox: "Mandelbox", gyroid: "Gyroid", voronoi: "Voronoi cells", warpnoise: "Flow noise", truchet: "Truchet tiles", shapegrid: "Shape grid", concentric: "Concentric rings", bounce: "Bouncing shapes",
     solids: "Bouncing solids", sun: "Sun surface", kefrens: "Kefrens bars", twister: "Twister",
     chladni: "Cymatics", storm: "Lightning storm", bulb: "Mandelbulb", flames: "Fractal flames",
-    stars: "Starfield", aurora: "Aurora", rd: "Reaction-diffusion", ca: "Cellular automata", menger: "Menger sponge",
-    boids: "Boids", galaxy: "Galaxy", harmo: "Harmonograph", poly: "Polypinski", vballs: "Vector balls", ocean: "Ocean",
+    stars: "Starfield", aurora: "Aurora", rd: "Reaction-diffusion", ca: "Cellular automata", cg: "Crystal growth", menger: "Menger sponge",
+    boids: "Boids", galaxy: "Galaxy", harmo: "Harmonograph", poly: "Polypinski", a3: "Attractor 3D", goo: "Metaball goo", klein: "Kleinian limit set", vballs: "Vector balls", ocean: "Ocean",
     torus: "Doughnut", trees: "Trees", ribbons: "Flying ribbons", glass: "Glass ball", world: "Shared 3D world",
     bhole: "Black hole", qjulia: "Quaternion Julia",
     camera: "Camera", other: "Other",
@@ -15911,9 +16488,9 @@
     f_twist: "Twist", f_wedge: "Wedge fold", f_noise: "Noise", f_glitch: "Slice glitch", f_shock: "Shockwave",
     f_pixsort: "Pixel sort", f_cell: "Cellular automaton",
     f_lens: "Lens bubble", f_droste: "Droste zoom", f_kuwahara: "Oil paint",
-    f_halftone: "Halftone", f_thresh: "Solarize", f_chroma: "Chromatic aberration",
+    f_halftone: "Halftone", f_thresh: "Solarize", f_chroma: "Chromatic aberration", f_anaglyph: "Anaglyph split",
     f_barrel: "Barrel distortion", f_scanlines: "Scanlines", f_vignette: "Vignette", f_grain: "Film grain",
-    f_hexpix: "Hex pixelate", f_crt: "CRT phosphor",
+    f_hexpix: "Hex pixelate", f_stained: "Stained glass", f_crt: "CRT phosphor",
     palette: "Palette", banding: "Banding",
   };
   // Render the schema into ONE block, then index everything it made under `slot`. Group
@@ -16044,6 +16621,7 @@
     ["teTime", () => teTime, v => teTime = v],
     ["rbTime", () => rbTime, v => rbTime = v],
     ["apTime", () => apTime, v => apTime = v],
+    ["klTime", () => klTime, v => klTime = v],
     ["mbTime", () => mbTime, v => mbTime = v],
     ["gyTime", () => gyTime, v => gyTime = v],
     ["csgTime", () => csgTime, v => csgTime = v],
@@ -16084,6 +16662,7 @@
     ["vbPhase", () => vbPhase, v => vbPhase = v],
     ["hgPhase", () => hgPhase, v => hgPhase = v],
     ["pyPhase", () => pyPhase, v => pyPhase = v],
+    ["a3Phase", () => a3Phase, v => a3Phase = v],
     ["gxTime", () => gxTime, v => gxTime = v],
     // The black hole carries two: the disk's own rotation and the camera's lap round it.
     ["bhTime", () => bhTime, v => bhTime = v],
@@ -17160,6 +17739,7 @@
     // live on the layer and this points the globals at THIS layer's set before it draws.
     // Without it two Bouncing solids layers would share one set and render as one.
     if (EFFECTS[L.fx].solids) installSolids(L);
+    if (EFFECTS[L.fx].goo) installGoo(L);
     // Boids follow the identical arrangement: the flock is a list on the layer, not a
     // scalar clock, so it can't ride PHASE_VARS either.
     if (EFFECTS[L.fx].boids) installBoids(L);
@@ -18208,6 +18788,13 @@
       draw: dt => { const s = rdSeedFn(dt); if (useGL) { glRDTick(s.steps, s.feed, s.kill); glShaderDraw("rdshow", u => { bindTexUnit(0, glTex.rd[rdCur]); gl.uniform1i(u.uState, 0); gl.uniform1f(u.uGain, s.gain); gl.uniform1f(u.uZoom, s.zoom); }); } else rdCPU(s); },
       defaults: { palcycle: [0, 0], palhold: [0, 0], rdfeed: [0.03, 0.03], rdkill: [0.062, 0.062], rdspeed: [8, 8], rdgain: [1, 1], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
       beat: {}, extras: { palette: "2", morph: false, showBox: true, randSeed: true } },
+    { id: "crystal", name: "Crystal growth", subtitle: "Diffusion-limited frost · grows, ages, sublimates",
+      help: "Frost creeping across a pane: vapour drifts through the air, and wherever it touches ice it may freeze, so the tips that reach furthest into the wet air grow fastest and the crystal branches into ferns. Ice is brightest while it is fresh and dims as it ages. After Lifetime seconds the pane thaws, each crystal dissolving from its seed out to its tips, and new ones start. Nucleation starts extra crystals in the clear air while it grows — arm its chips and every beat sows a few. Branching is how readily vapour sticks: low grows thin, sparse dendrites, high packs dense, bushy frost. One shared pane; entering the effect re-seeds it.",
+      params: ["cgcells", "cgspeed", "cgstick", "cglife", "cgnuc", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "cg", "band"], bakesOwnZoom: true,
+      onEnter: () => { cgNeedSeed = true; cgCpuSeed = true; cgClock = 0; },
+      draw: dt => { const s = cgSeedFn(dt); if (useGL) { glCGTick(s); glShaderDraw("cgshow", u => { bindTexUnit(0, glTex.cg[cgCur]); gl.uniform1i(u.uState, 0); gl.uniform1f(u.uGain, s.gain); gl.uniform1f(u.uZoom, s.zoom); }); } else cgCPU(s); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], cgcells: [400, 400], cgspeed: [90, 90], cgstick: [0.15, 0.15], cglife: [12, 12], cgnuc: [0.2, 0.2], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
+      beat: {}, extras: { palette: "2", morph: false, showBox: true, randSeed: true } },
     { id: "automata", name: "Cellular automata", subtitle: "Life-like automata · B/S rules on a torus",
       help: "Conway's Game of Life and its relatives, run on a grid of cells that wraps at every edge. Rule picks the family: Life (gliders and still lifes), HighLife (replicators), Day & Night (boiling fronts), Seeds (explosive), Maze and Coral (slow growth). Rain sprinkles new cells every generation so the grid never settles for good — arm its chips and every beat is a shower of new life. Trail lets a dead cell fade over that many generations, Cells sets the grid, Speed the generations per second. One shared grid; changing Rule or entering the effect re-seeds it.",
       params: ["carule", "cacells", "caspeed", "carain", "catrail", "cagain", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "ca", "band"], bakesOwnZoom: true,
@@ -18377,6 +18964,30 @@
       defaults: { palcycle: [0, 0], palhold: [0, 0], pycorners: [6, 6], pyseed: [1, 1], pyrand: [0, 0], pygap: [0, 0], pywiggle: [0.1, 0.1], pywspeed: [0.5, 0.5], pydepth: [0.45, 0.45],
         points: [20000, 20000], rise: [130, 130], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], speed: [10, 10], size: [1, 1], rot: [0, 0], layers: 1 },
       beat: {}, extras: { palette: "2", morph: false, showBox: true, randSeed: true } },
+    { id: "attr3d", name: "Attractor 3D", subtitle: "Strange attractor · Lorenz, Thomas, Aizawa",
+      help: "A 3D strange attractor: one point following a set of three differential equations for a long time, every step of its path stamped into the fire, so the shape you see is where the flow can go. Attractor picks the family — Lorenz's butterfly, Thomas's cyclically symmetric labyrinth, Aizawa's spun apple-core. Shape walks that family's own parameter: chaotic bands and closed periodic knots take turns along it, so spread the thumbs and it morphs between them. The view is Tetrahedron's: Rotation yaws it, Box nod pitches it, and Tumble adds a slow drift of its own. Depth fade dims the far side so it reads as solid. Points refines the same curve rather than making a different one; zoom in and it is re-stamped at full resolution.",
+      params: ["a3kind", "a3shape", "a3spin", "a3depth", "points", "size", "rot", "nod", "nodspd", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold"],
+      helpTags: ["all", "a3"], bakesOwnZoom: true,
+      stamp: (xL, xR, yT, yB, n) => attr3dStamp(xL, xR, yT, yB, n),
+      // Its own Points range, like Harmonograph: one continuous curve, so the count is the pen's
+      // resolution, and below a few thousand the flow breaks into dots.
+      ranges: { points: { min: 4000, max: 60000 } },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], a3kind: [0, 0], a3shape: [0.15, 0.15], a3spin: [0.5, 0.5], a3depth: [0.45, 0.45], nod: [17.2, 17.2], nodspd: [1, 1],
+        points: [24000, 24000], rise: [130, 130], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], speed: [23, 23], size: [1, 1], rot: [0, 0], layers: 1 },
+      beat: {}, extras: { palette: "6", morph: false, showBox: true, randSeed: true } },
+    { id: "goo", name: "Metaball goo", subtitle: "Goo · smooth-min blobs in 3D",
+      help: "The lava lamp done properly: a handful of glossy blobs drifting through an invisible room, raymarched in 3D and joined by a smooth minimum, so where two pass close they swell into one another and stretch a neck between them before pinching apart. The blobs move on the same physics as Bouncing solids — they ricochet off the walls and sail straight through each other. Blobs is how many, Blob size how big, Merge how far apart two blobs start to join (0 keeps them hard spheres; high values melt the whole lot into one mass), Speed how fast they travel and Edge glow lights the silhouettes. Tick Fade pixel for trails.",
+      params: ["gucount", "gusize", "gumerge", "guspeed", "gurim", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "goo", "band"],
+      bakesOwnZoom: true, goo: true,
+      draw: dt => { const s = gooSeed(dt); if (useGL) glShaderDraw("goo", u => { gl.uniform4fv(u.uPos, s.pos); gl.uniform1f(u.uCount, s.count); gl.uniform1f(u.uRim, s.rim); gl.uniform1f(u.uK, s.k); gl.uniform1f(u.uZoom, s.zoom); }); else solids(s, gooMap); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], gucount: [6, 6], gusize: [0.22, 0.22], gumerge: [1.2, 1.2], guspeed: [0.6, 0.6], gurim: [0.35, 0.35], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0] },
+      beat: {}, extras: { palette: "1", morph: false, showBox: true, randSeed: true } },
+    { id: "klein", name: "Kleinian limit set", subtitle: "Kleinian · a Maskit group's limit set, sliced",
+      help: "The limit set of a Kleinian group — two Möbius maps of 3D space, one a shift and one an inversion, applied over and over — which is an infinite slab of bubbles nested inside bubbles, every gap holding a smaller copy of the whole. It is drawn the way a geologist reads a rock: SLICED. A cutting plane shears the slab open and you look straight at the polished face, the famous circle-packing picture, with the tunnels behind it dropping away into the dark. The group itself is fixed at the classic Maskit value, because nudging it off that edge only breaks the set apart; the variety is in the cut. **Slice** slides the plane through the slab (it repeats every 2), **Cut angle** turns it about the vertical and **Cut tilt** leans it forward, and every orientation is a different picture. **Drift** pushes the slice and pans the camera on its own; Detail is how many group moves are tried per sample, Glow the near-miss halo.",
+      params: ["klslice", "klangle", "kltilt", "kliter", "klglow", "klspeed", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "klein", "band"], bakesOwnZoom: true,
+      draw: dt => { const s = kleinSeed(dt); if (useGL) glShaderDraw("klein", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uCut, s.cut); gl.uniform1f(u.uAngle, s.angle); gl.uniform1f(u.uTilt, s.tilt); gl.uniform1f(u.uIter, s.iter); gl.uniform1f(u.uGlow, s.glow); gl.uniform1f(u.uZoom, s.zoom); }); else klein(s); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], klslice: [0, 0], klangle: [22, 22], kltilt: [12, 12], kliter: [28, 28], klglow: [0.4, 0.4], klspeed: [1, 1] },
+      beat: {}, extras: { palette: "7", morph: false } },
   ];
   // DISPLAY order only: every effect dropdown lists by name (twenty-odd effects in registry
   // order are a pile to hunt through), while EFFECTS keeps its own order — the runtime
@@ -18388,15 +18999,15 @@
   // rather than disappearing from the list, which is the safe way to be wrong.
   const EFFECT_CATS = [
     { name: "Fractals", desc: "the classic escape-time sets and their 3D relatives",
-      ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
+      ids: ["animejulia", "burningship", "multibrot", "newton", "mandelbulb", "qjulia", "menger", "apollo", "klein", "mbox", "flames", "sirpinfyer", "tetrafyer", "polypinski"] },
     { name: "3D & raymarched", desc: "solids, surfaces and landscapes traced through space",
-      ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds"] },
+      ids: ["solids", "glass", "ocean", "terrain", "gyroid", "torus", "bhole", "vballs", "clouds", "goo"] },
     { name: "Demoscene classics", desc: "the effects the scene has been writing since the 90s",
       ids: ["plasma", "tunnel", "copperbars", "kefrens", "twister", "rotozoom", "munch", "moire", "metaballs", "starfield", "kaleidoscope"] },
     { name: "Patterns & noise", desc: "fields, tilings and shapes built from a formula",
       ids: ["voronoi", "warpnoise", "truchet", "shapegrid", "concentric", "bounce", "cymatics", "reactdiff", "harmonograph", "ribbons"] },
     { name: "Nature & simulation", desc: "things that grow, flock, flow or weather",
-      ids: ["boids", "physarum", "curl", "trees", "galaxy", "aurora", "lightning", "sunsurface", "attractor", "godray"] },
+      ids: ["boids", "physarum", "curl", "trees", "galaxy", "aurora", "lightning", "sunsurface", "attractor", "attr3d", "crystal", "godray"] },
   ];
   // id -> group index, built once. Anything unlisted sorts last, under "Other".
   const EFFECT_CAT_OF = {};
@@ -19031,6 +19642,13 @@
       help: "Snap the image to a honeycomb of hexagons instead of squares.",
       defaults: { hexsize: [20, 20] },
       gl: src => postPass("hexpix", src, u => gl.uniform1f(u.uSize2, hexSize)) },
+    { id: "stained", cpuOk: false, name: "Stained glass", stage: "post", params: ["stgsize", "stglead", "stgwob"],
+      help: "Break the picture into an irregular mosaic of glass cells, each flat-filled with the colour under it and held in dark lead. Lead ships as a range so it breathes; arm its chips and it slams on the beat.",
+      defaults: { stgsize: [28, 28], stglead: [0.06, 0.22], stgwob: [0.6, 0.6] },
+      gl: src => postPass("stained", src, u => {
+        gl.uniform1f(u.uCell, stgSize); gl.uniform1f(u.uLead, stgLead);
+        gl.uniform1f(u.uWob, stgWob); gl.uniform1f(u.uTime, postTime);
+      }) },
     { id: "soften", cpuOk: false, name: "Blur / sharpen", stage: "post", params: ["soften", "softrad"],
       help: "One knob: negative blurs, positive sharpens (unsharp mask).",
       defaults: { soften: [-1, -1], softrad: [5.5, 5.5] },
@@ -19096,6 +19714,10 @@
       help: "Split the red and blue channels radially, so the image fringes toward the corners like a cheap lens.",
       defaults: { chroma: [2.8, 2.8] },
       gl: src => postPass("chroma", src, u => gl.uniform1f(u.uAmount, chromaAmt)) },
+    { id: "anaglyph", cpuOk: false, name: "Anaglyph split", stage: "post", params: ["anadepth", "anatint"],
+      help: "Red/cyan stereo: red shifted one way, cyan the other, bright detail pushed nearer. Depth ships as a range so the split breathes; arm its chips and it kicks on the beat.",
+      defaults: { anadepth: [8, 24], anatint: [1, 1] },
+      gl: src => postPass("anaglyph", src, u => { gl.uniform1f(u.uDepth, anaDepth); gl.uniform1f(u.uTint, anaTint); }) },
     { id: "mirror", cpuOk: false, name: "Mirror", stage: "post", params: ["mirror"],
       help: "Fold the image about its centre — X, Y or both.",
       defaults: { mirror: [1, 1] },
@@ -26585,6 +27207,7 @@
       { n: "Edge glow", w: "solids", t: "Bouncing solids only — lights the silhouettes, brightest where a surface turns away from you. Low values give flat shaded solids; high values outline every body in fire and read almost like an X-ray." },
       { n: "Shock", w: "all", t: "The Shockwave filter's wave itself: 1 puts the ring at the centre, 0 has it gone off the edge — so the value IS the ring's position. Arm its L/M/H chips and every beat snaps it to the high thumb and lets it fall, firing a wave that crosses the screen in one Trigger duration." },
       { n: "Push", w: "all", t: "How hard the Shockwave ring displaces the picture as it passes — 0 is an invisible wave, high values shove pixels aside like a blast front." },
+      { n: "Glasses", w: "all", t: "Anaglyph split — 0 keeps the picture's own colours in each eye, 100% is classic grey red/cyan 3D-glasses stereo." },
       { n: "Ring width", w: "all", t: "How thick and soft the Shockwave ring is, from a hairline ripple to a broad swell." },
       { n: "Cell density", w: "sun", t: "Sun surface only — how many convection cells fill the screen. Low values give a few huge granules; high values a fine boiling texture like the telescope footage." },
       { n: "Churn speed", w: "sun", t: "Sun surface only — how fast the cells boil: drift, deform and brighten or dim. 1× gives each granule a lifetime of roughly 15–30 seconds; 0 freezes the surface." },
@@ -26622,6 +27245,21 @@
       { n: "Gap", w: "poly", t: "Polypinski only — the space between the shrunken copies. At 0 each step is worked out from the corners so the copies just touch: 0.5 for the triangle, tetrahedron and octahedron, less for more corners. Positive values shrink the copies and open the holes wider; negative values let them overlap until the solid fills in." },
       { n: "Wiggle", w: "poly", t: "Polypinski only — how far each corner wanders about its home on the sphere. 0 holds the formation rigid (only the tumble moves), 1 lets the corners roam the whole ball." },
       { n: "Depth fade", w: "poly", t: "Polypinski only — brightness as a function of distance from you. 0 lights every point the same; positive values dim the far side of the ball (1 makes the back vanish), negative values dim the near side so the back glows through." },
+      { n: "Slice", w: "klein", t: "Kleinian limit set only — where the cutting plane sits in the slab. The set repeats every 2, so 0 and 2 are the same picture; Drift moves it for you." },
+      { n: "Cut angle", w: "klein", t: "Kleinian limit set only — turns the cutting plane about the vertical. 0 is the textbook circle packing face-on; the further round, the more the bubbles stretch into lenses and the nesting shears." },
+      { n: "Cut tilt", w: "klein", t: "Kleinian limit set only — leans the cutting plane forward or back, so the slice runs diagonally through the slab and the two walls it is bounded by come into view." },
+      { n: "Detail", w: "klein", t: "Kleinian limit set only — how many group moves each sample may take before it gives up. Low leaves the smallest bubbles blurred together; high costs GPU." },
+      { n: "Glow", w: "klein", t: "Kleinian limit set only — the halo where a ray grazes the set without touching it." },
+      { n: "Drift", w: "klein", t: "Kleinian limit set only — how fast the slice slides through the slab and the camera pans along it. 0 holds the cut still." },
+      { n: "Blobs", w: "goo", t: "Metaball goo only — how many blobs share the room, up to 8." },
+      { n: "Blob size", w: "goo", t: "Metaball goo only — the radius of each blob, which is also the radius it bounces off the walls on." },
+      { n: "Merge", w: "goo", t: "Metaball goo only — how far apart two blobs begin to flow into each other, as a multiple of Blob size. 0 keeps hard spheres that simply intersect; around 1 they bulge toward each other and draw a neck as they pass; 2 melts the whole set into one slow mass." },
+      { n: "Speed", w: "goo", t: "Metaball goo only — how fast the blobs travel. 0 freezes them." },
+      { n: "Edge glow", w: "goo", t: "Metaball goo only — lights the silhouettes, brightest where the surface turns away from you." },
+      { n: "Attractor", w: "a3", t: "Attractor 3D only — which family of equations the point follows. Lorenz is the butterfly: two lobes the orbit flips between at unpredictable moments. Thomas is a cyclically symmetric labyrinth of tubes. Aizawa is a sphere-like shell spun about a central tube." },
+      { n: "Shape", w: "a3", t: "Attractor 3D only — the family's own parameter (Lorenz ρ, Thomas b, Aizawa ε), 0 to 1. Chaotic bands and closed periodic knots alternate along it, so a small move can turn a cloud into a single clean loop and back. Spread the thumbs to sweep through them." },
+      { n: "Tumble", w: "a3", t: "Attractor 3D only — a slow yaw drift of its own on top of Rotation, so the shape turns and reads as 3D. 0 holds it at whatever angle Rotation and Box nod give." },
+      { n: "Depth fade", w: "a3", t: "Attractor 3D only — brightness as a function of distance from you. 0 lights every point the same; positive values dim the far side, negative the near side." },
       { n: "Wiggle speed", w: "poly", t: "Polypinski only — how fast the corners wander and the solid tumbles. 0 freezes both." },
       { n: "Frequency ratio", w: "harmo", t: "Harmonograph only — how many times the fast pendulum swings per swing of the slow one, and so which figure the pen draws. Whole numbers give the closed classical forms (2 a figure-of-eight, 3 a trefoil, and so on); the values in between give the open weaving ones. Drift the two thumbs and it walks through the whole family." },
       { n: "Detune", w: "harmo", t: "Harmonograph only — how far the paired pendulums are out of tune with each other, and the trick the whole machine rests on. At exactly 0 the curve closes and retraces its own line forever, so you get a bare wire figure; a hair off zero and each lap misses the last by a little, the figure precesses, and the accumulated near-misses are what make it a woven ribbon rather than a line." },
@@ -26693,6 +27331,11 @@
       { n: "Kill", w: "rd", t: "Reaction-diffusion only — how fast chemical V dies off. Tiny nudges against Feed cross into whole new pattern families." },
       { n: "Sim speed", w: "rd", t: "Reaction-diffusion only — chemistry steps per frame. More is faster evolution, not a different pattern." },
       { n: "Brightness", w: "rd", t: "Reaction-diffusion only — scales the culture up or down the palette ramp." },
+      { n: "Detail", w: "cg", t: "Crystal growth only — how many cells across the dish is. More is finer frost; the growth rate is per cell, so a finer dish also takes longer to cover." },
+      { n: "Growth", w: "cg", t: "Crystal growth only — freezing steps per second: how fast the frost creeps." },
+      { n: "Branching", w: "cg", t: "Crystal growth only — how readily vapour sticks to the ice. Low grows thin, sparse dendrites that reach far; high packs dense, bushy frost." },
+      { n: "Lifetime", w: "cg", t: "Crystal growth only — how long the frost grows before the pane thaws. The thaw takes ice oldest first, so every crystal dissolves from its seed out to its tips; then new ones start." },
+      { n: "Nucleation", w: "cg", t: "Crystal growth only — how often a new crystal starts in clear, wet air while the frost grows. 0 leaves only the seeds each cycle starts with. Arm its chips and each beat sows a few." },
       { n: "Rule", w: "ca", t: "Cellular automata only — which birth/survival rule the grid runs: Life, HighLife, Day & Night, Seeds, Maze or Coral. Changing it re-seeds the grid." },
       { n: "Cells", w: "ca", t: "Cellular automata only — how many cells across the grid is. Fewer is chunkier; more is finer and busier." },
       { n: "Speed", w: "ca", t: "Cellular automata only — generations per second." },
