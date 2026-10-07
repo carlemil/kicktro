@@ -297,7 +297,7 @@ automaton`) — mutate retained heat inside `glBeginHeat`. No feedback filter �
   are the wire format. All need CPU mirrors.
 
 **post** (Twist, Wedge fold, Slice glitch, Pixelate, Blur/sharpen, Edge, Posterize, Halftone,
-Solarize, Chromatic aberration, Anaglyph split, Mirror, Shockwave, Pixel sort, Lens bubble, Droste zoom, Oil paint,
+Solarize, Chromatic aberration, Anaglyph split, Stained glass, Mirror, Shockwave, Pixel sort, Lens bubble, Droste zoom, Oil paint,
 Bloom) — read the palette-mapped image. `glPostChain()` ping-pongs `glTex.post[0]/[1]`, returns
 `glTex.native` untouched when empty. Bloom has no pass — it is the glow composite.
 
@@ -316,7 +316,7 @@ is already flipped; `asciiprobe` asserts the flip's absence). Glyph pick uses `a
 never `fract(sin())`. Tofu rejection is PER GLYPH against `ASCII_TOFU`. Overflow is sampled evenly
 (`pickChars`), capped by `MAX_TEXTURE_SIZE / 32`. `tools/asciiprobe.js`.
 
-**Slice glitch and Film grain read `postTime`** (accumulated frame `dt`).
+**Slice glitch, Film grain and Stained glass read `postTime`** (accumulated frame `dt`).
 
 **Ping-pong parity**: `glBeginHeat` runs each ticked `glFeedback` in registry order; `pendingDst` =
 wherever the last pass landed. `tools/heatprobe.js`.

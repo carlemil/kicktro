@@ -412,6 +412,9 @@
     { key: "chroma", host: "filter", group: "f_chroma", type: "dual", label: "Amount", valId: "vChroma", min: 0, max: 6, step: 0.05, lo: 2.8, hi: 2.8, fmt: v => sig3(v), apply: v => chromaAmt = v, durScale: 10 },
     { key: "anadepth", host: "filter", group: "f_anaglyph", type: "dual", label: "Depth", valId: "vAnaDepth", min: 0, max: 40, step: 0.5, lo: 8, hi: 24, fmt: v => sig3(v) + "px", apply: v => anaDepth = v, durScale: 10 },
     { key: "anatint", host: "filter", group: "f_anaglyph", type: "dual", label: "Glasses", valId: "vAnaTint", min: 0, max: 1, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v * 100) + "%", apply: v => anaTint = v, durScale: 10 },
+    { key: "stgsize", host: "filter", group: "f_stained", type: "dual", label: "Cell size", valId: "vStgSize", min: 6, max: 120, step: 1, lo: 28, hi: 28, fmt: v => sig3(v) + "px", apply: v => stgSize = v, durScale: 10 },
+    { key: "stglead", host: "filter", group: "f_stained", type: "dual", label: "Lead", valId: "vStgLead", min: 0, max: 0.5, step: 0.01, lo: 0.06, hi: 0.22, fmt: v => sig3(v), apply: v => stgLead = v, durScale: 10 },
+    { key: "stgwob", host: "filter", group: "f_stained", type: "dual", label: "Shimmer", valId: "vStgWob", min: 0, max: 2, step: 0.01, lo: 0.6, hi: 0.6, fmt: v => sig3(v), apply: v => stgWob = v, durScale: 10 },
     { key: "mirror", host: "filter", group: "f_mirror", type: "dual", single: true, label: "Axis", valId: "vMirror", min: 1, max: 3, step: 1, lo: 1, hi: 1, fmt: v => ["", "X", "Y", "Both"][Math.round(v)] || "X", apply: v => mirrorMode = Math.round(v), durScale: 10 },
     { key: "shock", host: "filter", group: "f_shock", type: "dual", label: "Shock", valId: "vShock", min: 0, max: 1, step: 0.01, lo: 0, hi: 1, fmt: v => sig3(v), apply: v => shockAmt = v, durScale: 10 },
     { key: "shockamp", host: "filter", group: "f_shock", type: "dual", label: "Push", valId: "vShockAmp", min: 0, max: 0.2, step: 0.005, lo: 0.11, hi: 0.11, fmt: v => sig3(v), apply: v => shockAmp = v, durScale: 10 },
@@ -559,7 +562,7 @@
     { name: "Warp & distort", desc: "move the pixels somewhere else",
       ids: ["twist", "wedge", "polar", "lens", "droste", "mirror", "shock", "barrel"] },
     { name: "Stylise", desc: "redraw it as something else",
-      ids: ["poster", "dither", "halftone", "ascii", "kuwahara", "edge", "emboss", "pixelate", "hexpix", "crt", "scanlines"] },
+      ids: ["poster", "dither", "halftone", "ascii", "kuwahara", "edge", "emboss", "pixelate", "hexpix", "stained", "crt", "scanlines"] },
     { name: "Colour & tone", desc: "same shapes, different colour",
       ids: ["thresh", "invert", "chroma", "anaglyph", "noise", "vignette", "grain"] },
     { name: "Blur & light", desc: "spread it, streak it, glow it",
@@ -1162,7 +1165,7 @@
     f_lens: "Lens bubble", f_droste: "Droste zoom", f_kuwahara: "Oil paint",
     f_halftone: "Halftone", f_thresh: "Solarize", f_chroma: "Chromatic aberration", f_anaglyph: "Anaglyph split",
     f_barrel: "Barrel distortion", f_scanlines: "Scanlines", f_vignette: "Vignette", f_grain: "Film grain",
-    f_hexpix: "Hex pixelate", f_crt: "CRT phosphor",
+    f_hexpix: "Hex pixelate", f_stained: "Stained glass", f_crt: "CRT phosphor",
     palette: "Palette", banding: "Banding",
   };
   // Render the schema into ONE block, then index everything it made under `slot`. Group

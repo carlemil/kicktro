@@ -27,6 +27,51 @@
       vec2 c = dot(a, a) < dot(b, b) ? p - a : p - b;      // nearer candidate = this hex's centre
       o = vec4(texture(uSrc, c*s/uSize).rgb, 1.0);
     }`;
+    // Stained glass: a Voronoi mosaic. One jittered seed per grid cell (uCell px); every pixel
+    // takes the colour under its nearest seed, and the exact distance to the cell border
+    // (Inigo Quilez's second pass) draws the lead. Lead is a MULTIPLY to black, so it reads in
+    // every palette. Seeds wander about their home spot on postTime (Shimmer).
+    // INTEGER hash, never fract(sin()) -- see the ascHash note: a sin-hash changes when the
+    // driver recompiles the shader, and the whole mosaic would reshuffle on screen.
+    const FS_STAINED = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uCell; uniform float uLead;
+    uniform float uWob; uniform float uTime;
+    in vec2 vUv; out vec4 o;
+    uint stgHash(uvec2 p){
+      uint h = p.x*374761393u + p.y*668265263u;
+      h = (h ^ (h >> 13)) * 1274126177u;
+      return h ^ (h >> 16);
+    }
+    vec2 stgSeed(vec2 c){
+      uint h = stgHash(uvec2(ivec2(c)));
+      vec2 r = vec2(float(h & 0xffffu), float(h >> 16)) / 65536.0;
+      vec2 w = vec2(sin(uTime*(0.7 + r.y) + 6.2831853*r.x), cos(uTime*(0.6 + r.x) + 6.2831853*r.y));
+      return c + clamp(0.15 + 0.7*r + 0.2*uWob*w, 0.05, 0.95);
+    }
+    void main(){
+      float cs = max(4.0, uCell);
+      vec2 p = vUv*uSize/cs;
+      vec2 g = floor(p);
+      vec2 best = vec2(0.0); float d1 = 1e9;
+      for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++){
+        vec2 s = stgSeed(g + vec2(i, j));
+        float d = dot(s - p, s - p);
+        if (d < d1){ d1 = d; best = s; }
+      }
+      float bd = 1e9;
+      for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++){
+        vec2 s = stgSeed(g + vec2(i, j));
+        vec2 e = s - best;
+        if (dot(e, e) > 1e-6) bd = min(bd, dot(0.5*(best + s) - p, normalize(e)));
+      }
+      vec3 c = texture(uSrc, clamp(best*cs/uSize, 0.0, 1.0)).rgb;
+      c *= 1.0 + 0.18*(1.0 - clamp(sqrt(d1)*1.6, 0.0, 1.0));     // glass bevel: lit centre
+      float px = 1.0/cs;
+      // Lead 0 means NO lead -- without the step the 1.5px antialias ramp still drew a seam.
+      float lead = mix(1.0, smoothstep(uLead*0.5, uLead*0.5 + 1.5*px, bd), step(1e-4, uLead));
+      o = vec4(clamp(c, 0.0, 1.0) * lead, 1.0);
+    }`;
     // CRT phosphor: the shadow mask and the beam's bandwidth limit — the two things
     // Scanlines and Barrel leave out of the retro set.
     //
@@ -896,6 +941,7 @@
     glProg.pixelate = makeProg(VS_QUAD, FS_PIXELATE, ["uSrc", "uSize", "uBlock"]);
     glProg.posterize = makeProg(VS_QUAD, FS_POSTERIZE, ["uSrc", "uLevels"]);
     glProg.hexpix = makeProg(VS_QUAD, FS_HEXPIX, ["uSrc", "uSize", "uSize2"]);
+    glProg.stained = makeProg(VS_QUAD, FS_STAINED, ["uSrc", "uSize", "uCell", "uLead", "uWob", "uTime"]);
     glProg.crt = makeProg(VS_QUAD, FS_CRT, ["uSrc", "uSize", "uMask", "uBleed"]);
     glProg.mirror = makeProg(VS_QUAD, FS_MIRROR, ["uSrc", "uMode"]);
     glProg.soften = makeProg(VS_QUAD, FS_SOFTEN, ["uSrc", "uSize", "uRadius", "uAmount"]);

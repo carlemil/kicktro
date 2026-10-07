@@ -47,7 +47,7 @@ const stubs = `
       swirlSpin = 2, swirlKeep = 0.94, diffRad = 1, diffKeep = 0.97, postTime = 0;
   let twistAmt = 1.2, wedgeSeg = 6, wedgeRot = 0, glitchAmt = 0.05, glitchRows = 8,
       halfDot = 4, halfAmt = 0.8, threshLevel = 0.5, threshAmt = 0.8, chromaAmt = 1,
-      anaDepth = 8, anaTint = 1;
+      anaDepth = 8, anaTint = 1, stgSize = 28, stgLead = 0.06, stgWob = 0.6;
   let barrelAmt = 0.15, scanAmt = 0.35, scanCount = 240, vigAmt = 0.4, grainAmt = 0.08;
   function buildFilterUI() {}   // DOM-only; the registry calls it right after defining FILTERS
   const EFFECTS = [

@@ -140,6 +140,13 @@
       help: "Snap the image to a honeycomb of hexagons instead of squares.",
       defaults: { hexsize: [20, 20] },
       gl: src => postPass("hexpix", src, u => gl.uniform1f(u.uSize2, hexSize)) },
+    { id: "stained", cpuOk: false, name: "Stained glass", stage: "post", params: ["stgsize", "stglead", "stgwob"],
+      help: "Break the picture into an irregular mosaic of glass cells, each flat-filled with the colour under it and held in dark lead. Lead ships as a range so it breathes; arm its chips and it slams on the beat.",
+      defaults: { stgsize: [28, 28], stglead: [0.06, 0.22], stgwob: [0.6, 0.6] },
+      gl: src => postPass("stained", src, u => {
+        gl.uniform1f(u.uCell, stgSize); gl.uniform1f(u.uLead, stgLead);
+        gl.uniform1f(u.uWob, stgWob); gl.uniform1f(u.uTime, postTime);
+      }) },
     { id: "soften", cpuOk: false, name: "Blur / sharpen", stage: "post", params: ["soften", "softrad"],
       help: "One knob: negative blurs, positive sharpens (unsharp mask).",
       defaults: { soften: [-1, -1], softrad: [5.5, 5.5] },
