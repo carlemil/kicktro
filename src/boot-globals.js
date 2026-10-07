@@ -181,7 +181,7 @@
   let noiseAmt = 0.4, noiseSeedMode = 1, noiseFrame = 0;
   let twistAmt = 1.2, wedgeSeg = 6, wedgeRot = 0, glitchAmt = 0.05, glitchRows = 8,
     halfDot = 4, halfAmt = 0.8, threshLevel = 0.5, threshAmt = 0.8, chromaAmt = 1,
-    anaDepth = 8, anaTint = 1;
+    anaDepth = 8, anaTint = 1, stgSize = 28, stgLead = 0.06, stgWob = 0.6;
   // Screen stage (after the glow, at display resolution)
   let barrelAmt = 0.15, scanAmt = 0.35, scanCount = 240, vigAmt = 0.4, grainAmt = 0.08;
   let crtMask = 0.5, crtBleed = 0.4;                     // CRT phosphor: shadow mask, beam smear

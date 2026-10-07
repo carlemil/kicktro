@@ -64,6 +64,7 @@ that are inherently "one animated scalar field" rank above ones that need real R
 | ~~**Cellular automaton**~~ ✅ | SHIPPED in 1.16.0 | cyclic CA over retained heat, feedback stage |
 | ~~**CRT phosphor + mask**~~ ✅ | SHIPPED post-1.25.0 as "CRT phosphor" | shadow mask + asymmetric beam bleed; PERSISTENCE deliberately omitted (a post pass has no memory — Fade pixel already is it) |
 | ~~**Anaglyph split**~~ ✅ | SHIPPED post-1.82.0 | post filter `anaglyph`; pixel shift scaled by brightness (bright = nearer); Depth ships as the spread [8, 24] px so it breathes unarmed; Glasses defaults to full red/cyan |
+| ~~**Stained glass**~~ ✅ | SHIPPED post-1.82.0 | post filter `stained`; Voronoi mosaic, one integer-hashed seed per cell, colour sampled at the seed, IQ exact border distance for the lead (multiply to black); Lead ships as the spread [0.06, 0.22] so it breathes unarmed; Shimmer wanders the seeds on postTime |
 
 ## Considered and rejected (poor fit for this engine)
 

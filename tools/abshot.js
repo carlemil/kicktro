@@ -31,8 +31,13 @@ if (process.argv[2] === "--decode") {
   return;
 }
 // --set key=value (repeatable) sets a slider before the frames are pumped.
+// --filter=<id> (repeatable) turns that filter ON after the strip, so a filter can be shot.
 const SET = {};
-const argv = process.argv.slice(2).filter(a => { const m = a.match(/^--set=?(.+?)=(.+)$/); if (m) { SET[m[1]] = m[2]; return false; } return true; });
+const FLT = [];
+const argv = process.argv.slice(2).filter(a => {
+  const f = a.match(/^--filter=(.+)$/); if (f) { FLT.push(f[1]); return false; }
+  const m = a.match(/^--set=?(.+?)=(.+)$/); if (m) { SET[m[1]] = m[2]; return false; } return true;
+});
 const [outDir, pageFile, tag, effect, framesArg] = argv;
 if (!outDir || !pageFile || !tag || !effect) {
   console.error("usage: node tools/abshot.js <outdir> <page.html> <tag> \"<Effect name>\" [frames]");
@@ -78,6 +83,8 @@ const BODY = [
   "    var o = [].slice.call(sel.options).filter(function(x){ return x.textContent.trim() === " + JSON.stringify(effect) + "; })[0];",
   "    if (!o){ console.log(\"SHOT|MISSING\"); return; }",
   "    sel.value = o.value; sel.dispatchEvent(new Event(\"change\", { bubbles: true }));",
+  "    " + JSON.stringify(FLT) + ".forEach(function(id){ window.__setFilterOn(id, true); });",
+  "    console.log(\"SHOT|filters|\" + document.querySelectorAll(\".filter-sec:not([hidden])\").length);",
   "    // Optional slider overrides (--set key=value): both thumbs, dispatched as the user's own",
   "    // input so apply() runs and a single control collapses the way it does for a person.",
   "    var SET = " + JSON.stringify(SET) + ";",

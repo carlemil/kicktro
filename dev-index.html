@@ -3045,7 +3045,7 @@
   let noiseAmt = 0.4, noiseSeedMode = 1, noiseFrame = 0;
   let twistAmt = 1.2, wedgeSeg = 6, wedgeRot = 0, glitchAmt = 0.05, glitchRows = 8,
     halfDot = 4, halfAmt = 0.8, threshLevel = 0.5, threshAmt = 0.8, chromaAmt = 1,
-    anaDepth = 8, anaTint = 1;
+    anaDepth = 8, anaTint = 1, stgSize = 28, stgLead = 0.06, stgWob = 0.6;
   // Screen stage (after the glow, at display resolution)
   let barrelAmt = 0.15, scanAmt = 0.35, scanCount = 240, vigAmt = 0.4, grainAmt = 0.08;
   let crtMask = 0.5, crtBleed = 0.4;                     // CRT phosphor: shadow mask, beam smear
@@ -7397,6 +7397,54 @@
       vec2 c = dot(a, a) < dot(b, b) ? p - a : p - b;      // nearer candidate = this hex's centre
       o = vec4(texture(uSrc, c*s/uSize).rgb, 1.0);
     }`;
+    // Stained glass: a Voronoi mosaic. One jittered seed per grid cell (uCell px); every pixel
+    // takes the colour under its nearest seed, and the exact distance to the cell border
+    // (Inigo Quilez's second pass) draws the lead. Lead is a MULTIPLY to black, so it reads in
+    // every palette. Seeds wander about their home spot on postTime (Shimmer).
+    // INTEGER hash, never fract(sin()) -- see the ascHash note: a sin-hash changes when the
+    // driver recompiles the shader, and the whole mosaic would reshuffle on screen.
+    const FS_STAINED = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uCell; uniform float uLead;
+    uniform float uWob; uniform float uTime;
+    in vec2 vUv; out vec4 o;
+    uint stgHash(uvec2 p){
+      uint h = p.x*374761393u + p.y*668265263u;
+      h = (h ^ (h >> 13)) * 1274126177u;
+      return h ^ (h >> 16);
+    }
+    vec2 stgSeed(vec2 c){
+      uint h = stgHash(uvec2(ivec2(c)));
+      vec2 r = vec2(float(h & 0xffffu), float(h >> 16)) / 65536.0;
+      vec2 w = vec2(sin(uTime*(0.7 + r.y) + 6.2831853*r.x), cos(uTime*(0.6 + r.x) + 6.2831853*r.y));
+      return c + clamp(0.15 + 0.7*r + 0.2*uWob*w, 0.05, 0.95);
+    }
+    void main(){
+      float cs = max(4.0, uCell);
+      vec2 p = vUv*uSize/cs;
+      vec2 g = floor(p);
+      vec2 best = vec2(0.0), bc = g; float d1 = 1e9;
+      for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++){
+        vec2 s = stgSeed(g + vec2(i, j));
+        float d = dot(s - p, s - p);
+        if (d < d1){ d1 = d; best = s; bc = g + vec2(i, j); }
+      }
+      // Border pass is 5x5 around the NEAREST SEED'S cell (as in IQ's original), not 3x3
+      // around this pixel's: a seed sits anywhere in its cell, so a bordering neighbour can be
+      // two cells from g, and missing it thinned or dropped lead at diagonal corners.
+      float bd = 1e9;
+      for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++){
+        vec2 s = stgSeed(bc + vec2(i, j));
+        vec2 e = s - best;
+        if (dot(e, e) > 1e-6) bd = min(bd, dot(0.5*(best + s) - p, normalize(e)));
+      }
+      vec3 c = texture(uSrc, clamp(best*cs/uSize, 0.0, 1.0)).rgb;
+      c *= 1.0 + 0.18*(1.0 - clamp(sqrt(d1)*1.6, 0.0, 1.0));     // glass bevel: lit centre
+      float px = 1.0/cs;
+      // Lead 0 means NO lead -- without the step the 1.5px antialias ramp still drew a seam.
+      float lead = mix(1.0, smoothstep(uLead*0.5, uLead*0.5 + 1.5*px, bd), step(1e-4, uLead));
+      o = vec4(clamp(c, 0.0, 1.0) * lead, 1.0);
+    }`;
     // CRT phosphor: the shadow mask and the beam's bandwidth limit — the two things
     // Scanlines and Barrel leave out of the retro set.
     //
@@ -8266,6 +8314,7 @@
     glProg.pixelate = makeProg(VS_QUAD, FS_PIXELATE, ["uSrc", "uSize", "uBlock"]);
     glProg.posterize = makeProg(VS_QUAD, FS_POSTERIZE, ["uSrc", "uLevels"]);
     glProg.hexpix = makeProg(VS_QUAD, FS_HEXPIX, ["uSrc", "uSize", "uSize2"]);
+    glProg.stained = makeProg(VS_QUAD, FS_STAINED, ["uSrc", "uSize", "uCell", "uLead", "uWob", "uTime"]);
     glProg.crt = makeProg(VS_QUAD, FS_CRT, ["uSrc", "uSize", "uMask", "uBleed"]);
     glProg.mirror = makeProg(VS_QUAD, FS_MIRROR, ["uSrc", "uMode"]);
     glProg.soften = makeProg(VS_QUAD, FS_SOFTEN, ["uSrc", "uSize", "uRadius", "uAmount"]);
@@ -15688,6 +15737,9 @@
     { key: "chroma", host: "filter", group: "f_chroma", type: "dual", label: "Amount", valId: "vChroma", min: 0, max: 6, step: 0.05, lo: 2.8, hi: 2.8, fmt: v => sig3(v), apply: v => chromaAmt = v, durScale: 10 },
     { key: "anadepth", host: "filter", group: "f_anaglyph", type: "dual", label: "Depth", valId: "vAnaDepth", min: 0, max: 40, step: 0.5, lo: 8, hi: 24, fmt: v => sig3(v) + "px", apply: v => anaDepth = v, durScale: 10 },
     { key: "anatint", host: "filter", group: "f_anaglyph", type: "dual", label: "Glasses", valId: "vAnaTint", min: 0, max: 1, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v * 100) + "%", apply: v => anaTint = v, durScale: 10 },
+    { key: "stgsize", host: "filter", group: "f_stained", type: "dual", label: "Cell size", valId: "vStgSize", min: 6, max: 120, step: 1, lo: 28, hi: 28, fmt: v => sig3(v) + "px", apply: v => stgSize = v, durScale: 10 },
+    { key: "stglead", host: "filter", group: "f_stained", type: "dual", label: "Lead", valId: "vStgLead", min: 0, max: 0.5, step: 0.01, lo: 0.06, hi: 0.22, fmt: v => sig3(v), apply: v => stgLead = v, durScale: 10 },
+    { key: "stgwob", host: "filter", group: "f_stained", type: "dual", label: "Shimmer", valId: "vStgWob", min: 0, max: 2, step: 0.01, lo: 0.6, hi: 0.6, fmt: v => sig3(v), apply: v => stgWob = v, durScale: 10 },
     { key: "mirror", host: "filter", group: "f_mirror", type: "dual", single: true, label: "Axis", valId: "vMirror", min: 1, max: 3, step: 1, lo: 1, hi: 1, fmt: v => ["", "X", "Y", "Both"][Math.round(v)] || "X", apply: v => mirrorMode = Math.round(v), durScale: 10 },
     { key: "shock", host: "filter", group: "f_shock", type: "dual", label: "Shock", valId: "vShock", min: 0, max: 1, step: 0.01, lo: 0, hi: 1, fmt: v => sig3(v), apply: v => shockAmt = v, durScale: 10 },
     { key: "shockamp", host: "filter", group: "f_shock", type: "dual", label: "Push", valId: "vShockAmp", min: 0, max: 0.2, step: 0.005, lo: 0.11, hi: 0.11, fmt: v => sig3(v), apply: v => shockAmp = v, durScale: 10 },
@@ -15835,7 +15887,7 @@
     { name: "Warp & distort", desc: "move the pixels somewhere else",
       ids: ["twist", "wedge", "polar", "lens", "droste", "mirror", "shock", "barrel"] },
     { name: "Stylise", desc: "redraw it as something else",
-      ids: ["poster", "dither", "halftone", "ascii", "kuwahara", "edge", "emboss", "pixelate", "hexpix", "crt", "scanlines"] },
+      ids: ["poster", "dither", "halftone", "ascii", "kuwahara", "edge", "emboss", "pixelate", "hexpix", "stained", "crt", "scanlines"] },
     { name: "Colour & tone", desc: "same shapes, different colour",
       ids: ["thresh", "invert", "chroma", "anaglyph", "noise", "vignette", "grain"] },
     { name: "Blur & light", desc: "spread it, streak it, glow it",
@@ -16438,7 +16490,7 @@
     f_lens: "Lens bubble", f_droste: "Droste zoom", f_kuwahara: "Oil paint",
     f_halftone: "Halftone", f_thresh: "Solarize", f_chroma: "Chromatic aberration", f_anaglyph: "Anaglyph split",
     f_barrel: "Barrel distortion", f_scanlines: "Scanlines", f_vignette: "Vignette", f_grain: "Film grain",
-    f_hexpix: "Hex pixelate", f_crt: "CRT phosphor",
+    f_hexpix: "Hex pixelate", f_stained: "Stained glass", f_crt: "CRT phosphor",
     palette: "Palette", banding: "Banding",
   };
   // Render the schema into ONE block, then index everything it made under `slot`. Group
@@ -19590,6 +19642,13 @@
       help: "Snap the image to a honeycomb of hexagons instead of squares.",
       defaults: { hexsize: [20, 20] },
       gl: src => postPass("hexpix", src, u => gl.uniform1f(u.uSize2, hexSize)) },
+    { id: "stained", cpuOk: false, name: "Stained glass", stage: "post", params: ["stgsize", "stglead", "stgwob"],
+      help: "Break the picture into an irregular mosaic of glass cells, each flat-filled with the colour under it and held in dark lead. Lead ships as a range so it breathes; arm its chips and it slams on the beat.",
+      defaults: { stgsize: [28, 28], stglead: [0.06, 0.22], stgwob: [0.6, 0.6] },
+      gl: src => postPass("stained", src, u => {
+        gl.uniform1f(u.uCell, stgSize); gl.uniform1f(u.uLead, stgLead);
+        gl.uniform1f(u.uWob, stgWob); gl.uniform1f(u.uTime, postTime);
+      }) },
     { id: "soften", cpuOk: false, name: "Blur / sharpen", stage: "post", params: ["soften", "softrad"],
       help: "One knob: negative blurs, positive sharpens (unsharp mask).",
       defaults: { soften: [-1, -1], softrad: [5.5, 5.5] },

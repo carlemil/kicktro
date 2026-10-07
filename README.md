@@ -494,7 +494,7 @@ stacking is a GPU feature, and each extra layer there would be a full software r
 
 ## Filters
 
-There are twenty-four post-processing effects you can stack on top of whatever is
+There are forty-one post-processing effects you can stack on top of whatever is
 running. The menu lists only the ones you've **added**, in the order they run: press
 **+ Add filter** to open the full catalogue and tick what you want, drag a row's **⠿**
 handle to move it up or down the chain, and press **✕** to drop it. Each row folds open
@@ -557,6 +557,10 @@ the layers blend together.
 - **Pixelate** — snap the picture to a coarse grid. **Block** is the cell size.
 - **Hex pixelate** — the same idea on a honeycomb: the picture snaps to hexagons instead
   of squares. **Cell** is the hex size.
+- **Stained glass** — the picture breaks into an irregular mosaic of glass panes, each
+  flat-filled with the colour under it and held in dark lead. **Cell size** sets the panes,
+  **Shimmer** lets them slowly reshape, and **Lead** ships as a range so it breathes on its
+  own — arm its chips and the lead slams thick on the beat.
 - **Blur / sharpen** — one knob: negative blurs, positive sharpens (unsharp mask),
   with its own **Radius**.
 - **Edge** — a Sobel outline that traces the shapes instead of filling them.
