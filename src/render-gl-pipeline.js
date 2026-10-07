@@ -53,15 +53,18 @@
       float cs = max(4.0, uCell);
       vec2 p = vUv*uSize/cs;
       vec2 g = floor(p);
-      vec2 best = vec2(0.0); float d1 = 1e9;
+      vec2 best = vec2(0.0), bc = g; float d1 = 1e9;
       for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++){
         vec2 s = stgSeed(g + vec2(i, j));
         float d = dot(s - p, s - p);
-        if (d < d1){ d1 = d; best = s; }
+        if (d < d1){ d1 = d; best = s; bc = g + vec2(i, j); }
       }
+      // Border pass is 5x5 around the NEAREST SEED'S cell (as in IQ's original), not 3x3
+      // around this pixel's: a seed sits anywhere in its cell, so a bordering neighbour can be
+      // two cells from g, and missing it thinned or dropped lead at diagonal corners.
       float bd = 1e9;
-      for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++){
-        vec2 s = stgSeed(g + vec2(i, j));
+      for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++){
+        vec2 s = stgSeed(bc + vec2(i, j));
         vec2 e = s - best;
         if (dot(e, e) > 1e-6) bd = min(bd, dot(0.5*(best + s) - p, normalize(e)));
       }
