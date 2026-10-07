@@ -25,9 +25,6 @@ the single source of truth; `/deploy` bumps it and adds the section below in the
 - **Anaglyph split** — a new filter: red/cyan 3D-glasses stereo, with red pushed one way, cyan the other and bright detail standing out nearest. **Depth** ships as a range so the split breathes; arm its chips and it kicks on the beat. **Glasses** goes from the picture's own colours to classic grey red/cyan.
 - **Stained glass** — a new filter: the picture broken into an irregular mosaic of glass panes, each filled flat with the colour under it and held in dark lead. **Cell size** sets the pane size, **Lead** its thickness (a range, so it breathes; arm its chips and it slams thick on the beat), **Shimmer** how far the panes drift and reshape.
 
-### Fixed
-- The **?** help on **Trees → Depth** showed the Anaglyph split filter's text; it now shows the Trees help again.
-
 ### Internal
 - `tools/attr3dprobe.js` pins Attractor 3D's fit and integration; `uiprobe` now fails when a help row would shadow another control's help.
 - `promo/` (local promo videos) is no longer tracked; promo music credits added.
