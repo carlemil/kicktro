@@ -2629,7 +2629,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.83.0",
+    version: "1.84.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -3054,6 +3054,9 @@
   let cellStates = 12, cellMix = 1, cellKeep = 1;        // Cellular automaton (feedback)
   let lensSize = 0.28, lensMag = 1.8, lensSpeed = 0.6;   // Lens bubble
   let drosteDepth = 2, drosteTwist = 0.5;                // Droste zoom
+  let wobAmp = 12, wobFreq = 3, wobSpeed = 1;            // Wobble: push px, waves, roll speed
+  let hazeAmt = 14, hazeScale = 4, hazeRise = 1, hazeGrad = 0.6;   // Heat haze
+  let vhsJit = 3, vhsBand = 0.6, vhsBleed = 6;            // VHS tracking: line jitter px, band, chroma lag px
   let kuwRad = 3;                                        // Kuwahara oil-paint
   // Reaction–diffusion dish flags: declared here because glResize (an earlier slice than
   // the effect code) marks the dish for re-seeding when the grid reallocates. rdIsFloat
@@ -4662,6 +4665,66 @@
                     abs(length(f + vec2(0.5, 0.5)) - 0.5));
       float w = max(0.01, uWidth * 0.5);
       o = vec4(1.0 - smoothstep(w * 0.5, w, d), 0.0, 0.0, 1.0);
+    }`;
+    // CONTOURS: the isolines of a slowly evolving fbm height field -- a topographic map whose
+    // terrain is alive. The line's thickness is in PIXELS, held constant however steep the
+    // slope: the fractional height is divided by its screen-space derivative (fwidth), which
+    // is the distance to the nearest line in pixels. Without that a flat area draws fat
+    // blurred bands and a steep one hairlines, the way a naive fract() does. Fill shows the
+    // field itself faintly between the lines, as shaded relief; the lines creep uphill with
+    // Drift (the + uTime term on k) as the terrain itself drifts (the z of the fbm).
+    const FS_CONTOURS = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uTime; uniform float uLines;
+    uniform float uWidth; uniform float uScale; uniform float uFill; uniform float uZoom;
+    out vec4 o;
+    ${SH_NOISE}
+    void main(){
+      float asp = uSize.x / uSize.y;
+      vec2 p = vec2((gl_FragCoord.x / uSize.x - 0.5) * asp, gl_FragCoord.y / uSize.y - 0.5) / uZoom * max(0.2, uScale);
+      float h = fbm3(vec3(p, uTime * 0.11), 5);
+      float k = h * uLines + uTime * 0.23;
+      float f = abs(fract(k) - 0.5);                 // 0 on a line, 0.5 midway between two
+      float px = f / max(fwidth(k), 1e-4);           // ...as a distance in pixels
+      float w = max(0.5, uWidth);
+      float line = 1.0 - smoothstep(w * 0.5, w, px);
+      float halo = (1.0 - smoothstep(w, w * 4.0, px)) * 0.25;
+      float v = max(line + halo, uFill * h);
+      o = vec4(clamp(v, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
+    // SMOKE: one plume rising from the bottom centre. Density is fbm3 scrolling UP (the field
+    // is sampled at y - t, so features travel +y, and +y is screen-up here because the heat
+    // buffer is Y-flipped -- the 0.5 - gl_FragCoord.y/h, as in Aurora); before the density is
+    // read, the sample point is pushed about by a second, coarser fbm pair -- Turbulence --
+    // growing with height so the column is tight at the base and ragged at the top. The
+    // envelope is a gaussian column widening with height, cut off above Height; Density is
+    // the threshold on the (contrast-stretched) noise, pushed past the clamp at 0 so the
+    // slider removes the smoke entirely (tools/noiseprobe.js holds it to exact zero). Not Volumetric clouds: no ray, no light, one 2D field.
+    const FS_SMOKE = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uTime; uniform float uTurb;
+    uniform float uScale; uniform float uDensity; uniform float uHeight; uniform float uZoom;
+    out vec4 o;
+    ${SH_NOISE}
+    void main(){
+      float asp = uSize.x / uSize.y;
+      vec2 p = vec2((gl_FragCoord.x / uSize.x - 0.5) * asp, 0.5 - gl_FragCoord.y / uSize.y) / uZoom;
+      float up = p.y + 0.5;                          // 0 at the bottom edge, 1 at the top
+      float sc = max(0.3, uScale);
+      vec2 w1 = vec2(fbm3(vec3(p * sc * 0.7 + vec2(3.1, -uTime * 0.9), uTime * 0.15), 3),
+                     fbm3(vec3(p * sc * 0.7 + vec2(-7.2, -uTime * 0.9), uTime * 0.15 + 4.0), 3)) - 0.5;
+      vec2 q = p + w1 * uTurb * 0.35 * (0.3 + up);
+      // Density is sampled at 1.6x the warp's scale: the coarsest octave then has enough cells in
+      // view that its local mean stops wandering (a sin-hash lattice patch of a dozen corners
+      // averaged 0.37, and the threshold below emptied the plume for seconds at a time).
+      float d = fbm3(vec3(q * sc * 1.6 + vec2(0.0, -uTime * 0.9), uTime * 0.2), 5);
+      float dd = clamp((d - 0.5) * 2.0 + 0.5, 0.0, 1.0);
+      float base = smoothstep(-0.05, 0.12, up);
+      float top = 1.0 - smoothstep(uHeight * 0.55, uHeight * 1.05, up);
+      float col = exp(-pow(q.x / (0.16 + 0.75 * up), 2.0) * 2.0);
+      float th = (1.0 - uDensity) * 1.4 - 0.2;             // Density 0 -> 1.2, above dd's clamp: nothing
+      float v = smoothstep(th, th + 0.4, dd) * base * top * col;
+      o = vec4(clamp(v * 1.15, 0.0, 1.0), 0.0, 0.0, 1.0);
     }`;
     // ---- Batch B: three modern fractal distance estimators ---------------------------
     // Shared camera: a slow orbit looking at the origin. All three are centred solids, so
@@ -7959,6 +8022,95 @@
       vec2 p = vec2(cos(t2), sin(t2))*rr/vec2(asp, 1.0) + 0.5;
       o = vec4(texture(uSrc, clamp(p, 0.0, 1.0)).rgb, 1.0);
     }`;
+    // WOBBLE: sine displacement on both axes, each axis pushed by a wave running along the
+    // OTHER one, so the picture sways like jelly instead of sliding sideways. Amount is in
+    // render-buffer pixels (two sines per axis, peak 1.5, normalised). The phase arrives as
+    // postTime x Speed from the CPU -- Lens bubble's arrangement -- so the filter is stateless.
+    const FS_WOBBLE = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uAmp; uniform float uFreq; uniform float uTime;
+    in vec2 vUv; out vec4 o;
+    void main(){
+      float asp = uSize.x / uSize.y;
+      float k = 6.2831853 * uFreq;
+      vec2 d = vec2(sin(vUv.y * k + uTime) + 0.5 * sin(vUv.y * k * 2.3 - uTime * 0.7),
+                    sin(vUv.x * k * asp * 0.8 - uTime * 1.3) + 0.5 * sin(vUv.x * k * asp * 1.9 + uTime * 0.9));
+      vec2 p = vUv + d * (uAmp / 1.5) / uSize;
+      o = vec4(texture(uSrc, clamp(p, 0.0, 1.0)).rgb, 1.0);
+    }`;
+    // HEAT HAZE: the picture seen through hot air. Two value-noise fields displace the sample
+    // point and the field scrolls UPWARD so the shimmer rises the way heat does -- buffer y is
+    // flipped against the screen (row 0 = top), so "up" is DECREASING v, hence + uTime on the
+    // sample. Gradient weights the bottom of the frame: 0 is an even shimmer, 1 a mirage over
+    // hot ground under a still sky. The hash is INTEGER arithmetic, never fract(sin()) -- the
+    // driver-build rule in CLAUDE.md -- so a background recompile cannot jump the picture.
+    const FS_HAZE = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uAmp; uniform float uScale; uniform float uTime; uniform float uGrad;
+    in vec2 vUv; out vec4 o;
+    float hzh(ivec2 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    float hzn(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      ivec2 c = ivec2(i) + 4096;
+      return mix(mix(hzh(c), hzh(c + ivec2(1, 0)), u.x), mix(hzh(c + ivec2(0, 1)), hzh(c + ivec2(1, 1)), u.x), u.y);
+    }
+    void main(){
+      float asp = uSize.x / uSize.y;
+      vec2 q = vec2(vUv.x * asp, vUv.y + uTime * 0.25) * uScale;
+      vec2 d = vec2(hzn(q) - 0.5, hzn(q + vec2(17.0, 9.0)) - 0.5) * 2.0;
+      float g = mix(1.0, smoothstep(0.0, 1.0, vUv.y), uGrad);
+      vec2 p = vUv + d * uAmp * g / uSize;
+      o = vec4(texture(uSrc, clamp(p, 0.0, 1.0)).rgb, 1.0);
+    }`;
+    // VHS TRACKING: a worn tape. Three things, in order: every scanline jitters sideways by its
+    // own hashed amount, re-rolled 18x a second, over a slow lean (Jitter, px); a tracking band
+    // -- a stripe rolling slowly up the frame -- shears what it crosses hard, darkens it and
+    // fills it with noise, with the odd dropout streak flashing white (Tracking); and the
+    // COLOUR is read from beside the luminance and smeared to the right (Colour bleed, px),
+    // the chroma-bandwidth smear that makes tape look like tape. Luma/chroma split is BT.601,
+    // so the picture's own colours survive. Integer hashes throughout -- the driver-build rule.
+    // Slice glitch is the clean digital tear; this is the analogue one.
+    const FS_VHS = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uJit; uniform float uBand; uniform float uBleed; uniform float uTime;
+    in vec2 vUv; out vec4 o;
+    float vh(ivec3 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    vec3 rgb2yuv(vec3 c){ return vec3(dot(c, vec3(0.299, 0.587, 0.114)), dot(c, vec3(-0.14713, -0.28886, 0.436)), dot(c, vec3(0.615, -0.51499, -0.10001))); }
+    vec3 yuv2rgb(vec3 y){ return vec3(y.x + 1.13983 * y.z, y.x - 0.39465 * y.y - 0.58060 * y.z, y.x + 2.03211 * y.y); }
+    void main(){
+      int row = int(vUv.y * uSize.y);
+      int frame = int(uTime * 18.0);
+      // per-line jitter: a hashed offset per (row, frame) plus a slow wave so lines lean together
+      float jit = (vh(ivec3(row, frame, 1)) - 0.5) * 2.0 * uJit + sin(vUv.y * 9.0 + uTime * 2.1) * uJit * 0.35;
+      // the tracking band rolls up the frame (buffer y is screen-flipped, so up = -v)
+      float bandY = fract(-uTime * 0.09);
+      float dy = abs(fract(vUv.y - bandY + 0.5) - 0.5);
+      float inBand = (1.0 - smoothstep(0.0, 0.045, dy)) * uBand;
+      float shear = inBand * (0.12 + 0.08 * vh(ivec3(row / 3, frame, 2))) * uSize.x;
+      vec2 p = vec2(vUv.x + (jit + shear) / uSize.x, vUv.y);
+      vec3 c = texture(uSrc, clamp(p, 0.0, 1.0)).rgb;
+      // chroma from beside the luma, smeared over three taps -- the colour lags the picture
+      float b = uBleed / uSize.x;
+      vec3 cc = (texture(uSrc, clamp(p + vec2(b * 0.4, 0.0), 0.0, 1.0)).rgb
+               + texture(uSrc, clamp(p + vec2(b, 0.0), 0.0, 1.0)).rgb
+               + texture(uSrc, clamp(p + vec2(b * 1.6, 0.0), 0.0, 1.0)).rgb) / 3.0;
+      vec3 outc = yuv2rgb(vec3(rgb2yuv(c).x, rgb2yuv(cc).yz));
+      // inside the band: darker, noisier; rare dropout streaks flash white
+      float n = vh(ivec3(int(vUv.x * uSize.x), row, frame));
+      outc = outc * (1.0 - inBand * 0.55) + inBand * (n - 0.5) * 0.6;
+      float drop = step(0.992, vh(ivec3(row, frame, 3))) * step(0.5, vh(ivec3(int(vUv.x * uSize.x / 40.0), row, frame + 7))) * uBand;
+      outc = mix(outc, vec3(0.9), drop * 0.7);
+      o = vec4(clamp(outc, 0.0, 1.0), 1.0);
+    }`;
     // Kuwahara: 4-quadrant oil-paint. Each quadrant of a (uRad+1)^2 window contributes a
     // mean and a variance; the pixel takes the mean of the calmest quadrant, flattening
     // texture while keeping edges — screen-print. Fixed 5x5 quadrant loops = Radius max 4.
@@ -8257,6 +8409,8 @@
     glProg.voronoi = camProg(VS_QUAD, FS_VORONOI, ["uSize", "uTime", "uCells", "uEdge", "uJit", "uZoom"]);
     glProg.warpnoise = camProg(VS_QUAD, FS_WARPNOISE, ["uSize", "uTime", "uScale", "uWarp", "uOct", "uZoom"]);
     glProg.truchet = camProg(VS_QUAD, FS_TRUCHET, ["uSize", "uTime", "uCells", "uWidth", "uFlip", "uZoom"]);
+    glProg.contours = camProg(VS_QUAD, FS_CONTOURS, ["uSize", "uTime", "uLines", "uWidth", "uScale", "uFill", "uZoom"]);
+    glProg.smoke = camProg(VS_QUAD, FS_SMOKE, ["uSize", "uTime", "uTurb", "uScale", "uDensity", "uHeight", "uZoom"]);
     glProg.shapegrid = camProg(VS_QUAD, FS_SHAPEGRID, ["uSize", "uTime", "uCells", "uDot", "uSquare", "uPulse", "uZoom"]);
     glProg.concentric = camProg(VS_QUAD, FS_CONCENTRIC, ["uSize", "uTime", "uSides", "uCount", "uThick", "uSpin", "uZoom"]);
     glProg.bounce = camProg(VS_QUAD, FS_BOUNCE, ["uSize", "uPos", "uCount", "uRad", "uSquare", "uZoom", "uMix", "uTime", "uSpin"]);
@@ -8340,6 +8494,9 @@
     glProg.cell = makeProg(VS_QUAD, FS_CELL, ["uHeat", "uSize", "uStates", "uMix", "uKeep"]);
     glProg.lens = makeProg(VS_QUAD, FS_LENS, ["uSrc", "uSize", "uCenter", "uRad", "uMag"]);
     glProg.droste = makeProg(VS_QUAD, FS_DROSTE, ["uSrc", "uSize", "uDepth", "uTwist", "uTime"]);
+    glProg.wobble = makeProg(VS_QUAD, FS_WOBBLE, ["uSrc", "uSize", "uAmp", "uFreq", "uTime"]);
+    glProg.haze = makeProg(VS_QUAD, FS_HAZE, ["uSrc", "uSize", "uAmp", "uScale", "uTime", "uGrad"]);
+    glProg.vhs = makeProg(VS_QUAD, FS_VHS, ["uSrc", "uSize", "uJit", "uBand", "uBleed", "uTime"]);
     glProg.kuwahara = makeProg(VS_QUAD, FS_KUWAHARA, ["uSrc", "uSize", "uRad"]);
     glProg.barrel = makeProg(VS_QUAD, FS_BARREL, ["uSrc", "uAmount"]);
     glProg.scan = makeProg(VS_QUAD, FS_SCAN, ["uSrc", "uAmount", "uCount"]);
@@ -13055,6 +13212,43 @@
       fire[idx++] = Math.max(0, Math.min(1, 1 - shStep(w * 0.5, w, d))) * 255;
     }
   }
+  // Contours: one octave of value noise where the shader has five, and the pixel distance
+  // comes from a finite difference in place of fwidth -- the same |dk/dx| + |dk/dy|.
+  let cnLines = 12, cnWidth = 2.5, cnScale = 2, cnDrift = 0.6, cnFill = 0.2, cnTime = 0;
+  function contoursSeed(dt) { cnTime += dt * cnDrift; return { t: cnTime, lines: cnLines, width: cnWidth, scale: cnScale, fill: cnFill, zoom }; }
+  function contours(s) {
+    const asp = fw / fh, sc = Math.max(0.2, s.scale), w = Math.max(0.5, s.width), tz = s.t * 0.11;
+    const dpx = sc * asp / (fw * s.zoom), dpy = sc / (fh * s.zoom);   // field units per pixel
+    let idx = 0;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      camPix(x, y);
+      const px = (camPX / fw - 0.5) * asp / s.zoom * sc, py = (camPY / fh - 0.5) / s.zoom * sc;
+      const h = shVNoise3(px, py, tz);
+      const slope = Math.max(1e-4, (Math.abs(shVNoise3(px + dpx, py, tz) - h) + Math.abs(shVNoise3(px, py + dpy, tz) - h)) * s.lines);
+      const k = h * s.lines + s.t * 0.23;
+      const d = Math.abs(k - Math.floor(k) - 0.5) / slope;
+      const line = 1 - shStep(w * 0.5, w, d), halo = (1 - shStep(w, w * 4, d)) * 0.25;
+      fire[idx++] = Math.max(0, Math.min(1, Math.max(line + halo, s.fill * h))) * 255;
+    }
+  }
+  // Smoke: the same plume with single-octave noise for the warp and the density.
+  let smRise = 1, smTurb = 1.6, smScale = 2.2, smDensity = 0.55, smHeight = 0.75, smTime = 0;
+  function smokeSeed(dt) { smTime += dt * smRise; return { t: smTime, turb: smTurb, scale: smScale, density: smDensity, height: smHeight, zoom }; }
+  function smoke(s) {
+    const asp = fw / fh, sc = Math.max(0.3, s.scale), th = (1 - s.density) * 1.4 - 0.2;
+    let idx = 0;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      camPix(x, y);
+      const px = (camPX / fw - 0.5) * asp / s.zoom, py = (0.5 - camPY / fh) / s.zoom, up = py + 0.5;
+      const wx = shVNoise3(px * sc * 0.7 + 3.1, py * sc * 0.7 - s.t * 0.9, s.t * 0.15) - 0.5;
+      const wy = shVNoise3(px * sc * 0.7 - 7.2, py * sc * 0.7 - s.t * 0.9, s.t * 0.15 + 4) - 0.5;
+      const k = s.turb * 0.35 * (0.3 + up), qx = px + wx * k, qy = py + wy * k;
+      const d = shVNoise3(qx * sc * 1.6, qy * sc * 1.6 - s.t * 0.9, s.t * 0.2);
+      const dd = Math.max(0, Math.min(1, (d - 0.5) * 2 + 0.5));
+      const env = shStep(-0.05, 0.12, up) * (1 - shStep(s.height * 0.55, s.height * 1.05, up)) * Math.exp(-Math.pow(qx / (0.16 + 0.75 * up), 2) * 2);
+      fire[idx++] = Math.max(0, Math.min(1, shStep(th, th + 0.4, dd) * env * 1.15)) * 255;
+    }
+  }
   // Shape grid: a tiled lattice of circles↔squares, each cell pulsing out of phase.
   let sgCells = 9, sgDot = 0.3, sgSquare = 0, sgPulse = 0.35, sgSpeed = 1.2, sgTime = 0;
   function shapegridSeed(dt) { sgTime += dt * sgSpeed; return { t: sgTime, cells: sgCells, dot: sgDot, square: sgSquare, pulse: sgPulse, zoom }; }
@@ -15460,6 +15654,16 @@
     { key: "truwidth", host: "fx", group: "truchet", type: "dual", label: "Line width", valId: "vTruWidth", min: 0.02, max: 1, step: 0.01, lo: 0.35, hi: 0.35, fmt: v => sig3(v), apply: v => truWidth = v, durScale: 10 },
     { key: "truflip", host: "fx", group: "truchet", type: "dual", label: "Weave", valId: "vTruFlip", min: 0, max: 1, step: 0.01, lo: 0.5, hi: 0.5, fmt: v => sig3(v), apply: v => truFlip = v, durScale: 10 },
     { key: "truspeed", host: "fx", group: "truchet", type: "dual", label: "Turn rate", valId: "vTruSpeed", min: 0, max: 4, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => truSpeed = v, durScale: 10 },
+    { key: "cnlines", host: "fx", group: "contours", type: "dual", label: "Lines", valId: "vCnLines", min: 2, max: 40, step: 1, lo: 12, hi: 12, fmt: v => sig3(Math.round(v)), apply: v => cnLines = Math.round(v), durScale: 10 },
+    { key: "cnwidth", host: "fx", group: "contours", type: "dual", label: "Thickness", valId: "vCnWidth", min: 0.5, max: 12, step: 0.1, lo: 2.5, hi: 2.5, fmt: v => sig3(v) + "px", apply: v => cnWidth = v, durScale: 10 },
+    { key: "cnscale", host: "fx", group: "contours", type: "dual", label: "Scale", valId: "vCnScale", min: 0.2, max: 8, step: 0.1, lo: 2, hi: 2, fmt: v => sig3(v), apply: v => cnScale = v, durScale: 10 },
+    { key: "cndrift", host: "fx", group: "contours", type: "dual", label: "Drift", valId: "vCnDrift", min: 0, max: 3, step: 0.01, lo: 0.6, hi: 0.6, fmt: v => sig3(v) + "×", apply: v => cnDrift = v, durScale: 10 },
+    { key: "cnfill", host: "fx", group: "contours", type: "dual", label: "Fill", valId: "vCnFill", min: 0, max: 1, step: 0.01, lo: 0.2, hi: 0.2, fmt: v => sig3(v), apply: v => cnFill = v, durScale: 10 },
+    { key: "smrise", host: "fx", group: "smoke", type: "dual", label: "Rise", valId: "vSmRise", min: 0, max: 3, step: 0.01, lo: 1, hi: 1, fmt: v => sig3(v) + "×", apply: v => smRise = v, durScale: 10 },
+    { key: "smturb", host: "fx", group: "smoke", type: "dual", label: "Turbulence", valId: "vSmTurb", min: 0, max: 4, step: 0.05, lo: 1.6, hi: 1.6, fmt: v => sig3(v), apply: v => smTurb = v, durScale: 10 },
+    { key: "smscale", host: "fx", group: "smoke", type: "dual", label: "Scale", valId: "vSmScale", min: 0.5, max: 8, step: 0.1, lo: 2.2, hi: 2.2, fmt: v => sig3(v), apply: v => smScale = v, durScale: 10 },
+    { key: "smdensity", host: "fx", group: "smoke", type: "dual", label: "Density", valId: "vSmDensity", min: 0, max: 1, step: 0.01, lo: 0.55, hi: 0.55, fmt: v => sig3(v), apply: v => smDensity = v, durScale: 10 },
+    { key: "smheight", host: "fx", group: "smoke", type: "dual", label: "Height", valId: "vSmHeight", min: 0.2, max: 1.2, step: 0.01, lo: 0.75, hi: 0.75, fmt: v => sig3(v), apply: v => smHeight = v, durScale: 10 },
     { key: "sgcells", host: "fx", group: "shapegrid", type: "dual", label: "Density", valId: "vSgCells", min: 2, max: 24, step: 1, lo: 9, hi: 9, fmt: v => sig3(v), apply: v => sgCells = v, durScale: 10 },
     { key: "sgdot", host: "fx", group: "shapegrid", type: "dual", label: "Size", valId: "vSgDot", min: 0.05, max: 0.6, step: 0.01, lo: 0.3, hi: 0.3, fmt: v => sig3(v), apply: v => sgDot = v, durScale: 10 },
     { key: "sgsquare", host: "fx", group: "shapegrid", type: "dual", label: "Squareness", valId: "vSgSquare", min: 0, max: 1, step: 0.02, lo: 0, hi: 0, fmt: v => sig3(v), apply: v => sgSquare = v, durScale: 10 },
@@ -15755,6 +15959,16 @@
     { key: "lensspeed", host: "filter", group: "f_lens", type: "dual", label: "Wander", valId: "vLensSpeed", min: 0, max: 2, step: 0.05, lo: 0.6, hi: 0.6, fmt: v => sig3(v) + "×", apply: v => lensSpeed = v, durScale: 10 },
     { key: "drdepth", host: "filter", group: "f_droste", type: "dual", label: "Depth", valId: "vDrDepth", min: 1.3, max: 4, step: 0.05, lo: 2, hi: 2, fmt: v => sig3(v), apply: v => drosteDepth = v, durScale: 10 },
     { key: "drtwist", host: "filter", group: "f_droste", type: "dual", label: "Spiral", valId: "vDrTwist", min: -1.5, max: 1.5, step: 0.05, lo: 0.5, hi: 0.5, fmt: v => sig3(v), apply: v => drosteTwist = v, durScale: 10 },
+    { key: "wobamp", host: "filter", group: "f_wobble", type: "dual", label: "Amount", valId: "vWobAmp", min: 0, max: 60, step: 0.5, lo: 12, hi: 12, fmt: v => sig3(v) + "px", apply: v => wobAmp = v, durScale: 10 },
+    { key: "wobfreq", host: "filter", group: "f_wobble", type: "dual", label: "Waves", valId: "vWobFreq", min: 0.5, max: 12, step: 0.1, lo: 3, hi: 3, fmt: v => sig3(v), apply: v => wobFreq = v, durScale: 10 },
+    { key: "wobspeed", host: "filter", group: "f_wobble", type: "dual", label: "Speed", valId: "vWobSpeed", min: 0, max: 4, step: 0.05, lo: 1, hi: 1, fmt: v => sig3(v) + "\u00d7", apply: v => wobSpeed = v, durScale: 10 },
+    { key: "hazeamt", host: "filter", group: "f_haze", type: "dual", label: "Amount", valId: "vHazeAmt", min: 0, max: 60, step: 0.5, lo: 14, hi: 14, fmt: v => sig3(v) + "px", apply: v => hazeAmt = v, durScale: 10 },
+    { key: "hazescale", host: "filter", group: "f_haze", type: "dual", label: "Scale", valId: "vHazeScale", min: 0.5, max: 12, step: 0.1, lo: 4, hi: 4, fmt: v => sig3(v), apply: v => hazeScale = v, durScale: 10 },
+    { key: "hazerise", host: "filter", group: "f_haze", type: "dual", label: "Rise", valId: "vHazeRise", min: 0, max: 4, step: 0.05, lo: 1, hi: 1, fmt: v => sig3(v) + "\u00d7", apply: v => hazeRise = v, durScale: 10 },
+    { key: "hazegrad", host: "filter", group: "f_haze", type: "dual", label: "Gradient", valId: "vHazeGrad", min: 0, max: 1, step: 0.01, lo: 0.6, hi: 0.6, fmt: v => sig3(v), apply: v => hazeGrad = v, durScale: 10 },
+    { key: "vhsjit", host: "filter", group: "f_vhs", type: "dual", label: "Jitter", valId: "vVhsJit", min: 0, max: 30, step: 0.5, lo: 3, hi: 3, fmt: v => sig3(v) + "px", apply: v => vhsJit = v, durScale: 10 },
+    { key: "vhsband", host: "filter", group: "f_vhs", type: "dual", label: "Tracking", valId: "vVhsBand", min: 0, max: 1, step: 0.01, lo: 0.6, hi: 0.6, fmt: v => sig3(v), apply: v => vhsBand = v, durScale: 10 },
+    { key: "vhsbleed", host: "filter", group: "f_vhs", type: "dual", label: "Colour bleed", valId: "vVhsBleed", min: 0, max: 20, step: 0.5, lo: 6, hi: 6, fmt: v => sig3(v) + "px", apply: v => vhsBleed = v, durScale: 10 },
     { key: "kuwrad", host: "filter", group: "f_kuwahara", type: "dual", single: true, label: "Brush size", valId: "vKuwRad", min: 1, max: 6, step: 1, lo: 6, hi: 6, fmt: v => sig3(Math.round(v)) + "px", apply: v => kuwRad = Math.round(v), durScale: 10 },
     { key: "bloom", host: "filter", group: "f_bloom", type: "dual", label: "Strength", valId: "vBloom", min: 0, max: 1.5, step: 0.01, lo: 0.35, hi: 0.35, fmt: v => sig3(v) + "×", apply: v => { bloomRaw = v; bloomAmt = filterOn("bloom") ? v : 0; }, durScale: 10 },
     { key: "barrel", host: "filter", group: "f_barrel", type: "dual", label: "Amount", valId: "vBarrel", min: 0, max: 0.6, step: 0.01, lo: 0.32, hi: 0.32, fmt: v => sig3(v), apply: v => barrelAmt = v, durScale: 10 },
@@ -15885,7 +16099,7 @@
     { name: "Trails & feedback", desc: "what the previous frame leaves behind",
       ids: ["fire", "fade", "diffuse", "echo", "zoomfb", "swirl", "cellular"] },
     { name: "Warp & distort", desc: "move the pixels somewhere else",
-      ids: ["twist", "wedge", "polar", "lens", "droste", "mirror", "shock", "barrel"] },
+      ids: ["twist", "wedge", "polar", "lens", "droste", "mirror", "shock", "barrel", "wobble", "haze", "vhs"] },
     { name: "Stylise", desc: "redraw it as something else",
       ids: ["poster", "dither", "halftone", "ascii", "kuwahara", "edge", "emboss", "pixelate", "hexpix", "stained", "crt", "scanlines"] },
     { name: "Colour & tone", desc: "same shapes, different colour",
@@ -16474,7 +16688,7 @@
     shape: "Shape & motion", cardioid: "Cardioid seed", plasma: "Plasma", tunnel: "Tunnel",
     metaball: "Metaballs", kaleido: "Kaleidoscope", rotozoom: "Rotozoomer", munch: "Munching squares",
     moire: "Moiré", newton: "Newton", multibrot: "Multibrot", copper: "Copper bars",
-    attractor: "Attractor", physarum: "Slime mould", curl: "Curl flow", csg: "Smooth CSG", clouds: "Volumetric clouds", godray: "God rays", terrain: "Terrain", apollo: "Apollonian gasket", mbox: "Mandelbox", gyroid: "Gyroid", voronoi: "Voronoi cells", warpnoise: "Flow noise", truchet: "Truchet tiles", shapegrid: "Shape grid", concentric: "Concentric rings", bounce: "Bouncing shapes",
+    attractor: "Attractor", physarum: "Slime mould", curl: "Curl flow", csg: "Smooth CSG", clouds: "Volumetric clouds", godray: "God rays", terrain: "Terrain", apollo: "Apollonian gasket", mbox: "Mandelbox", gyroid: "Gyroid", voronoi: "Voronoi cells", warpnoise: "Flow noise", truchet: "Truchet tiles", contours: "Contours", smoke: "Smoke", shapegrid: "Shape grid", concentric: "Concentric rings", bounce: "Bouncing shapes",
     solids: "Bouncing solids", sun: "Sun surface", kefrens: "Kefrens bars", twister: "Twister",
     chladni: "Cymatics", storm: "Lightning storm", bulb: "Mandelbulb", flames: "Fractal flames",
     stars: "Starfield", aurora: "Aurora", rd: "Reaction-diffusion", ca: "Cellular automata", cg: "Crystal growth", menger: "Menger sponge",
@@ -16491,6 +16705,9 @@
     f_halftone: "Halftone", f_thresh: "Solarize", f_chroma: "Chromatic aberration", f_anaglyph: "Anaglyph split",
     f_barrel: "Barrel distortion", f_scanlines: "Scanlines", f_vignette: "Vignette", f_grain: "Film grain",
     f_hexpix: "Hex pixelate", f_stained: "Stained glass", f_crt: "CRT phosphor",
+    f_wobble: "Wobble", f_haze: "Heat haze", f_vhs: "VHS tracking",
+    f_emboss: "Emboss", f_dither: "Ordered dither", f_rblur: "Radial blur", f_polar: "Polar warp", f_ascii: "ASCII mosaic",
+    f_invert: "Invert", f_dblur: "Directional blur", f_anamorph: "Anamorphic streaks",
     palette: "Palette", banding: "Banding",
   };
   // Render the schema into ONE block, then index everything it made under `slot`. Group
@@ -16628,6 +16845,8 @@
     ["csgOrbT", () => csgOrbT, v => csgOrbT = v],
     ["voTime", () => voTime, v => voTime = v],
     ["wnTime", () => wnTime, v => wnTime = v],
+    ["cnTime", () => cnTime, v => cnTime = v],
+    ["smTime", () => smTime, v => smTime = v],
     ["truTime", () => truTime, v => truTime = v],
     ["sgTime", () => sgTime, v => sgTime = v],
     ["coTime", () => coTime, v => coTime = v],
@@ -18689,6 +18908,18 @@
       draw: dt => { const s = truchetSeed(dt); if (useGL) glShaderDraw("truchet", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uCells, s.cells); gl.uniform1f(u.uWidth, s.width); gl.uniform1f(u.uFlip, s.flip); gl.uniform1f(u.uZoom, s.zoom); }); else truchet(s); },
       defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], trucells: [6, 6], truwidth: [0.35, 0.35], truflip: [0.5, 0.5], truspeed: [1, 1] },
       beat: {}, extras: { palette: "9", morph: false } },
+    { id: "contours", name: "Contours", subtitle: "Contours · living topographic map",
+      help: "The isolines of a slowly evolving landscape: a fractal height field, sliced at even intervals, drawn as lines of constant width — a topographic map whose terrain is alive, bunching where it steepens and spreading on the flats. **Lines** sets how many slices, **Thickness** the line in pixels (it stays the same however steep the slope), Scale the size of the hills, Drift how fast the terrain evolves and the lines creep across it, Fill how much of the relief shows faintly between them. Arm Lines to a beat and the map re-slices on the hit.",
+      params: ["cnlines", "cnwidth", "cnscale", "cndrift", "cnfill", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "contours", "band"], bakesOwnZoom: true,
+      draw: dt => { const s = contoursSeed(dt); if (useGL) glShaderDraw("contours", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uLines, s.lines); gl.uniform1f(u.uWidth, s.width); gl.uniform1f(u.uScale, s.scale); gl.uniform1f(u.uFill, s.fill); gl.uniform1f(u.uZoom, s.zoom); }); else contours(s); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], cnlines: [12, 12], cnwidth: [2.5, 2.5], cnscale: [2, 2], cndrift: [0.6, 0.6], cnfill: [0.2, 0.2] },
+      beat: {}, extras: { palette: "17", morph: false } },
+    { id: "smoke", name: "Smoke", subtitle: "Smoke · a rising plume",
+      help: "One plume of smoke rising from the bottom of the frame: fractal noise scrolling upward, stirred by a second, coarser noise that grows with height so the column is tight at the base and tears into rags at the top. **Turbulence** is the stirring — at 0 a smooth candle thread, high a windy chimney. Rise is how fast it climbs, Scale the size of the billows, Density how thick the smoke is (0 puts the fire out), Height how far up the frame it reaches before thinning away. Grayscale and Chrome palettes read as smoke; Fire or Ember make it a burning plume.",
+      params: ["smrise", "smturb", "smscale", "smdensity", "smheight", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "smoke", "band"], bakesOwnZoom: true,
+      draw: dt => { const s = smokeSeed(dt); if (useGL) glShaderDraw("smoke", u => { gl.uniform1f(u.uTime, s.t); gl.uniform1f(u.uTurb, s.turb); gl.uniform1f(u.uScale, s.scale); gl.uniform1f(u.uDensity, s.density); gl.uniform1f(u.uHeight, s.height); gl.uniform1f(u.uZoom, s.zoom); }); else smoke(s); },
+      defaults: { palcycle: [0, 0], palhold: [0, 0], zoom: [1, 1], band: [0, 0], bandsize: [1, 1], banddim: [0, 0], smrise: [1, 1], smturb: [1.6, 1.6], smscale: [2.2, 2.2], smdensity: [0.55, 0.55], smheight: [0.75, 0.75] },
+      beat: {}, extras: { palette: "6", morph: false } },
     { id: "shapegrid", name: "Shape grid", subtitle: "Shape grid · pulsing lattice",
       help: "A tiled lattice of one shape. Density sets how many cells fill the screen, Size the shape within each cell, Squareness morphs circle → square, and Pulse (with Pulse speed) makes every cell breathe out of phase with its neighbours. Reads like a pulsing dot-grid or checkerboard.",
       params: ["sgcells", "sgdot", "sgsquare", "sgpulse", "sgspeed", "zoom", "camrx", "camry", "camrz", "fov", "palcycle", "palhold", "band", "bandsize", "banddim"], helpTags: ["all", "shape"], bakesOwnZoom: true,
@@ -19005,9 +19236,9 @@
     { name: "Demoscene classics", desc: "the effects the scene has been writing since the 90s",
       ids: ["plasma", "tunnel", "copperbars", "kefrens", "twister", "rotozoom", "munch", "moire", "metaballs", "starfield", "kaleidoscope"] },
     { name: "Patterns & noise", desc: "fields, tilings and shapes built from a formula",
-      ids: ["voronoi", "warpnoise", "truchet", "shapegrid", "concentric", "bounce", "cymatics", "reactdiff", "harmonograph", "ribbons"] },
+      ids: ["voronoi", "warpnoise", "truchet", "contours", "shapegrid", "concentric", "bounce", "cymatics", "reactdiff", "harmonograph", "ribbons"] },
     { name: "Nature & simulation", desc: "things that grow, flock, flow or weather",
-      ids: ["boids", "physarum", "curl", "trees", "galaxy", "aurora", "lightning", "sunsurface", "attractor", "attr3d", "crystal", "godray"] },
+      ids: ["boids", "physarum", "curl", "trees", "galaxy", "aurora", "smoke", "lightning", "sunsurface", "attractor", "attr3d", "crystal", "godray"] },
   ];
   // id -> group index, built once. Anything unlisted sorts last, under "Other".
   const EFFECT_CAT_OF = {};
@@ -19750,6 +19981,21 @@
       help: "Kuwahara filtering: each pixel takes the calmest neighbourhood's average, flattening texture while keeping edges — the screen-print / oil-paint look.",
       defaults: { kuwrad: [6, 6] },
       gl: src => postPass("kuwahara", src, u => gl.uniform1f(u.uRad, kuwRad)) },
+    // Three DISTORTION filters, all pure UV remaps (one texture read each, bar VHS's chroma
+    // taps) and all stateless -- the clocks are postTime scaled on the CPU, Lens bubble's
+    // arrangement. Wobble is the sine jelly, Heat haze the noise shimmer, VHS the analogue tear.
+    { id: "wobble", cpuOk: false, name: "Wobble", stage: "post", params: ["wobamp", "wobfreq", "wobspeed"],
+      help: "Sways the whole picture like jelly: each axis is pushed by a sine running along the other, so it ripples rather than slides. Amount is the push in pixels, Waves how many ripples fit across the frame, Speed how fast they roll. Arm Amount to a beat and the picture shudders on the hit.",
+      defaults: { wobamp: [12, 12], wobfreq: [3, 3], wobspeed: [1, 1] },
+      gl: src => postPass("wobble", src, u => { gl.uniform1f(u.uAmp, wobAmp); gl.uniform1f(u.uFreq, wobFreq); gl.uniform1f(u.uTime, postTime * wobSpeed); }) },
+    { id: "haze", cpuOk: false, name: "Heat haze", stage: "post", params: ["hazeamt", "hazescale", "hazerise", "hazegrad"],
+      help: "The picture seen through hot air: a drifting noise field bends every pixel's sample point, and the field rises the way heat does. Amount is the shimmer in pixels, Scale the size of the ripples, Rise how fast they climb, Gradient how much it concentrates at the bottom of the frame: 0 is an even shimmer, 1 a mirage over hot ground under a still sky. Push Amount hard and the picture melts.",
+      defaults: { hazeamt: [14, 14], hazescale: [4, 4], hazerise: [1, 1], hazegrad: [0.6, 0.6] },
+      gl: src => postPass("haze", src, u => { gl.uniform1f(u.uAmp, hazeAmt); gl.uniform1f(u.uScale, hazeScale); gl.uniform1f(u.uTime, postTime * hazeRise); gl.uniform1f(u.uGrad, hazeGrad); }) },
+    { id: "vhs", cpuOk: false, name: "VHS tracking", stage: "post", params: ["vhsjit", "vhsband", "vhsbleed"],
+      help: "A worn tape: every scanline jitters sideways on its own, a tracking band rolls slowly up the frame tearing and darkening what it crosses, and the colour lags the picture and smears to the right the way tape chroma does. Jitter is the per-line shake in pixels, Tracking how badly the band misbehaves (0 removes it), Colour bleed how far the colour trails. Slice glitch is the clean digital tear; this is the analogue one.",
+      defaults: { vhsjit: [3, 3], vhsband: [0.6, 0.6], vhsbleed: [6, 6] },
+      gl: src => postPass("vhs", src, u => { gl.uniform1f(u.uJit, vhsJit); gl.uniform1f(u.uBand, vhsBand); gl.uniform1f(u.uBleed, vhsBleed); gl.uniform1f(u.uTime, postTime); }) },
     // Bloom is a REAL PASS now, not the composite. It used to BE the whole-scene glow with its
     // strength as a uniform, which is exactly why it had no `gl` hook and could never be
     // per-layer. glBloomPass makes it an ordinary chain entry, so each layer glows on its own
@@ -27323,6 +27569,16 @@
       { n: "Fly speed", w: "stars", t: "Starfield only — how fast you fly through the field. 0 parks the ship; the stars just twinkle." },
       { n: "Warp", w: "stars", t: "Starfield only — hyperspace: every star smears into a radial streak. Arm its L/M/H chips and the kick punches to warp, easing back as the pulse decays." },
       { n: "Twinkle", w: "stars", t: "Starfield only — how much the stars shimmer. 0 is a steady field." },
+      { n: "Lines", w: "contours", t: "Contours only — how many isolines slice the height field between its lowest and highest point. More lines is a tighter map; arm it to a beat and the map re-slices on the hit." },
+      { n: "Thickness", w: "contours", t: "Contours only — the line's thickness in pixels. It stays the same however steep the terrain, like a drawn map." },
+      { n: "Scale", w: "contours", t: "Contours only — the size of the hills: low is a few broad features, high a crowded range." },
+      { n: "Drift", w: "contours", t: "Contours only — how fast the terrain evolves and the lines creep across it. 0 freezes the map." },
+      { n: "Fill", w: "contours", t: "Contours only — how much of the height field shows between the lines as faint shaded relief. 0 is lines on black." },
+      { n: "Rise", w: "smoke", t: "Smoke only — how fast the plume climbs. 0 freezes it mid-air." },
+      { n: "Turbulence", w: "smoke", t: "Smoke only — how hard the air stirs the column: 0 a smooth candle thread, high a windy chimney tearing into rags." },
+      { n: "Scale", w: "smoke", t: "Smoke only — the size of the billows. Low is a few big rolls, high fine curling detail." },
+      { n: "Density", w: "smoke", t: "Smoke only — how thick the smoke is. 0 puts the fire out; 1 fills the whole column." },
+      { n: "Height", w: "smoke", t: "Smoke only — how far up the frame the plume reaches before it thins away." },
       { n: "Curtains", w: "aurora", t: "Aurora only — how many light curtains hang in the sky, up to five, each wandering on its own." },
       { n: "Sway", w: "aurora", t: "Aurora only — how far the whole sky bends the curtains as they hang." },
       { n: "Speed", w: "aurora", t: "Aurora only — how fast the display moves: the wander, the sway and the shimmer all scale with it." },

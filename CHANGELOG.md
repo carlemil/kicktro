@@ -15,6 +15,21 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.84.0] — 2026-10-24
+
+### Added
+- **Contours** — a new effect: the isolines of a slowly evolving landscape, a fractal height field sliced at even intervals and drawn as lines of constant thickness — a topographic map whose terrain is alive, bunching where it steepens and spreading on the flats. **Lines** sets how many slices (arm its chips and the map re-slices on the beat), **Thickness** the line in pixels (it stays the same however steep the slope), **Scale** the size of the hills, **Drift** how fast the terrain evolves, **Fill** how much relief shows faintly between the lines.
+- **Smoke** — a new effect: one plume rising from the bottom of the frame, fractal noise scrolling upward and stirred by a coarser noise that grows with height, so the column is tight at the base and tears into rags at the top. **Turbulence** is the stirring (0 a smooth candle thread, high a windy chimney), **Rise** how fast it climbs, **Scale** the size of the billows, **Density** how thick the smoke is (0 puts the fire out), **Height** how far up the frame it reaches. Grayscale and Chrome read as smoke; Fire and Ember make it a burning plume.
+- **Wobble** — a new filter: sways the whole picture like jelly, each axis pushed by a sine running along the other so it ripples rather than slides. **Amount** is the push in pixels (arm its chips and the picture shudders on the hit), **Waves** how many ripples fit the frame, **Speed** how fast they roll.
+- **Heat haze** — a new filter: the picture seen through hot air, a drifting noise field bending every pixel and rising the way heat does. **Amount** in pixels, **Scale** the ripple size, **Rise** the climb speed, **Gradient** how much it concentrates at the bottom of the frame — 0 an even shimmer, 1 a mirage over hot ground under a still sky.
+- **VHS tracking** — a new filter: a worn tape. Every scanline jitters sideways on its own (**Jitter**), a tracking band rolls slowly up the frame tearing and darkening what it crosses with the odd white dropout (**Tracking**, 0 removes it), and the colour lags the picture and smears to the right (**Colour bleed**). Slice glitch is the clean digital tear; this is the analogue one.
+
+### Fixed
+- Emboss, Ordered dither, Radial blur, Polar warp, ASCII mosaic, Invert, Directional blur and Anamorphic streaks showed a raw group key instead of their name as the heading of their sliders and on broken-out boxes.
+
+### Internal
+- `tools/wireprobe.js` cross-checks every shader hook's uniforms against its program registration and GLSL declarations, every slider key against the control table and its captions, the picker tables and the per-layer phase clocks; `tools/noiseprobe.js` drives the Contours and Smoke CPU mirrors at a real-sized field.
+
 ## [1.83.0] — 2026-10-07
 
 ### Added
