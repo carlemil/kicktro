@@ -1,4 +1,4 @@
-// The "AI-Generated" scene collection: ten beat-synced scenes built from shipped effects and
+// The "AI-Generated" scene collection: twenty-five beat-synced scenes built from shipped effects and
 // filters, authored SPARSELY in the wire format (string effect + palette ids, [lo,hi] pairs)
 // and handed out as a #zp= bundle link. Everything not named here is the effect's default
 // (mergeState/mergeBeat/mergePulse/mergePlen overlay only the supplied keys), so the file
@@ -93,6 +93,156 @@ const DESIGN = [
       chroma: [0.3, 3.5, "low/snap/0.2"], bloom: 0.4, grain: 0.05 }, ["chroma", "bloom", "grain"], "max", 1),
     L("ribbons", "tricolor", { rbcount: 5, rbwidth: [0.25, 0.7, "low/ease/0.3"], rbtwist: [1.5, 6, "mid/bounce/0.5"], rbspeed: 1.2,
       echo: 3, echoang: 90, echokeep: 0.9 }, ["echo"], "add", 0.75),
+  ]],
+
+  // ---- 1.84.0: Contours, Smoke, Wobble, Heat haze, VHS tracking --------------------------
+  ["Survey Lines", [
+    // A living topographic map: the contour count re-slices on the kick, the line thickens on
+    // the mid band, and a grid of faint survey markers twinkles over it on the highs.
+    L("contours", "verdant", { cnlines: [10, 18, "low/steps/0.4"], cnwidth: [2, 5, "mid/pluck/0.25"], cnscale: 1.6,
+      cndrift: 0.5, cnfill: 0.25, bloom: 0.4, vignette: 0.3 }, ["bloom", "vignette"], "max", 1),
+    L("shapegrid", "amber", { sgcells: 14, sgdot: [0.08, 0.2, "high/snap/0.2"], sgsquare: 0, sgpulse: 0.3, sgspeed: 1.2 },
+      [], "add", 0.4),
+  ]],
+  ["Chimney", [
+    // One plume thickening on the bass through a heat shimmer weighted to the hearth, with
+    // curl-flow sparks that leap on the highs.
+    L("smoke", "ember", { smrise: [0.8, 1.6, "low/ease/0.5"], smturb: [1.2, 2.6, "mid/sustain/0.4"], smscale: 2.2,
+      smdensity: [0.5, 0.8, "low/swell/0.4"], smheight: 0.85, hazeamt: 18, hazescale: 4, hazerise: 1.2, hazegrad: 0.8,
+      bloom: 0.5, vignette: 0.4, grain: 0.05 }, ["haze", "bloom", "vignette", "grain"], "max", 1),
+    L("curl", "ember", { cucount: 600, cuscale: 2, cuspeed: [0.6, 2, "high/pluck/0.2"], culife: 2, fade: 0.95 },
+      ["fade"], "add", 0.4),
+  ]],
+  ["Tape Rewind", [
+    // A demo recorded off air: copper bars and Kefrens bars on a tape whose tracking jumps on
+    // the kick, with a starfield bleeding through the same worn heads.
+    L("copperbars", "c64", { cbcount: 6, cbspeed: [0.6, 2, "low/snap/0.25"], cbwidth: 0.1,
+      vhsjit: [2, 10, "low/snap/0.3"], vhsband: 0.6, vhsbleed: 8, scan: 0.4, scancount: 300, bloom: 0.3 },
+      ["vhs", "scanlines", "bloom"], "max", 1),
+    L("kefrens", "cga", { kfbars: 5, kfsway: [0.1, 0.35, "mid/ease/0.4"], kfspeed: 1, kfwidth: 0.05 }, [], "add", 0.7),
+    L("starfield", "grayscale", { stdensity: 1, stspeed: [0.5, 2, "low/pluck/0.3"], stwarp: 0.2, sttwinkle: 1,
+      vhsjit: 4, vhsband: 0.3, vhsbleed: 4 }, ["vhs"], "add", 0.5),
+  ]],
+  ["Jelly Cathedral", [
+    // The gyroid's vaults shudder on every kick; the metaballs inside ripple at a finer, faster
+    // wobble so the two never move as one sheet.
+    L("gyroid", "purple", { gyfreq: 2, gythick: [0.25, 0.55, "low/ease/0.4"], gyglow: [0.4, 1.2, "high/pluck/0.2"],
+      gywarp: 0.6, gyspeed: 0.7, wobamp: [6, 30, "low/snap/0.35"], wobfreq: 3, wobspeed: 1, bloom: 0.45 },
+      ["wobble", "bloom"], "max", 1),
+    L("metaballs", "ice", { mbcount: 5, mbradius: [0.1, 0.2, "mid/swell/0.3"], mbspeed: 0.8, mbgain: 1.2,
+      wobamp: 10, wobfreq: 5, wobspeed: 1.5 }, ["wobble"], "add", 0.6),
+  ]],
+  ["Mirage Highway", [
+    // Flying over hot ground: the terrain's haze thickens on the kick and the shimmer kicks up
+    // on the mids, with god rays breathing through the dust.
+    L("terrain", "sunset", { teheight: 1.4, tescale: 0.6, teoct: 5, tefog: [0.8, 1.6, "low/ease/0.5"],
+      tespeed: [0.8, 1.8, "low/sustain/0.4"], hazeamt: [10, 32, "mid/pluck/0.3"], hazescale: 5, hazerise: 1, hazegrad: 0.9,
+      bloom: 0.4, vignette: 0.35, grain: 0.04 }, ["haze", "bloom", "vignette", "grain"], "max", 1),
+    L("godray", "amber", { grdecay: 0.96, grweight: [0.8, 1.6, "low/swell/0.4"], grscale: 2.5, grspread: 1, grspeed: 0.8 },
+      [], "add", 0.5),
+  ]],
+  ["Weather Map", [
+    // Isobars drawn over a cloud deck, re-gridded on the mids, with lightning striking on the
+    // kick and smearing through a short diffuse.
+    L("clouds", "grayscale", { clcover: 0.5, clscale: 1.4, cloct: 4, cllight: [0.7, 1.8, "low/ease/0.5"], clspeed: 1,
+      bloom: 0.3, vignette: 0.3 }, ["bloom", "vignette"], "max", 1),
+    L("contours", "electric", { cnlines: [8, 16, "mid/steps/0.4"], cnwidth: 1.8, cnscale: 1.2, cndrift: 0.4, cnfill: 0 },
+      [], "add", 0.8),
+    L("lightning", "electric", { ltstrike: [0, 1, "low/snap/0.3"], ltrate: 0.2, ltbolts: 2, ltglow: 0.5,
+      diffuse: 2, diffkeep: 0.9 }, ["diffuse"], "add", 0.9),
+  ]],
+  ["Incense", [
+    // A harmonograph's slow pendulum figure under a thin thread of smoke, the plume stirred
+    // harder on the bass and the drawing detuned on the mids.
+    L("harmonograph", "purple", { hgratio: 2, hgdetune: [0.004, 0.03, "mid/bounce/0.4"], hgdecay: 0.02,
+      hgmorph: [0.2, 1, "low/sustain/0.4"], points: 18000, fade: 0.975, bloom: 0.5, vignette: 0.4 },
+      ["fade", "bloom", "vignette"], "max", 1),
+    L("smoke", "grayscale", { smrise: 0.6, smturb: [0.8, 2, "low/ease/0.5"], smscale: 3, smdensity: 0.5, smheight: 1.2,
+      hazeamt: 12, hazescale: 3, hazerise: 0.8, hazegrad: 0.3 }, ["haze"], "add", 0.7),
+  ]],
+  ["Broken Broadcast", [
+    // Four signals fighting for one channel: posterised plasma on a tape that loses tracking
+    // on the kick, munching squares XORed in, a twister torn by slice glitch on the highs,
+    // and a blocky test-card grid overlaid.
+    L("plasma", "rainbow", { pspeed: [0.6, 1.8, "low/ease/0.4"], pscale: 1.2, pwarp: [0.3, 1.2, "mid/pluck/0.3"],
+      poster: 5, vhsjit: [3, 14, "low/snap/0.3"], vhsband: [0.4, 0.9, "high/snap/0.2"], vhsbleed: 10,
+      scan: 0.35, scancount: 260, bloom: 0.3 }, ["poster", "vhs", "scanlines", "bloom"], "max", 1),
+    L("munch", "cga", { xorspeed: [10, 40, "low/snap/0.2"], xorscale: 0.44 }, [], "xor", 0.5),
+    L("twister", "chrome", { twcols: 1, twwidth: 0.2, twtwist: [1, 4, "mid/ease/0.4"], twspeed: 1,
+      glitch: [0.05, 0.3, "high/pluck/0.2"], glitchrows: 8 }, ["glitch"], "add", 0.7),
+    L("shapegrid", "c64", { sgcells: 6, sgdot: [0.1, 0.3, "low/pluck/0.25"], sgsquare: 1, sgpulse: 0.2, sgspeed: 1 },
+      [], "ovl", 0.35),
+  ]],
+  ["Desert Glass", [
+    // Two glass balls over a shimmering Voronoi pavement: standalone glass reflects the layer
+    // beneath it, so the heat haze on the floor shows up bent in the balls.
+    L("voronoi", "amber", { vocells: [4, 8, "mid/steps/0.4"], voedge: 0.7, vojit: 0.8, vospeed: [0.3, 0.9, "low/ease/0.4"],
+      hazeamt: 16, hazescale: 4, hazerise: 1, hazegrad: 0.5, bloom: 0.4, vignette: 0.45 },
+      ["haze", "bloom", "vignette"], "max", 1),
+    L("glass", "chrome", { gbcount: 2, gbsize: 0.55, gbmat: 0, gbior: [1.3, 1.8, "low/sustain/0.4"],
+      gbglow: [0.4, 1.2, "high/pluck/0.2"] }, [], "over", 1),
+  ]],
+  ["Jelly Reef", [
+    // Slime-mould coral that sways on the kick, a flock that scatters on it and darts on the
+    // highs, and soft bouncing anemones with their own fast wobble.
+    L("physarum", "verdant", { phcount: 3000, phsense: [6, 18, "mid/snap/0.3"], phspeed: [0.8, 2, "low/sustain/0.4"],
+      phdecay: 0.9, phscatter: 0.3, fade: 0.97, wobamp: [4, 20, "low/pluck/0.35"], wobfreq: 2.5, wobspeed: 0.8,
+      bloom: 0.4, vignette: 0.3 }, ["fade", "wobble", "bloom", "vignette"], "max", 1),
+    L("boids", "electric", { bdcount: 120, bdspeed: [0.8, 2, "high/pluck/0.25"], bdcoh: 1.2, bdfear: [0, 0.6, "low/snap/0.3"],
+      fade: 0.95 }, ["fade"], "add", 1),
+    L("bounce", "purple", { bncount: 3, bnrad: [0.06, 0.14, "low/swell/0.3"], bnsquare: 0.2, bnspin: 0.5, bnspeed: 0.8,
+      wobamp: 8, wobfreq: 6, wobspeed: 2 }, ["wobble"], "add", 0.7),
+  ]],
+  ["Steam Room", [
+    // Cold-palette steam filling the whole frame, thickening on the bass through a rising
+    // shimmer, with soft concentric rings marching out on the mids.
+    L("smoke", "ice", { smrise: [0.5, 1.2, "low/ease/0.5"], smturb: 1, smscale: 2.6, smdensity: [0.55, 0.85, "low/swell/0.5"],
+      smheight: 1.2, hazeamt: 20, hazescale: 3.5, hazerise: 1.5, hazegrad: 0.4, bloom: 0.5, vignette: 0.45, grain: 0.05 },
+      ["haze", "bloom", "vignette", "grain"], "max", 1),
+    L("concentric", "grayscale", { cosides: 6, cocount: 8, cothick: 0.2, cospeed: [0.3, 1, "mid/pluck/0.3"], cospin: 0.1,
+      zoom: 1.2, soften: -0.5, softrad: 3 }, ["soften"], "add", 0.4),
+  ]],
+  ["Contour Reactor", [
+    // Reaction-diffusion spots breathing on the bass, contour lines over them that wobble on
+    // the highs and re-slice on the kick, and a Voronoi mesh overlaid for the cell walls.
+    L("reactdiff", "toxic", { rdfeed: 0.03, rdkill: 0.062, rdspeed: 8, rdgain: [0.9, 1.4, "low/swell/0.4"],
+      bloom: 0.4, vignette: 0.3 }, ["bloom", "vignette"], "max", 1),
+    L("contours", "copper", { cnlines: [6, 14, "low/steps/0.5"], cnwidth: [1.5, 4, "mid/pluck/0.25"], cnscale: 2.5,
+      cndrift: 0.8, cnfill: 0.1, wobamp: [3, 16, "high/snap/0.2"], wobfreq: 4, wobspeed: 1.2 }, ["wobble"], "add", 0.8),
+    L("voronoi", "electric", { vocells: 10, voedge: [0.6, 0.95, "high/pluck/0.2"], vojit: 0.6, vospeed: 0.6 }, [], "ovl", 0.35),
+  ]],
+  ["Pirate Signal", [
+    // A tunnel on a bad tape: the tracking band tears on the kick through a curved CRT,
+    // a thresholded rotozoomer XORed over it and copper bars flashing on the highs.
+    L("tunnel", "blood", { tunspeed: [0.6, 2, "low/sustain/0.4"], tuntwist: [0, 0.8, "mid/ease/0.5"], tunrings: 12,
+      vhsjit: 5, vhsband: [0.3, 0.9, "low/snap/0.4"], vhsbleed: 12, crtmask: 0.4, crtbleed: 0.4,
+      bloom: 0.35, barrel: 0.2, vignette: 0.4 }, ["vhs", "crt", "bloom", "barrel", "vignette"], "max", 1),
+    L("rotozoom", "chrome", { rzrot: [0.2, 1, "low/pluck/0.3"], rzzoom: 0.5, rztile: 5, threshlvl: 0.5, threshamt: 0.8 },
+      ["thresh"], "xor", 0.4),
+    L("copperbars", "tricolor", { cbcount: 3, cbspeed: [0.5, 2.5, "high/snap/0.2"], cbwidth: 0.08 }, [], "add", 0.4),
+  ]],
+  ["Ash Cloud", [
+    // An eruption column, dense and torn, with volcanic lightning inside it on the kick and
+    // embers streaming up on the highs.
+    L("smoke", "blood", { smrise: [1, 2, "low/ease/0.4"], smturb: [1.6, 3, "mid/sustain/0.4"], smscale: 1.8, smdensity: 0.7,
+      smheight: 1, hazeamt: 24, hazescale: 4, hazerise: 1.5, hazegrad: 0.7, bloom: 0.55, vignette: 0.4, grain: 0.08 },
+      ["haze", "bloom", "vignette", "grain"], "max", 1),
+    L("lightning", "ember", { ltstrike: [0, 1, "low/snap/0.3"], ltrate: 0.15, ltbolts: 2, ltglow: 0.6,
+      diffuse: 2, diffkeep: 0.88 }, ["diffuse"], "add", 0.8),
+    L("curl", "fire", { cucount: 500, cuscale: 2.5, cuspeed: [0.5, 2, "high/pluck/0.2"], culife: 1.5, fade: 0.94 },
+      ["fade"], "add", 0.6),
+  ]],
+  ["Static Garden", [
+    // Four layers: a drifting contour map for the ground, trees swaying on the kick, mist
+    // rising through them, and a field of fireflies on a tape that jitters on the bass.
+    L("contours", "matrix", { cnlines: 14, cnwidth: 1.5, cnscale: 1.4, cndrift: [0.2, 1, "low/ease/0.5"], cnfill: 0.15,
+      bloom: 0.35, vignette: 0.35 }, ["bloom", "vignette"], "max", 1),
+    L("trees", "verdant", { trcount: 3, trdepth: 8, trsplit: 2, trangle: [22, 36, "mid/ease/0.4"],
+      trsway: [0.2, 0.9, "low/pluck/0.4"], trspeed: 1, fade: 0.9 }, ["fade"], "add", 0.8),
+    L("smoke", "grayscale", { smrise: 0.7, smturb: 1.4, smscale: 3, smdensity: 0.45, smheight: 0.9,
+      hazeamt: 10, hazescale: 4, hazerise: 0.8, hazegrad: 0.6 }, ["haze"], "add", 0.5),
+    L("shapegrid", "amber", { sgcells: 10, sgdot: [0.05, 0.15, "high/snap/0.2"], sgsquare: 0, sgpulse: 0.4, sgspeed: 1.5,
+      vhsjit: [1, 6, "low/snap/0.3"], vhsband: 0.2, vhsbleed: 4 }, ["vhs"], "add", 0.45),
   ]],
 ];
 

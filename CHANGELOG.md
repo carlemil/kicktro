@@ -15,6 +15,14 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.85.0] — 2026-10-24
+
+### Added
+- **Fifteen new scenes in the built-in AI-Generated collection** (☰ → Public scenes), every one built around the Contours, Smoke, Wobble, Heat haze and VHS tracking additions and mixed with the older effects; six of them run three or four layers. Survey Lines, Chimney, Tape Rewind, Jelly Cathedral, Mirage Highway, Weather Map, Incense, Broken Broadcast, Desert Glass, Jelly Reef, Steam Room, Contour Reactor, Pirate Signal, Ash Cloud and Static Garden — the collection now holds twenty-five.
+
+### Internal
+- `tools/gallery-check.js` reads the built-in collection's size from the page instead of hard-coding ten, so adding a scene no longer turns it red.
+
 ## [1.84.0] — 2026-10-24
 
 ### Added
