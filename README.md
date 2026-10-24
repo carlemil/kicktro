@@ -37,7 +37,7 @@ The whole thing burns, flickers, and morphs continuously — and every effect ca
 ## Effects
 
 Every row in the panel's **Layers** box carries an **Effect** chooser, switching that layer
-between fifty-nine visuals that share the same palette, glow and music-reactivity pipeline —
+between sixty-one visuals that share the same palette, glow and music-reactivity pipeline —
 but each is an independent "scene" that remembers its own settings (see Controls). You can
 **stack up to four of them at once**, each with its own palette and filters — see Layers
 below:
@@ -112,6 +112,7 @@ below:
   - **Fractal flames** — an Apophysis-style iterated function system: the chaos game bounces between two slowly-morphing maps with a nonlinear **Variation** folding every step, and each landing **adds** heat — dense orbits burn white, wisps stay faint. The only point effect that accumulates density rather than stamping a fixed heat.
   - **Starfield** — a 3D starfield flying past on six parallax depths. Arm **Warp**'s beat chips and the kick punches to hyperspace, every star smearing into a radial streak.
   - **Aurora** — curtains of light hanging from the top of the sky, swaying and shimmering over a faint horizon glow. Ice, Electric and Verdant palettes were made for it.
+  - **Smoke** — one plume rising from the bottom of the frame: fractal noise scrolling upward, stirred by a coarser noise that grows with height so the column is tight at the base and tears into rags at the top. **Turbulence** is the stirring — 0 a smooth candle thread, high a windy chimney. **Density** at 0 puts the fire out; **Height** is how far up it reaches. Grayscale and Chrome read as smoke, Fire and Ember as a burning plume.
   - **Reaction-diffusion** — a Gray–Scott dish: two chemicals feeding and killing each other into spots, stripes, coral and mazes that never repeat. **Feed**/**Kill** choose the regime — arm Feed's chips and the beat pushes the culture into a new life. One shared dish; it re-seeds each time you enter the effect.
   - **Cellular automata** — Conway's Life and five of its relatives (**Rule**) on a grid that wraps at every edge. **Rain** sprinkles new cells every generation so it never settles — arm its chips and each beat is a shower of new life; **Trail** fades the dead over that many generations.
   - **Crystal growth** — frost creeping across a pane. Vapour drifts through the air and freezes where it touches ice, so the tips that reach furthest grow fastest and every crystal branches into ferns; fresh ice burns brightest and dims as it ages. After **Lifetime** the pane thaws, each crystal dissolving from its seed out to its tips, and new ones start. **Branching** is how readily vapour sticks (low = thin, far-reaching dendrites, high = dense, bushy frost), **Nucleation** starts extra crystals in clear air — arm its chips and every beat sows a few — **Growth** is the speed and **Detail** the grid.
@@ -131,6 +132,7 @@ below:
   - **Voronoi cells** — space divided between wandering seed points, each pixel coloured by its distance to the nearest. **Edge** is the character knob: at 0 soft blobs, at 1 the crack *between* cells — the shattered-glass look. **Cells** sets how many, **Wander** how far each drifts from home.
   - **Flow noise** — fractal noise whose **input** is displaced by more noise, twice over: the marbled, slowly-flowing field most modern shader work is built on. **Warp** is what makes it — at 0 plain cloud noise, and as it rises the field folds into itself and grows filaments and eddies. Plasma is built from sines and cannot make this shape however many you stack.
   - **Truchet tiles** — every tile holds one of two quarter-arc pairs picked by a coin flip, and because the arcs always meet at the tile edges an endless woven maze falls out of it. **Weave** slides the threshold deciding which way each tile faces, so tiles turn over one at a time rather than the grid re-rolling — drift it, or arm it to a beat, and the maze re-knits itself continuously.
+  - **Contours** — the isolines of a slowly evolving landscape: a fractal height field sliced at even intervals and drawn as lines of constant pixel **Thickness**, a topographic map whose terrain is alive — bunching where it steepens, spreading on the flats. **Lines** sets how many slices (arm it to a beat and the map re-slices on the hit), **Drift** how fast the terrain evolves, **Fill** how much relief shows faintly between the lines.
 
 ## How it works
 
@@ -494,7 +496,7 @@ stacking is a GPU feature, and each extra layer there would be a full software r
 
 ## Filters
 
-There are forty-one post-processing effects you can stack on top of whatever is
+There are forty-four post-processing effects you can stack on top of whatever is
 running. The menu lists only the ones you've **added**, in the order they run: press
 **+ Add filter** to open the full catalogue and tick what you want, drag a row's **⠿**
 handle to move it up or down the chain, and press **✕** to drop it. Each row folds open
@@ -580,6 +582,18 @@ the layers blend together.
   dripping light.
 - **Lens bubble** — a wandering fisheye magnifier drifting over the picture — the classic
   demo lens. **Wander** at 0 parks it in the middle.
+- **Wobble** — sways the whole picture like jelly: each axis is pushed by a sine running
+  along the other, so it ripples rather than slides. **Amount** is the push in pixels,
+  **Waves** how many ripples fit the frame, **Speed** how fast they roll. Arm Amount to a
+  beat and the picture shudders on the hit.
+- **Heat haze** — the picture seen through hot air: a drifting noise field bends every
+  sample point and rises the way heat does. **Amount** in pixels, **Scale** the ripple size,
+  **Rise** the climb speed, **Gradient** how much it concentrates at the bottom of the
+  frame — 0 an even shimmer, 1 a mirage over hot ground under a still sky.
+- **VHS tracking** — a worn tape: every scanline jitters sideways on its own (**Jitter**,
+  px), a tracking band rolls slowly up the frame tearing and darkening what it crosses
+  (**Tracking**, 0 removes it), and the colour lags the picture and smears to the right
+  (**Colour bleed**). Slice glitch is the clean digital tear; this is the analogue one.
 - **CRT phosphor** — the rest of the television, beside Scanlines and Barrel: RGB
   shadow-mask triads (**Mask**) and the electron beam’s horizontal smear (**Beam bleed**),
   which trails to the right the way a real sweep does. Phosphor *persistence* is

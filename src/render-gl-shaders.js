@@ -779,6 +779,66 @@
       float w = max(0.01, uWidth * 0.5);
       o = vec4(1.0 - smoothstep(w * 0.5, w, d), 0.0, 0.0, 1.0);
     }`;
+    // CONTOURS: the isolines of a slowly evolving fbm height field -- a topographic map whose
+    // terrain is alive. The line's thickness is in PIXELS, held constant however steep the
+    // slope: the fractional height is divided by its screen-space derivative (fwidth), which
+    // is the distance to the nearest line in pixels. Without that a flat area draws fat
+    // blurred bands and a steep one hairlines, the way a naive fract() does. Fill shows the
+    // field itself faintly between the lines, as shaded relief; the lines creep uphill with
+    // Drift (the + uTime term on k) as the terrain itself drifts (the z of the fbm).
+    const FS_CONTOURS = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uTime; uniform float uLines;
+    uniform float uWidth; uniform float uScale; uniform float uFill; uniform float uZoom;
+    out vec4 o;
+    ${SH_NOISE}
+    void main(){
+      float asp = uSize.x / uSize.y;
+      vec2 p = vec2((gl_FragCoord.x / uSize.x - 0.5) * asp, gl_FragCoord.y / uSize.y - 0.5) / uZoom * max(0.2, uScale);
+      float h = fbm3(vec3(p, uTime * 0.11), 5);
+      float k = h * uLines + uTime * 0.23;
+      float f = abs(fract(k) - 0.5);                 // 0 on a line, 0.5 midway between two
+      float px = f / max(fwidth(k), 1e-4);           // ...as a distance in pixels
+      float w = max(0.5, uWidth);
+      float line = 1.0 - smoothstep(w * 0.5, w, px);
+      float halo = (1.0 - smoothstep(w, w * 4.0, px)) * 0.25;
+      float v = max(line + halo, uFill * h);
+      o = vec4(clamp(v, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
+    // SMOKE: one plume rising from the bottom centre. Density is fbm3 scrolling UP (the field
+    // is sampled at y - t, so features travel +y, and +y is screen-up here because the heat
+    // buffer is Y-flipped -- the 0.5 - gl_FragCoord.y/h, as in Aurora); before the density is
+    // read, the sample point is pushed about by a second, coarser fbm pair -- Turbulence --
+    // growing with height so the column is tight at the base and ragged at the top. The
+    // envelope is a gaussian column widening with height, cut off above Height; Density is
+    // the threshold on the (contrast-stretched) noise, pushed past the clamp at 0 so the
+    // slider removes the smoke entirely (tools/noiseprobe.js holds it to exact zero). Not Volumetric clouds: no ray, no light, one 2D field.
+    const FS_SMOKE = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uTime; uniform float uTurb;
+    uniform float uScale; uniform float uDensity; uniform float uHeight; uniform float uZoom;
+    out vec4 o;
+    ${SH_NOISE}
+    void main(){
+      float asp = uSize.x / uSize.y;
+      vec2 p = vec2((gl_FragCoord.x / uSize.x - 0.5) * asp, 0.5 - gl_FragCoord.y / uSize.y) / uZoom;
+      float up = p.y + 0.5;                          // 0 at the bottom edge, 1 at the top
+      float sc = max(0.3, uScale);
+      vec2 w1 = vec2(fbm3(vec3(p * sc * 0.7 + vec2(3.1, -uTime * 0.9), uTime * 0.15), 3),
+                     fbm3(vec3(p * sc * 0.7 + vec2(-7.2, -uTime * 0.9), uTime * 0.15 + 4.0), 3)) - 0.5;
+      vec2 q = p + w1 * uTurb * 0.35 * (0.3 + up);
+      // Density is sampled at 1.6x the warp's scale: the coarsest octave then has enough cells in
+      // view that its local mean stops wandering (a sin-hash lattice patch of a dozen corners
+      // averaged 0.37, and the threshold below emptied the plume for seconds at a time).
+      float d = fbm3(vec3(q * sc * 1.6 + vec2(0.0, -uTime * 0.9), uTime * 0.2), 5);
+      float dd = clamp((d - 0.5) * 2.0 + 0.5, 0.0, 1.0);
+      float base = smoothstep(-0.05, 0.12, up);
+      float top = 1.0 - smoothstep(uHeight * 0.55, uHeight * 1.05, up);
+      float col = exp(-pow(q.x / (0.16 + 0.75 * up), 2.0) * 2.0);
+      float th = (1.0 - uDensity) * 1.4 - 0.2;             // Density 0 -> 1.2, above dd's clamp: nothing
+      float v = smoothstep(th, th + 0.4, dd) * base * top * col;
+      o = vec4(clamp(v * 1.15, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
     // ---- Batch B: three modern fractal distance estimators ---------------------------
     // Shared camera: a slow orbit looking at the origin. All three are centred solids, so
     // there is no flight path to solve (unlike the Mandelbulb, which has to thread canyons) --

@@ -573,6 +573,43 @@
       fire[idx++] = Math.max(0, Math.min(1, 1 - shStep(w * 0.5, w, d))) * 255;
     }
   }
+  // Contours: one octave of value noise where the shader has five, and the pixel distance
+  // comes from a finite difference in place of fwidth -- the same |dk/dx| + |dk/dy|.
+  let cnLines = 12, cnWidth = 2.5, cnScale = 2, cnDrift = 0.6, cnFill = 0.2, cnTime = 0;
+  function contoursSeed(dt) { cnTime += dt * cnDrift; return { t: cnTime, lines: cnLines, width: cnWidth, scale: cnScale, fill: cnFill, zoom }; }
+  function contours(s) {
+    const asp = fw / fh, sc = Math.max(0.2, s.scale), w = Math.max(0.5, s.width), tz = s.t * 0.11;
+    const dpx = sc * asp / (fw * s.zoom), dpy = sc / (fh * s.zoom);   // field units per pixel
+    let idx = 0;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      camPix(x, y);
+      const px = (camPX / fw - 0.5) * asp / s.zoom * sc, py = (camPY / fh - 0.5) / s.zoom * sc;
+      const h = shVNoise3(px, py, tz);
+      const slope = Math.max(1e-4, (Math.abs(shVNoise3(px + dpx, py, tz) - h) + Math.abs(shVNoise3(px, py + dpy, tz) - h)) * s.lines);
+      const k = h * s.lines + s.t * 0.23;
+      const d = Math.abs(k - Math.floor(k) - 0.5) / slope;
+      const line = 1 - shStep(w * 0.5, w, d), halo = (1 - shStep(w, w * 4, d)) * 0.25;
+      fire[idx++] = Math.max(0, Math.min(1, Math.max(line + halo, s.fill * h))) * 255;
+    }
+  }
+  // Smoke: the same plume with single-octave noise for the warp and the density.
+  let smRise = 1, smTurb = 1.6, smScale = 2.2, smDensity = 0.55, smHeight = 0.75, smTime = 0;
+  function smokeSeed(dt) { smTime += dt * smRise; return { t: smTime, turb: smTurb, scale: smScale, density: smDensity, height: smHeight, zoom }; }
+  function smoke(s) {
+    const asp = fw / fh, sc = Math.max(0.3, s.scale), th = (1 - s.density) * 1.4 - 0.2;
+    let idx = 0;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      camPix(x, y);
+      const px = (camPX / fw - 0.5) * asp / s.zoom, py = (0.5 - camPY / fh) / s.zoom, up = py + 0.5;
+      const wx = shVNoise3(px * sc * 0.7 + 3.1, py * sc * 0.7 - s.t * 0.9, s.t * 0.15) - 0.5;
+      const wy = shVNoise3(px * sc * 0.7 - 7.2, py * sc * 0.7 - s.t * 0.9, s.t * 0.15 + 4) - 0.5;
+      const k = s.turb * 0.35 * (0.3 + up), qx = px + wx * k, qy = py + wy * k;
+      const d = shVNoise3(qx * sc * 1.6, qy * sc * 1.6 - s.t * 0.9, s.t * 0.2);
+      const dd = Math.max(0, Math.min(1, (d - 0.5) * 2 + 0.5));
+      const env = shStep(-0.05, 0.12, up) * (1 - shStep(s.height * 0.55, s.height * 1.05, up)) * Math.exp(-Math.pow(qx / (0.16 + 0.75 * up), 2) * 2);
+      fire[idx++] = Math.max(0, Math.min(1, shStep(th, th + 0.4, dd) * env * 1.15)) * 255;
+    }
+  }
   // Shape grid: a tiled lattice of circles↔squares, each cell pulsing out of phase.
   let sgCells = 9, sgDot = 0.3, sgSquare = 0, sgPulse = 0.35, sgSpeed = 1.2, sgTime = 0;
   function shapegridSeed(dt) { sgTime += dt * sgSpeed; return { t: sgTime, cells: sgCells, dot: sgDot, square: sgSquare, pulse: sgPulse, zoom }; }

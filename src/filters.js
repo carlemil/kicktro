@@ -248,6 +248,21 @@
       help: "Kuwahara filtering: each pixel takes the calmest neighbourhood's average, flattening texture while keeping edges — the screen-print / oil-paint look.",
       defaults: { kuwrad: [6, 6] },
       gl: src => postPass("kuwahara", src, u => gl.uniform1f(u.uRad, kuwRad)) },
+    // Three DISTORTION filters, all pure UV remaps (one texture read each, bar VHS's chroma
+    // taps) and all stateless -- the clocks are postTime scaled on the CPU, Lens bubble's
+    // arrangement. Wobble is the sine jelly, Heat haze the noise shimmer, VHS the analogue tear.
+    { id: "wobble", cpuOk: false, name: "Wobble", stage: "post", params: ["wobamp", "wobfreq", "wobspeed"],
+      help: "Sways the whole picture like jelly: each axis is pushed by a sine running along the other, so it ripples rather than slides. Amount is the push in pixels, Waves how many ripples fit across the frame, Speed how fast they roll. Arm Amount to a beat and the picture shudders on the hit.",
+      defaults: { wobamp: [12, 12], wobfreq: [3, 3], wobspeed: [1, 1] },
+      gl: src => postPass("wobble", src, u => { gl.uniform1f(u.uAmp, wobAmp); gl.uniform1f(u.uFreq, wobFreq); gl.uniform1f(u.uTime, postTime * wobSpeed); }) },
+    { id: "haze", cpuOk: false, name: "Heat haze", stage: "post", params: ["hazeamt", "hazescale", "hazerise", "hazegrad"],
+      help: "The picture seen through hot air: a drifting noise field bends every pixel's sample point, and the field rises the way heat does. Amount is the shimmer in pixels, Scale the size of the ripples, Rise how fast they climb, Gradient how much it concentrates at the bottom of the frame: 0 is an even shimmer, 1 a mirage over hot ground under a still sky. Push Amount hard and the picture melts.",
+      defaults: { hazeamt: [14, 14], hazescale: [4, 4], hazerise: [1, 1], hazegrad: [0.6, 0.6] },
+      gl: src => postPass("haze", src, u => { gl.uniform1f(u.uAmp, hazeAmt); gl.uniform1f(u.uScale, hazeScale); gl.uniform1f(u.uTime, postTime * hazeRise); gl.uniform1f(u.uGrad, hazeGrad); }) },
+    { id: "vhs", cpuOk: false, name: "VHS tracking", stage: "post", params: ["vhsjit", "vhsband", "vhsbleed"],
+      help: "A worn tape: every scanline jitters sideways on its own, a tracking band rolls slowly up the frame tearing and darkening what it crosses, and the colour lags the picture and smears to the right the way tape chroma does. Jitter is the per-line shake in pixels, Tracking how badly the band misbehaves (0 removes it), Colour bleed how far the colour trails. Slice glitch is the clean digital tear; this is the analogue one.",
+      defaults: { vhsjit: [3, 3], vhsband: [0.6, 0.6], vhsbleed: [6, 6] },
+      gl: src => postPass("vhs", src, u => { gl.uniform1f(u.uJit, vhsJit); gl.uniform1f(u.uBand, vhsBand); gl.uniform1f(u.uBleed, vhsBleed); gl.uniform1f(u.uTime, postTime); }) },
     // Bloom is a REAL PASS now, not the composite. It used to BE the whole-scene glow with its
     // strength as a uniform, which is exactly why it had no `gl` hook and could never be
     // per-layer. glBloomPass makes it an ordinary chain entry, so each layer glows on its own

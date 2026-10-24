@@ -190,6 +190,9 @@
   let cellStates = 12, cellMix = 1, cellKeep = 1;        // Cellular automaton (feedback)
   let lensSize = 0.28, lensMag = 1.8, lensSpeed = 0.6;   // Lens bubble
   let drosteDepth = 2, drosteTwist = 0.5;                // Droste zoom
+  let wobAmp = 12, wobFreq = 3, wobSpeed = 1;            // Wobble: push px, waves, roll speed
+  let hazeAmt = 14, hazeScale = 4, hazeRise = 1, hazeGrad = 0.6;   // Heat haze
+  let vhsJit = 3, vhsBand = 0.6, vhsBleed = 6;            // VHS tracking: line jitter px, band, chroma lag px
   let kuwRad = 3;                                        // Kuwahara oil-paint
   // Reaction–diffusion dish flags: declared here because glResize (an earlier slice than
   // the effect code) marks the dish for re-seeding when the grid reallocates. rdIsFloat

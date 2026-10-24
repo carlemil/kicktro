@@ -589,6 +589,95 @@
       vec2 p = vec2(cos(t2), sin(t2))*rr/vec2(asp, 1.0) + 0.5;
       o = vec4(texture(uSrc, clamp(p, 0.0, 1.0)).rgb, 1.0);
     }`;
+    // WOBBLE: sine displacement on both axes, each axis pushed by a wave running along the
+    // OTHER one, so the picture sways like jelly instead of sliding sideways. Amount is in
+    // render-buffer pixels (two sines per axis, peak 1.5, normalised). The phase arrives as
+    // postTime x Speed from the CPU -- Lens bubble's arrangement -- so the filter is stateless.
+    const FS_WOBBLE = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uAmp; uniform float uFreq; uniform float uTime;
+    in vec2 vUv; out vec4 o;
+    void main(){
+      float asp = uSize.x / uSize.y;
+      float k = 6.2831853 * uFreq;
+      vec2 d = vec2(sin(vUv.y * k + uTime) + 0.5 * sin(vUv.y * k * 2.3 - uTime * 0.7),
+                    sin(vUv.x * k * asp * 0.8 - uTime * 1.3) + 0.5 * sin(vUv.x * k * asp * 1.9 + uTime * 0.9));
+      vec2 p = vUv + d * (uAmp / 1.5) / uSize;
+      o = vec4(texture(uSrc, clamp(p, 0.0, 1.0)).rgb, 1.0);
+    }`;
+    // HEAT HAZE: the picture seen through hot air. Two value-noise fields displace the sample
+    // point and the field scrolls UPWARD so the shimmer rises the way heat does -- buffer y is
+    // flipped against the screen (row 0 = top), so "up" is DECREASING v, hence + uTime on the
+    // sample. Gradient weights the bottom of the frame: 0 is an even shimmer, 1 a mirage over
+    // hot ground under a still sky. The hash is INTEGER arithmetic, never fract(sin()) -- the
+    // driver-build rule in CLAUDE.md -- so a background recompile cannot jump the picture.
+    const FS_HAZE = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uAmp; uniform float uScale; uniform float uTime; uniform float uGrad;
+    in vec2 vUv; out vec4 o;
+    float hzh(ivec2 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    float hzn(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      ivec2 c = ivec2(i) + 4096;
+      return mix(mix(hzh(c), hzh(c + ivec2(1, 0)), u.x), mix(hzh(c + ivec2(0, 1)), hzh(c + ivec2(1, 1)), u.x), u.y);
+    }
+    void main(){
+      float asp = uSize.x / uSize.y;
+      vec2 q = vec2(vUv.x * asp, vUv.y + uTime * 0.25) * uScale;
+      vec2 d = vec2(hzn(q) - 0.5, hzn(q + vec2(17.0, 9.0)) - 0.5) * 2.0;
+      float g = mix(1.0, smoothstep(0.0, 1.0, vUv.y), uGrad);
+      vec2 p = vUv + d * uAmp * g / uSize;
+      o = vec4(texture(uSrc, clamp(p, 0.0, 1.0)).rgb, 1.0);
+    }`;
+    // VHS TRACKING: a worn tape. Three things, in order: every scanline jitters sideways by its
+    // own hashed amount, re-rolled 18x a second, over a slow lean (Jitter, px); a tracking band
+    // -- a stripe rolling slowly up the frame -- shears what it crosses hard, darkens it and
+    // fills it with noise, with the odd dropout streak flashing white (Tracking); and the
+    // COLOUR is read from beside the luminance and smeared to the right (Colour bleed, px),
+    // the chroma-bandwidth smear that makes tape look like tape. Luma/chroma split is BT.601,
+    // so the picture's own colours survive. Integer hashes throughout -- the driver-build rule.
+    // Slice glitch is the clean digital tear; this is the analogue one.
+    const FS_VHS = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSrc; uniform vec2 uSize; uniform float uJit; uniform float uBand; uniform float uBleed; uniform float uTime;
+    in vec2 vUv; out vec4 o;
+    float vh(ivec3 p){
+      uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u + uint(p.z) * 2246822519u;
+      h = (h ^ (h >> 13u)) * 1274126177u; h ^= h >> 16u;
+      return float(h & 0xffffffu) / 16777215.0;
+    }
+    vec3 rgb2yuv(vec3 c){ return vec3(dot(c, vec3(0.299, 0.587, 0.114)), dot(c, vec3(-0.14713, -0.28886, 0.436)), dot(c, vec3(0.615, -0.51499, -0.10001))); }
+    vec3 yuv2rgb(vec3 y){ return vec3(y.x + 1.13983 * y.z, y.x - 0.39465 * y.y - 0.58060 * y.z, y.x + 2.03211 * y.y); }
+    void main(){
+      int row = int(vUv.y * uSize.y);
+      int frame = int(uTime * 18.0);
+      // per-line jitter: a hashed offset per (row, frame) plus a slow wave so lines lean together
+      float jit = (vh(ivec3(row, frame, 1)) - 0.5) * 2.0 * uJit + sin(vUv.y * 9.0 + uTime * 2.1) * uJit * 0.35;
+      // the tracking band rolls up the frame (buffer y is screen-flipped, so up = -v)
+      float bandY = fract(-uTime * 0.09);
+      float dy = abs(fract(vUv.y - bandY + 0.5) - 0.5);
+      float inBand = (1.0 - smoothstep(0.0, 0.045, dy)) * uBand;
+      float shear = inBand * (0.12 + 0.08 * vh(ivec3(row / 3, frame, 2))) * uSize.x;
+      vec2 p = vec2(vUv.x + (jit + shear) / uSize.x, vUv.y);
+      vec3 c = texture(uSrc, clamp(p, 0.0, 1.0)).rgb;
+      // chroma from beside the luma, smeared over three taps -- the colour lags the picture
+      float b = uBleed / uSize.x;
+      vec3 cc = (texture(uSrc, clamp(p + vec2(b * 0.4, 0.0), 0.0, 1.0)).rgb
+               + texture(uSrc, clamp(p + vec2(b, 0.0), 0.0, 1.0)).rgb
+               + texture(uSrc, clamp(p + vec2(b * 1.6, 0.0), 0.0, 1.0)).rgb) / 3.0;
+      vec3 outc = yuv2rgb(vec3(rgb2yuv(c).x, rgb2yuv(cc).yz));
+      // inside the band: darker, noisier; rare dropout streaks flash white
+      float n = vh(ivec3(int(vUv.x * uSize.x), row, frame));
+      outc = outc * (1.0 - inBand * 0.55) + inBand * (n - 0.5) * 0.6;
+      float drop = step(0.992, vh(ivec3(row, frame, 3))) * step(0.5, vh(ivec3(int(vUv.x * uSize.x / 40.0), row, frame + 7))) * uBand;
+      outc = mix(outc, vec3(0.9), drop * 0.7);
+      o = vec4(clamp(outc, 0.0, 1.0), 1.0);
+    }`;
     // Kuwahara: 4-quadrant oil-paint. Each quadrant of a (uRad+1)^2 window contributes a
     // mean and a variance; the pixel takes the mean of the calmest quadrant, flattening
     // texture while keeping edges — screen-print. Fixed 5x5 quadrant loops = Radius max 4.
@@ -887,6 +976,8 @@
     glProg.voronoi = camProg(VS_QUAD, FS_VORONOI, ["uSize", "uTime", "uCells", "uEdge", "uJit", "uZoom"]);
     glProg.warpnoise = camProg(VS_QUAD, FS_WARPNOISE, ["uSize", "uTime", "uScale", "uWarp", "uOct", "uZoom"]);
     glProg.truchet = camProg(VS_QUAD, FS_TRUCHET, ["uSize", "uTime", "uCells", "uWidth", "uFlip", "uZoom"]);
+    glProg.contours = camProg(VS_QUAD, FS_CONTOURS, ["uSize", "uTime", "uLines", "uWidth", "uScale", "uFill", "uZoom"]);
+    glProg.smoke = camProg(VS_QUAD, FS_SMOKE, ["uSize", "uTime", "uTurb", "uScale", "uDensity", "uHeight", "uZoom"]);
     glProg.shapegrid = camProg(VS_QUAD, FS_SHAPEGRID, ["uSize", "uTime", "uCells", "uDot", "uSquare", "uPulse", "uZoom"]);
     glProg.concentric = camProg(VS_QUAD, FS_CONCENTRIC, ["uSize", "uTime", "uSides", "uCount", "uThick", "uSpin", "uZoom"]);
     glProg.bounce = camProg(VS_QUAD, FS_BOUNCE, ["uSize", "uPos", "uCount", "uRad", "uSquare", "uZoom", "uMix", "uTime", "uSpin"]);
@@ -970,6 +1061,9 @@
     glProg.cell = makeProg(VS_QUAD, FS_CELL, ["uHeat", "uSize", "uStates", "uMix", "uKeep"]);
     glProg.lens = makeProg(VS_QUAD, FS_LENS, ["uSrc", "uSize", "uCenter", "uRad", "uMag"]);
     glProg.droste = makeProg(VS_QUAD, FS_DROSTE, ["uSrc", "uSize", "uDepth", "uTwist", "uTime"]);
+    glProg.wobble = makeProg(VS_QUAD, FS_WOBBLE, ["uSrc", "uSize", "uAmp", "uFreq", "uTime"]);
+    glProg.haze = makeProg(VS_QUAD, FS_HAZE, ["uSrc", "uSize", "uAmp", "uScale", "uTime", "uGrad"]);
+    glProg.vhs = makeProg(VS_QUAD, FS_VHS, ["uSrc", "uSize", "uJit", "uBand", "uBleed", "uTime"]);
     glProg.kuwahara = makeProg(VS_QUAD, FS_KUWAHARA, ["uSrc", "uSize", "uRad"]);
     glProg.barrel = makeProg(VS_QUAD, FS_BARREL, ["uSrc", "uAmount"]);
     glProg.scan = makeProg(VS_QUAD, FS_SCAN, ["uSrc", "uAmount", "uCount"]);

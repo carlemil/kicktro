@@ -27,7 +27,9 @@ effect ⇒ add it here and there in the same commit.
 - **Shader pattern** — Plasma, Tunnel, Metaballs, Kaleidoscope, Rotozoomer, Moiré, Munching
   Squares, Copper Bars, Sun surface, Kefrens bars, Twister, Cymatics, Lightning storm, Starfield,
   Aurora, Reaction-diffusion, Voronoi cells (`voronoi`), Flow noise (`warpnoise`), Truchet tiles
-  (`truchet`), God rays (`godray`), Cellular automata (`automata`, Life-like B/S rules on its own
+  (`truchet`), Contours (`contours`, isolines of a drifting fbm height field;
+  thickness is in PIXELS via `fwidth`, never a bare `fract`), Smoke (`smoke`, one rising
+  warped-fbm plume from the bottom centre; Density 0 is empty), God rays (`godray`), Cellular automata (`automata`, Life-like B/S rules on its own
   coarse state pair `glTex.ca`, torus via REPEAT; age fades LINEARLY — 8-bit multiplicative decay
   never reaches zero), Crystal growth (`crystal`, diffusion-limited frost on its own pair
   `glTex.cg` in the RD format; `CG_DIFF` diffusion passes per freezing step are what make it
@@ -298,7 +300,7 @@ automaton`) — mutate retained heat inside `glBeginHeat`. No feedback filter �
 
 **post** (Twist, Wedge fold, Slice glitch, Pixelate, Blur/sharpen, Edge, Posterize, Halftone,
 Solarize, Chromatic aberration, Anaglyph split, Stained glass, Mirror, Shockwave, Pixel sort, Lens bubble, Droste zoom, Oil paint,
-Bloom) — read the palette-mapped image. `glPostChain()` ping-pongs `glTex.post[0]/[1]`, returns
+Wobble, Heat haze, VHS tracking, Bloom) — read the palette-mapped image. `glPostChain()` ping-pongs `glTex.post[0]/[1]`, returns
 `glTex.native` untouched when empty. Bloom has no pass — it is the glow composite.
 
 **screen — EMPTY.** Barrel, Scanlines, Vignette, Film grain and Bloom are per-layer `post` passes
@@ -316,7 +318,8 @@ is already flipped; `asciiprobe` asserts the flip's absence). Glyph pick uses `a
 never `fract(sin())`. Tofu rejection is PER GLYPH against `ASCII_TOFU`. Overflow is sampled evenly
 (`pickChars`), capped by `MAX_TEXTURE_SIZE / 32`. `tools/asciiprobe.js`.
 
-**Slice glitch, Film grain and Stained glass read `postTime`** (accumulated frame `dt`).
+**Slice glitch, Film grain, Stained glass, Wobble, Heat haze and VHS tracking read `postTime`**
+(accumulated frame `dt`); the three distortion filters are stateless UV remaps, `cpuOk: false`.
 
 **Ping-pong parity**: `glBeginHeat` runs each ticked `glFeedback` in registry order; `pendingDst` =
 wherever the last pass landed. `tools/heatprobe.js`.
@@ -978,5 +981,11 @@ its own). What each pins:
   like a filter param that a non-filter control also carries).
 - **`stackprobe`** — stack-item lifecycle invariants; `fullSnapshot`/`applyBlob` key symmetry.
 - **`shareprobe`** — share codec round trip. **`cloudprobe`** — cloud shares the codec; empty
-  apiKey ⇒ zero requests. Plus `docsprobe`, `worldprobe`, `glassprobe`, `asciiprobe`,
-  `dnutprobe`, `treeprobe`, `tempoprobe`, `heatprobe` and the browser `*-check.js` gates.
+  apiKey ⇒ zero requests. **`wireprobe`** — every `postPass`/`glShaderDraw` hook's `u.uX` is in
+  its program's registration list AND declared `uniform` in the FS source; every `params` key
+  has a CONTROLS row, every group a `CTL_GROUPS` caption, every `*Seed(dt)` clock a `PHASE_VARS`
+  line, every CATS id a real id. **`noiseprobe`** — Contours/Smoke mirrors at a REAL-SIZED field
+  (pixel-thick lines need the spacing): every cell written, deterministic, frozen at Drift/Rise
+  0, Smoke empty above Height and at Density 0. Plus `docsprobe`, `worldprobe`, `glassprobe`,
+  `asciiprobe`, `dnutprobe`, `treeprobe`, `tempoprobe`, `heatprobe` and the browser `*-check.js`
+  gates.

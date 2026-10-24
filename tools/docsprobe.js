@@ -77,7 +77,8 @@ for (const [file, label] of [["README.md", "README"], ["CLAUDE.md", "CLAUDE.md"]
     "thirty-nine", "forty", "forty-one", "forty-two", "forty-three", "forty-four", "forty-five",
     "forty-six", "forty-seven", "forty-eight", "forty-nine", "fifty", "fifty-one", "fifty-two",
     "fifty-three", "fifty-four", "fifty-five", "fifty-six", "fifty-seven", "fifty-eight",
-    "fifty-nine", "sixty"];
+    "fifty-nine", "sixty", "sixty-one", "sixty-two", "sixty-three", "sixty-four", "sixty-five",
+    "sixty-six", "sixty-seven", "sixty-eight", "sixty-nine", "seventy"];
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
   const claim = readme.match(/between ([a-z-]+) visuals/);
   ok("the README states how many effects there are", !!claim, claim ? claim[1] : "phrase missing");

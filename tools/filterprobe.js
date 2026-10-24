@@ -48,6 +48,8 @@ const stubs = `
   let twistAmt = 1.2, wedgeSeg = 6, wedgeRot = 0, glitchAmt = 0.05, glitchRows = 8,
       halfDot = 4, halfAmt = 0.8, threshLevel = 0.5, threshAmt = 0.8, chromaAmt = 1,
       anaDepth = 8, anaTint = 1, stgSize = 28, stgLead = 0.06, stgWob = 0.6;
+  let wobAmp = 12, wobFreq = 3, wobSpeed = 1, hazeAmt = 14, hazeScale = 4, hazeRise = 1, hazeGrad = 0.6,
+      vhsJit = 3, vhsBand = 0.6, vhsBleed = 6;
   let barrelAmt = 0.15, scanAmt = 0.35, scanCount = 240, vigAmt = 0.4, grainAmt = 0.08;
   function buildFilterUI() {}   // DOM-only; the registry calls it right after defining FILTERS
   const EFFECTS = [
