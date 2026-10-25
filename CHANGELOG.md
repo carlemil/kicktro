@@ -15,6 +15,18 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.89.0] — 2026-10-25
+
+### Added
+- **A gallery button**: the new **▦** button beside ☰ opens and closes the gallery in one click. The fullscreen, mute and controls-panel buttons each moved one place to the right to make room.
+- **A link to the gallery itself**: `https://kicktro.com/#gallery` opens Kicktro with the gallery already showing. The address bar shows it while the gallery is open, and **🔗 Copy link** at the end of the gallery's tab row copies it to share.
+
+### Changed
+- The gallery now opens on **All** (every scene, A to Z), which is also the leftmost tab.
+
+### Internal
+- gallery-check covers the default tab, the ▦ button, Copy link and opening by `#gallery`, both on a fresh load and pasted into an open tab.
+
 ## [1.88.0] — 2026-10-25
 
 ### Added

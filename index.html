@@ -273,7 +273,7 @@
   /* Under "Auto-cycle scenes": the cycler is gated on the panel being hidden, and this is the
      one line that says so. Indented to the checkbox's label text (15px box + 8px gap). */
   #panel.hidden { opacity: 0; transform: translateX(-12px); pointer-events: none; visibility: hidden; }
-  #toggle, #fs, #mute, #panelbtn {
+  #toggle, #galbtn, #fs, #mute, #panelbtn {
     position: fixed;
     top: 14px;
     left: 14px;
@@ -292,18 +292,20 @@
     -webkit-backdrop-filter: blur(6px);
     transition: background .15s;
   }
-  #fs { left: 54px; }                     /* fullscreen button, right of the panel toggle */
-  #mute { left: 94px; font-size: 18px; }  /* mute the music reaction, right of fullscreen */
-  #panelbtn { left: 134px; font-size: 17px; }  /* controls panel open/closed, right of mute */
+  #galbtn { left: 54px; font-size: 18px; }   /* the gallery, right of the menu */
+  #galbtn.hidden { display: none; }
+  #fs { left: 94px; }                     /* fullscreen button, right of the gallery */
+  #mute { left: 134px; font-size: 18px; } /* mute the music reaction, right of fullscreen */
+  #panelbtn { left: 174px; font-size: 17px; }  /* controls panel open/closed, right of mute */
   #panelbtn.on { background: rgba(255, 122, 26, 0.3); }
   /* The scene banner, continuing that row. It used to be drawn into the frame at ~1/26 of the
      viewport width; as chrome it can be small and quiet, because it no longer has to survive
      being composited under a bloom. Not a button — no border or background, so it reads as a
      caption on the row rather than a fourth control you could press. */
   #scenebanner {
-    position: fixed; top: 14px; left: 174px; z-index: 10;
+    position: fixed; top: 14px; left: 214px; z-index: 10;
     height: 34px; display: flex; align-items: center;
-    max-width: calc(100vw - 200px);
+    max-width: calc(100vw - 240px);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     color: #ffcf87; font: 12px/1 ui-monospace, Consolas, monospace; letter-spacing: .03em;
     text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
@@ -317,9 +319,9 @@
   /* No source running: nothing to mute, so the button is visibly inert (a click only
      surfaces the hint in the menu's audio line — see toggleMute). */
   #mute.off { opacity: .38; cursor: default; }
-  #toggle:hover, #fs:hover, #panelbtn:hover, #mute:not(.off):hover { background: rgba(255, 122, 26, 0.3); }
+  #toggle:hover, #galbtn:hover, #fs:hover, #panelbtn:hover, #mute:not(.off):hover { background: rgba(255, 122, 26, 0.3); }
   /* keyboard focus rings (a11y) */
-  #panel button:focus-visible, #menubar button:focus-visible, #toggle:focus-visible, #fs:focus-visible, #mute:focus-visible, #panelbtn:focus-visible,
+  #panel button:focus-visible, #menubar button:focus-visible, #toggle:focus-visible, #galbtn:focus-visible, #fs:focus-visible, #mute:focus-visible, #panelbtn:focus-visible,
   #panel select:focus-visible, #panel input:focus-visible, #menubar select:focus-visible, #menubar input:focus-visible { outline: 2px solid #ffb15a; outline-offset: 2px; }
   /* REDUCED MOTION covers the CHROME, not the visual. The old rule named seven elements and so
      reached only about half the UI's own movement — the two keyframe animations, the chevron
@@ -329,7 +331,7 @@
      would leave a black rectangle that reads as a broken app rather than a respected preference;
      the canvas already has a pause (click it) and Hide all UI for anyone who wants stillness. */
   @media (prefers-reduced-motion: reduce) {
-    #panel, #menubar, #breakout, #help, #syncpop, #toggle, #fs, #mute, #panelbtn, #uihint, #tutdlg,
+    #panel, #menubar, #breakout, #help, #syncpop, #toggle, #galbtn, #fs, #mute, #panelbtn, #uihint, #tutdlg,
     #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg,
     #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg * {
       transition: none !important;
@@ -361,7 +363,7 @@
      further down and #help and #restoredlg had none at all, so "hide all UI" left the help
      panel and the restore dialog sitting on the capture. One list, so there is one place to
      add the tenth dialog; tools/uiprobe.js asserts none is missing. */
-  body.ui-hidden #toggle, body.ui-hidden #fs, body.ui-hidden #mute, body.ui-hidden #panelbtn, body.ui-hidden #frames,
+  body.ui-hidden #toggle, body.ui-hidden #galbtn, body.ui-hidden #fs, body.ui-hidden #mute, body.ui-hidden #panelbtn, body.ui-hidden #frames,
   body.ui-hidden #scenebanner,
   body.ui-hidden #menubar,
   body.ui-hidden #panel, body.ui-hidden #breakout, body.ui-hidden #syncpop,
@@ -546,6 +548,15 @@
   }
   #galdlg .gal-tab[aria-selected="true"] { background: rgba(255, 140, 40, 0.28); border-color: rgba(255, 160, 60, 0.85); color: #fff3df; }
   #galdlg .gal-tab:focus-visible { outline: 1px solid #ffb15a; outline-offset: 2px; }
+  /* Copy a link to the gallery itself (#gallery): the end of the tab row, not a tab. */
+  #galdlg .gal-linkbtn {
+    margin-left: auto; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    background: transparent; border: 1px solid rgba(255, 140, 40, 0.35); color: #ffcf87;
+    font: 12px/1 ui-monospace, Consolas, monospace;
+  }
+  #galdlg .gal-linkbtn:hover { background: rgba(255, 122, 26, 0.18); }
+  #galdlg .gal-linkbtn.copied { border-color: rgba(120, 220, 140, 0.8); color: #bff5c9; }
+  #galdlg .gal-linkbtn:focus-visible { outline: 1px solid #ffb15a; outline-offset: 2px; }
   /* The scene grid: as many 200px+ columns as fit, each card a 16:9 thumbnail over two lines. */
   #galdlg .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
   #galdlg .gal-card {
@@ -2305,6 +2316,9 @@
      structure is built in JS (buildMenubar) and its leaf panels are filled by MOVING the
      #audiobox / #resbox / #cloudbox / #creditbox contents in, so nothing has to be re-wired. -->
 <div id="menubar" class="hidden" role="menu" aria-label="Main menu"></div>
+<!-- The gallery, one click from anywhere: the same galOpen the ☰ item calls. Hidden by
+     cloudInit when there is no API to browse (the ☰ item is gated the same way). -->
+<button id="galbtn" type="button" aria-label="Open the gallery" title="Gallery">▦</button>
 <button id="fs" type="button" aria-label="Toggle fullscreen">⛶</button>
 <!-- Mute the music reaction. It does NOT stop the stream (see setMuted) — a browser cannot
      silently re-grab tab/screen audio, so stopping would cost a fresh picker dialog to come
@@ -2353,11 +2367,12 @@
     <h2 id="gal-title">Gallery</h2>
     <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>♥</b> marks a favourite (signed in); <b>🔗</b> copies a link that opens the scene for anyone. Your own scene goes in with <b>Publish to gallery</b> in the Scene box.</p>
     <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
-      <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true">Most loved</button>
+      <button type="button" role="tab" class="gal-tab" data-tab="all" aria-selected="true" title="Every scene, A to Z">All</button>
+      <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="false">Most loved</button>
       <button type="button" role="tab" class="gal-tab" data-tab="new" aria-selected="false">Newest</button>
-      <button type="button" role="tab" class="gal-tab" data-tab="all" aria-selected="false" title="Every scene, A to Z">All</button>
       <button type="button" role="tab" class="gal-tab" data-tab="mine" aria-selected="false">My favourites</button>
       <button type="button" role="tab" class="gal-tab" data-tab="people" aria-selected="false">Collections</button>
+      <button type="button" class="gal-linkbtn" id="gal-link" title="Copy a link that opens this gallery">🔗 Copy link</button>
     </div>
     <input type="search" id="gal-filter" placeholder="Filter by name or author" aria-label="Filter by scene name or author" autocomplete="off">
     <div id="gal-list"></div>
@@ -2680,7 +2695,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.88.0",
+    version: "1.89.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -26171,7 +26186,8 @@
   // ---- gallery ----
   // ONE PUBLISHED SCENE PER CARD (card 825, M3): a poster, the clip while hovered or focused,
   // the author, a heart with its count. Readable signed out. Five tabs:
-  //   Most loved / Newest / All   GET /api/gallery?sort=favs|new|name, paged as you scroll
+  //   All / Most loved / Newest   GET /api/gallery?sort=name|favs|new, paged as you scroll;
+  //                               All (A to Z) is the one the dialog opens on
   //   My favourites         the same with mine=favs (needs a session)
   //   Collections           the older per-profile listing (GET /api/profiles), which is also
   //                         what refollowCollections resolves a uid-less follow against
@@ -26218,7 +26234,7 @@
 
   // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
   // answer to a request a newer tab or filter has overtaken.
-  const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
+  const gal = { tab: "all", order: "name", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
     shown: new Set(), seq: 0, note: "" };
   const galSort = () => (gal.tab === "new" ? "new" : gal.tab === "all" ? "name" : "favs");
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
@@ -26516,18 +26532,29 @@
   // link -- nothing is minted, so copying is synchronous and works signed out. A FRAGMENT, like
   // #c=, so the page is served from cache and the id never reaches the static host.
   const galLinkOf = c => location.href.split(/[?#]/)[0].replace(/[^/]*$/, "") + "#g=" + c.id;
+  // #gallery opens the gallery itself: the address bar carries it while the dialog is open,
+  // and Copy link in the dialog copies it. Not one of the reload-on-hashchange fragments --
+  // it installs nothing, so an open tab just opens the dialog.
+  const GAL_HASH = "#gallery";
+  const galHome = () => location.href.split(/[?#]/)[0].replace(/[^/]*$/, "") + GAL_HASH;
+  function galMarkUrl(on) {
+    const want = on ? GAL_HASH : "";
+    if (on ? location.hash === GAL_HASH : location.hash !== GAL_HASH) return;
+    try { history.replaceState(null, "", location.pathname + location.search + want); } catch (e) {}
+  }
   function galCopyLink(c, btn) {
-    const url = galLinkOf(c);
+    const url = c ? galLinkOf(c) : galHome();
+    const idle = btn.textContent;
     const done = ok => {
       if (!ok) return;
-      btn.textContent = "✓"; btn.classList.add("copied");
-      setTimeout(() => { btn.textContent = "🔗"; btn.classList.remove("copied"); }, 1600);
+      btn.textContent = c ? "✓" : "✓ Copied"; btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = idle; btn.classList.remove("copied"); }, 1600);
     };
     const ask = () => { prompt("Copy this link:", url); done(false); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(() => done(true), ask);
     } else ask();
-    track("gallery_share", { builtin: c.at != null });
+    track("gallery_share", c ? { builtin: c.at != null } : { gallery: true });
   }
   // #g=<id> at startup (applyShared defers to here once every slice has run). Same install as
   // a click on the card; a link to a scene that is gone, or a built-in this build does not
@@ -26630,9 +26657,11 @@
       if (galObs) galObs.disconnect();
       if (galImgObs) galImgObs.disconnect();
       if (gal.note) { gal.note = ""; galHint(""); }
+      galMarkUrl(false);
       dlgRelease(box);
       return;
     }
+    galMarkUrl(true);
     dlgModal(box);
     if (box) box.scrollTop = 0;           // open at the top, header and help in view
     const fi = el("gal-filter");
@@ -26972,6 +27001,16 @@
   if (el("gal-close")) el("gal-close").addEventListener("click", () => galOpen(false));
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
   if (el("gal-more")) el("gal-more").addEventListener("click", galMore);
+  if (el("gal-link")) el("gal-link").addEventListener("click", e => galCopyLink(null, e.currentTarget));
+  if (el("galbtn")) {
+    el("galbtn").classList.toggle("hidden", !cloudOn());
+    el("galbtn").addEventListener("click", () => galOpen(el("galdlg").classList.contains("hidden")));
+  }
+  // A #gallery link: at startup, and pasted into a tab that is already open.
+  if (cloudOn() && location.hash === GAL_HASH) Promise.resolve().then(() => galOpen(true));
+  window.addEventListener("hashchange", () => {
+    if (cloudOn() && location.hash === GAL_HASH && el("galdlg").classList.contains("hidden")) galOpen(true);
+  });
   for (const t of document.querySelectorAll("#galdlg .gal-tab")) t.addEventListener("click", () => galSetTab(t.dataset.tab));
   if (el("publishpreset")) el("publishpreset").addEventListener("click", cloudPublishScene);
   if (el("galdlg")) el("galdlg").addEventListener("click", e => { if (e.target === el("galdlg")) galOpen(false); });
