@@ -813,8 +813,8 @@ does not use it yet (M2 switches the client); Firebase stays live until then.
   (`ADMIN_TOKEN`); a new version deletes the old one. Byte ranges are served (hover video).
 - Routing: talebindery's Caddy owns 80/443. KickTro is its OWN compose project (`/srv/kicktro`,
   container `kicktro-api` on the external `edge` network) and drops `server/kicktro.caddy` into
-  `/srv/caddy-sites`. The one-time talebindery change (MyStoryGenerator repo, deploy only with the
-  owner's go-ahead): its `caddy` service joins network `edge` (external) and mounts
+  `/srv/caddy-sites`. The one-time talebindery change is LIVE (talebindery `15c18da8`,
+  2026-10-25; its docs/deploy.md "Other sites on this server"): its `caddy` joins `edge` and mounts
   `/srv/caddy-sites:/etc/caddy/sites:ro`; `Caddyfile.selfhosted` gains
   `import /etc/caddy/sites/*.caddy`. DNS `api.kicktro.com` is DNS-only (grey cloud).
 - Deploy: `pwsh tools/deploy-api.ps1 [-Rev sha]` pushes to `/srv/kicktro.git` and runs
