@@ -15,6 +15,23 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.87.0] — 2026-10-25
+
+### Added
+- **Public scenes is a gallery of scenes you can watch before you load them** (☰ → Public scenes). Every card shows a still of the scene; hover it (or tab to it) and it plays a short silent clip of the scene moving to a beat. On a phone, the first tap plays the clip and the second opens the scene. Clicking a card loads that one scene into **Shared with you**, credited to whoever made it.
+- **Favourites**: the **♥** on each card adds the scene to your favourites, and the count beside it is how many people have. Tabs sort the gallery by **Most loved** or **Newest**, or show **My favourites**; a filter box searches names and authors, and more scenes load as you scroll. Favouriting needs a Cloud sign-in — one ♥ per account per scene.
+- **Publish to gallery** in the Scene box puts the scene you are on into Public scenes as one card. Your own cards carry a **✕** to take them down again.
+- The twenty-five built-in AI-Generated scenes appear in the gallery as cards too, each with its own still and clip.
+
+### Changed
+- The older listing of whole published profiles is still there, under the gallery's **Collections** tab.
+- The tutorial's "Keeping and sharing" step explains publishing and favourites.
+
+### Internal
+- `tools/thumbs.js` renders each card's still (5 s in) and 10-second clip on the real GPU with a synthetic beat, identically every time (`--check` proves both that and that the beat changes the picture); `--builtin` writes `thumbs/`, which the Pages workflow now ships, and `--server` renders published scenes and uploads them to the API. `/deploy` runs both.
+- API: `GET /api/gallery?mine=favs` lists the signed-in user's favourites.
+- `tools/gallery-check.js` rewritten for the card gallery (hover clip, touch, optimistic favourites, the built-in load), and its fail count now survives the page reload it causes.
+
 ## [1.86.0] — 2026-10-25
 
 ### Changed

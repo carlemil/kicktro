@@ -525,7 +525,7 @@
   #galdlg.hidden { display: none; }
   #galdlg .gal-box {
     position: relative; pointer-events: auto;
-    width: min(90vw, 480px); max-height: 86vh; overflow-y: auto;
+    width: min(92vw, 940px); max-height: 88vh; overflow-y: auto;
     background: rgba(10, 6, 4, 0.8); border: 1px solid rgba(255, 140, 40, 0.4);
     border-radius: 12px; padding: 24px 26px 22px;
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
@@ -537,9 +537,51 @@
     color: #ffcf87; font: 12px/1.3 ui-monospace, Consolas, monospace;
   }
   #galdlg #gal-filter:focus { outline: none; border-color: rgba(255, 140, 40, 0.8); }
-  #galdlg .gal-pager { display: flex; align-items: center; justify-content: center; gap: 10px; }
-  #galdlg .gal-pager.hidden { display: none; }
-  #galdlg .gal-pagenum { color: #ffcf87; font-size: 11px; min-width: 48px; text-align: center; }
+  /* Tabs: Most loved / Newest / My favourites / Collections. aria-selected is the state. */
+  #galdlg .gal-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  #galdlg .gal-tab {
+    padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    background: rgba(255, 140, 40, 0.06); border: 1px solid rgba(255, 140, 40, 0.3);
+    color: #ffcf87; font: 11px/1.3 ui-monospace, Consolas, monospace;
+  }
+  #galdlg .gal-tab[aria-selected="true"] { background: rgba(255, 140, 40, 0.28); border-color: rgba(255, 160, 60, 0.85); color: #fff3df; }
+  #galdlg .gal-tab:focus-visible { outline: 1px solid #ffb15a; outline-offset: 2px; }
+  /* The scene grid: as many 200px+ columns as fit, each card a 16:9 thumbnail over two lines. */
+  #galdlg .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  #galdlg .gal-card {
+    min-width: 0; cursor: pointer; border-radius: 8px; overflow: hidden;
+    border: 1px solid rgba(255, 140, 40, 0.22); background: rgba(255, 140, 40, 0.05);
+  }
+  #galdlg .gal-card:hover, #galdlg .gal-card:focus-visible { border-color: rgba(255, 160, 60, 0.8); outline: none; }
+  #galdlg .gal-thumb { position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+  #galdlg .gal-thumb img, #galdlg .gal-thumb video {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  /* The clip sits OVER the poster, invisible until it is really playing, so a slow first
+     frame shows the poster rather than black. */
+  #galdlg .gal-thumb video { opacity: 0; }
+  #galdlg .gal-card.playing .gal-thumb video { opacity: 1; }
+  #galdlg .gal-thumb.gal-ph { display: flex; align-items: center; justify-content: center; padding: 10px; box-sizing: border-box; }
+  #galdlg .gal-thumb.gal-ph span {
+    color: rgba(255, 255, 255, 0.85); font-size: 13px; text-align: center; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  #galdlg .gal-cap {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto auto;
+    gap: 2px 6px; align-items: center; padding: 7px 9px 8px;
+  }
+  #galdlg .gal-cname { grid-column: 1; grid-row: 1; color: #ffcf87; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #galdlg .gal-by { grid-column: 1; grid-row: 2; color: #ffb15a; opacity: .65; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #galdlg .gal-heart, #galdlg .gal-rm {
+    grid-row: 1 / span 2; padding: 4px 8px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+    background: transparent; border: 1px solid rgba(255, 140, 40, 0.3); color: #ffcf87;
+    font: 11px/1.2 ui-monospace, Consolas, monospace;
+  }
+  #galdlg .gal-heart { grid-column: 2; }
+  #galdlg .gal-rm { grid-column: 3; }
+  #galdlg .gal-heart.on { color: #ff6f61; border-color: rgba(255, 111, 97, 0.7); background: rgba(255, 111, 97, 0.12); }
+  #galdlg .gal-heart:hover, #galdlg .gal-rm:hover { border-color: rgba(255, 160, 60, 0.85); }
+  #galdlg .gal-morerow { display: flex; justify-content: center; margin-top: 12px; }
   #galdlg h2 { margin: 0 30px 14px 0; color: #ffb15a; font-size: 15px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.6); }
   /* ONE line: name, then the scene count / date centred between, then Load at the end.
      It used to wrap the buttons onto a second row spanning the full width, because there
@@ -2009,7 +2051,7 @@
       <!-- Opt-in, and off by default: publishing is a deliberate act, not a side effect of
            saving. Ticking it re-saves the whole profile (see cloudPublish for why a
            pub-only write cannot satisfy the rules). -->
-      <label class="check" title="List your profile in the public gallery so anyone can load your scenes. Your name and scene count become visible."><input type="checkbox" id="cloud-pub"> Publish to gallery</label>
+      <label class="check" title="List your whole profile on the gallery's Collections tab so anyone can load all your scenes at once. Your name and scene count become visible. One scene goes in with Publish to gallery in the Scene box instead."><input type="checkbox" id="cloud-pub"> List my profile under Collections</label>
       <!-- ON by default. An automatic upload is still an upload, so it gets a control you can
            see and switch off rather than happening silently. data-nopersist: this is a device
            preference with its own localStorage key, not scene data. -->
@@ -2064,6 +2106,11 @@
   <div class="presetrow">
     <button id="delpreset" class="audbtn" type="button" title="Delete the selected scene">Delete</button>
     <button id="sharepreset" class="audbtn" type="button" title="Copy a link to this scene — short via your cloud profile when signed in, self-contained otherwise">Share</button>
+  </div>
+  <!-- One scene into the public gallery, credited to your profile name (card 825, M3). Shown
+       only when the cloud is configured (cloudInit); signed out it says how to sign in. -->
+  <div class="presetrow" id="publishrow" style="display:none">
+    <button id="publishpreset" class="audbtn" type="button" title="Put this scene in the public gallery under your profile name, where anyone can watch it, favourite it and load it">Publish to gallery</button>
   </div>
   <!-- Auto-cycle / Scene TTL / Transition defaults come from CONFIG.scene (set in JS at startup),
        not from value=/checked here — so they live in one place. -->
@@ -2294,25 +2341,26 @@
   </div>
 </div>
 
-<!-- Public scene gallery. Readable without signing in, so it is available to any visitor.
-     Each row applies STRAIGHT AWAY on its own two buttons — the Restore dialog would only
-     ask merge-vs-replace a second time, having already been asked here. (That dialog is
-     still live for `#zp=` links and Load from cloud, where the answer isn't in the click.) -->
+<!-- Public scene gallery (card 825, M3). Readable without signing in. One published scene per
+     card: a poster, the clip on hover or focus, a heart with its count. A click installs the
+     scene STRAIGHT AWAY into "Shared with you" (applyGalleryScene) -- nothing is left to ask.
+     The Collections tab is the older per-profile listing, still what a follow resolves against. -->
 <div id="galdlg" class="hidden">
   <div class="gal-box" role="dialog" aria-modal="true" aria-labelledby="gal-title">
     <button type="button" class="pal-close" id="gal-close" aria-label="Close">×</button>
     <h2 id="gal-title">Public scenes</h2>
-    <p class="pal-hint gal-help"><b>Load scenes</b> adds someone's scenes to your list as their own collection, named after them — your own scenes are never touched, and loading the same person again just refreshes their set. Collections start folded in the Scenes list; click a name to open it, or <b>✕</b> to remove the whole collection. The page reloads onto what you loaded.</p>
-    <input type="search" id="gal-filter" placeholder="Filter by name" aria-label="Filter the list by name" autocomplete="off">
-    <div id="gal-list"></div>
-    <p class="pal-hint" id="gal-hint"></p>
-    <div class="presetrow gal-pager hidden" id="gal-pager">
-      <button id="gal-prev" class="audbtn" type="button" aria-label="Previous page">‹ Prev</button>
-      <span id="gal-page" class="gal-pagenum" aria-live="polite">1 / 1</span>
-      <button id="gal-next" class="audbtn" type="button" aria-label="Next page">Next ›</button>
+    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>♥</b> marks a favourite (signed in). Your own scene goes in with <b>Publish to gallery</b> in the Scene box.</p>
+    <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
+      <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true">Most loved</button>
+      <button type="button" role="tab" class="gal-tab" data-tab="new" aria-selected="false">Newest</button>
+      <button type="button" role="tab" class="gal-tab" data-tab="mine" aria-selected="false">My favourites</button>
+      <button type="button" role="tab" class="gal-tab" data-tab="people" aria-selected="false">Collections</button>
     </div>
-    <div class="presetrow">
-      <button id="gal-refresh" class="audbtn" type="button" title="Fetch the list again (at most once a day)">Refresh</button>
+    <input type="search" id="gal-filter" placeholder="Filter by name or author" aria-label="Filter by scene name or author" autocomplete="off">
+    <div id="gal-list"></div>
+    <p class="pal-hint" id="gal-hint" aria-live="polite"></p>
+    <div class="presetrow gal-morerow">
+      <button id="gal-more" class="audbtn" type="button" style="display:none">Load more</button>
     </div>
   </div>
 </div>
@@ -2629,7 +2677,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.86.0",
+    version: "1.87.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -2722,11 +2770,9 @@
       // └──────────────────────────────────────────────────────────────────────────────────┘
       apiKey: "AIzaSyB_VfQ6W0ui79rMzHrYvbe8f_1OkSSymRM",
       projectId: "burntheweb-3cd05",
-      // ONE number, and it is both the cache lifetime and the reload limit -- see galOpen.
-      // Two separate intervals would let the Refresh button undercut the cache and make
-      // "reloads once a day" quietly untrue.
-      galleryTtlMs: 86400000,                     // cache the gallery listing, and reload at most, 24h
-      galleryPage: 20,                            // profiles per gallery page
+      // The gallery's answers are kept in memory this long (galJson); a favourite patches them.
+      galleryTtlMs: 600000,                       // 10 minutes
+      galleryPage: 24,                            // scene cards per request as the grid scrolls
       maxPayload: 300000,                         // must match CAP.profilePayload in server/routes.js
     },
 
@@ -25138,8 +25184,15 @@
         // set under their name rather than merged into yours: your library is untouched,
         // their "Sunset" and your "Sunset" are not a collision, and loading the same
         // profile again replaces just their set instead of piling up duplicates.
-        lib = out.presets.filter(x => (x.collection || "") !== coll);
-        for (const q of p.valid) lib.push({ ...q, collection: coll });
+        // `keep` (one scene from the gallery, into "Shared with you") keeps the rest of that
+        // collection and replaces only a same-named scene in it: loading a second card must
+        // not throw away the first.
+        lib = p.keep ? out.presets.slice() : out.presets.filter(x => (x.collection || "") !== coll);
+        for (const q of p.valid) {
+          const item = { ...q, collection: coll };
+          const at = p.keep ? lib.findIndex(x => x.name === item.name && (x.collection || "") === coll) : -1;
+          if (at >= 0) lib[at] = item; else lib.push(item);
+        }
       } else if (el("rst-replace").checked) {
         lib = p.valid.slice();                 // Replace: only the backup's presets
       } else {                                 // Merge: overwrite same-named, keep the rest, append new
@@ -25329,6 +25382,26 @@
     applyRestore();                                   // writes localStorage + reloads
   }
 
+  // ONE published scene from the gallery (card 825, M3). It lands in "Shared with you" -- the
+  // home a one-off scene from someone else already has -- not in a collection named after its
+  // author: a collection is something you FOLLOW (cloudBlob uploads the follow instead of the
+  // scenes and re-fetches the author's whole profile on the next load), and one card is not a
+  // follow. "Shared with you" travels with your profile like your own scenes, and `origin`
+  // keeps the banner crediting the author. Same validation and write/reload as every other
+  // install, through applyRestore.
+  function applyGalleryScene(raw, author) {
+    const parsed = sharedLibrary(raw);
+    if (!parsed) return;
+    const by = originOk(author);
+    if (by) for (const q of parsed.valid) if (!originOk(q.origin)) q.origin = by;
+    pendingRestore = { parsed: parsed.parsed, valid: parsed.valid, hasSettings: false, hasRanges: false, hasBeat: false,
+      collection: SHARED_COLLECTION, keep: true };
+    el("rst-presets").checked = true;
+    el("rst-merge").checked = true;
+    el("rst-replace").checked = false;
+    applyRestore();
+  }
+
   // Initial paint: setEffect loads the restored effect's per-effect extras (show-box,
   // random-seed), then applyLayerExtras puts the selected layer's palette + filters live.
   setEffect(+effectSel.value, false);
@@ -25429,13 +25502,41 @@
       requestAnimationFrame(() => requestAnimationFrame(() => setPaused(true)));
   } catch (e) {}
   // ---- built-in gallery entries ----------------------------------------------------
-  // GENERATED by 'node tools/ai-scenes.js --emit' -- do not hand-edit. Rows the Public scenes
-  // dialog lists WITHOUT any network, ahead of the published profiles. 'payload' is the same
-  // deflated libraryUrl-shaped blob a cloud profile carries, so galFetchLibrary decodes it
-  // through the one path and a follow of it (uid 'builtin:...') resolves offline too.
+  // GENERATED by 'node tools/ai-scenes.js --emit' -- do not hand-edit. Listed by the Public
+  // scenes dialog WITHOUT any network. 'payload' is the same deflated libraryUrl-shaped blob
+  // a cloud profile carries, so galFetchLibrary decodes it through the one path and a follow
+  // of it (uid 'builtin:...') resolves offline too. BUILTIN_SCENES is one gallery card per
+  // scene in it ('at' = its index), with the hash of its shipped thumbnail ('' = none yet).
   const BUILTIN_GALLERY = [
-    { uid: "builtin:ai-generated", name: "AI-Generated", count: 25, updated: "2026-10-24",
+    { uid: "builtin:ai-generated", name: "AI-Generated", count: 25, updated: "2026-10-25",
       payload: "7T3Zjtw4kr-S0LOcUJ6uqrfpnp2eXWwvBt0D7IPhB0piSpqSRA1FVVaW4X8f8AqSupKqst1tOF8KNpOHFBGMO0KfgobiFrM2ePjwKahRhYOH4P8wqVe_YXwKwgCfTjhhwUPwRCipSRGEQcsQw8HDp-CJJLgs-dJDeP8xDJ4ITjMcPHyI1rswWsuhfxVMjNyF0fpOjLQNxqkY24fRev8xDF5OcfDwYbOONodQ_JVjjxg3cu2BL-ajcUlIJU_gY7vDx89hEGPE5PPI8z8FJTkHDydUtjgMqiINHhjtcBjkRZar8c-fw6DpyhbbC4Om7JLHgP9U4tr-JVpvD5_DAD8zivh4g0rMOBQCXOKE0SIJwuBUlAxTDo_ghZDqFAf6gflTlugif_x0A6oD1KWw5P_AdRo8BBV6DsIgQ0UdPGw-hxZgK8xQjDgcLdBWcUK6mkPuGB4_hkEVU5QWXStefRNG6-1WjBpYvg-j9XsxJg_5sFlvws168zEMkpySColZh3BvQ8xsq2Am4SRApsBnw8xsNQJiZz7fxwGxOSloz7gsA7NX0NaosYFu5go0w8RovXVwUCTYBb-aOAJ-lKYA_mh9_PyRo0DxkN8ZodXqb5TUzOYiSUm61EFKUibkCVMByGMYrTlikrJNUIkFvLfhZr0VY2WR5Zrst4LEk1Kjysx7KrJavgq_C5ye95zGMyoRGK0jfkp0dOhe3hkLh3CaFwptnMDKAKMW2xiAX6L1BC9pu7rFzAU_vI9-hylecgMtgHYpRH04ijigLurMhnDJWkaLRwGRkHOFklHEDLfeiaGYlELA7kL5_0y8t8XQ0-J06vg7ftiuD-F2fVBjwKvvxUQLiOZgTx6jT13MY8xJkqWYrYaM3czl7wYT-yxmnM1rIFxlNPcuoymLCq9-RizHKUWlzWya_NIi2lU2xppcy4DdIYpC_udjGDR5i2uBgGO4VQMgBPSVaPIUJ-giEbLlGNnKmQliTF0zLUDD4IRSSQf3XIjccykCgpxPcgWvvk0WiuGZvCSv9ciL7xWcpDEMWwVt1zIOdgvJMFvgGKZG6_04U8soxnWOXnpiRcBHweSamnRD5DdH5Ovw58NIswslRWqjMrucKP63EDV34UYotNmF5UXyKEC6PSjZlV0szilFUnY5I9o4uMguBuNS6lm4gH092aY-cjHbhIOkrDI7DbkmTJWKmZ7Y55oJaRpMHSRY8E7TbFIX-68qxnT1F8YoShihNotE1iDgAzEEcp-TO2Lckni3Xe9C_keMJEJYbcOtwAxiqZyx4TM2YkTbKFoONqSohRjcRlEUheLvxzBozwUt-aiwdsT_jNjjOL3nSK0KSgkFGWrum8S6hWHx8J7YFa_heSvVcy6-k-J5NBGIA-EuwqYDZV0s4i8nV3AtSs-N1rsJQ5Rj2b2jcglA7xqbvRHD90kMr6IBH1Y9QxDvNuv7kP8Bktisj6FGNyeId9x8fhcpolEksecksXdIghPW3iaJzZ6ThPjriF_OzO-PLnrjBegVBy5m5OIMxbRhlyETF9MkA1dz-vz7VNAxETqp5t45PPyvGDer3zFa_VKitrVZOEkwqh1xStqOnsQtEiKS5Ngy7zZSSBKKT6XYwHIjZeREUAUXVQ4lOWkcy0TftwnDcMSHZB7BV-yqB1kuduEkkLtqqxG5C3O5ogATJd5GGOzAMyIBYb3-FGO9oehroGgRZrw0U3W1DJrAYajwFLfFi6v5Z3GFBIbCSPyvEIJpIxTUezECOutBMTrwHGrs2GiQG_jiIJ7UTud9s-oYS_jorQbSR00VUkdPGqim_I3G3YYT7G3jMLdfUZ3iMibPq7_S4gnb3K2KybONkvhZ-6_ebdbvD1wEHQTFPwOc9wrO8bNt-sm7QuMSVQxMCDVUFc-Ok2zGewXne6JIP5fXNTHPt1izgOfSl0ofDKJLbz3AMCwVOoZexwUzrJlUOpuONmUP8zQuu-vK5g2xfx7ELsKnDydtGaKnApeOmd8y2zDnmnvLtPWu4iwtS3HdFuwiuKPGt-UeFWzYdY0KJ-rORiUc5IlK_RiL2SgcBOEXvdXAQw1ThbNFT-NS-Con1a8_qSm-d5jpP2mX5Jitfi5o0hVO9IXJn2yk8CEVbzyGGy7DGO3ORcpypZxLMcdoZ-IBB6WhNMUzLiGallBWofbRkY4JZXHZD0xa4UZlDbYJqp0pfABE7z4Kt_vIRrB5aE97zbzT4vtnzgpahhuuH5jdhhqLmS4kppk6HUFOjnsX4QKuSAQoEsomOegNm384Nhcg0Stq3dVJbuPzmVBAVBQeOEL5kBKUBjMNaaXjeu-Gos36xZAySwdyxfw0UAQz1IOCfDDr7Z-FN0Gzrr3z_tLFGSPqhjFBC-dvFwaJFaA_CIGQxIbGdQzSjjjGLhD8bRVYOSQN-KkPAx5SjMm554VJUF0WNW6nufjO4eK_oBI9X1Y_KUPGuGQ6Sihy_DFd0lGuxZsQI-ras4pv6DuIujYvqgqiwdJObMmJ8dfhzpodd9bs1CBF6ahBORrgsPZe7l4xa4eOL_PbpFH-hGmK6l6EV73WpJ_zR4ahJ-i87GVBo47B_IxoZWCYPbeNSg2AgM1zQigGaXQvZ40G3iZ8xC8SilIVtLyDwj18dJ0a6nxfc1o923KXhjoHHBpqoxGHhpopNHI9rY-YMSVchduuhsZt_OSIVqQmGUWNI1XyjCJWEIc48yzFrKslMKOIAzPai_GK0EarDz1PrYsYgwtulN3fua4OqWZYyDEneop9eJTFsswcFcSkq4W3CHYbC42aBULuw9yBvj6eyqCQNe8C4akqTpTuCdds9XdCixdS2yw_zomgBmMq56wouTzc3IUbDuY4h3t2p5lNHmPlJzxqszknNFZOd57txl31bU5klDWE_6FKGlYRx2J0p4eNhN1wfrjZj0Re-ilCAxs7X3Qf9Tv4BmXkuyy3sHP39upjwcBWGw_t61xf5v3BLBMBa72Gh2JH5RYaidSIJaG_W_lGGN87YbySHnyEc3KpECsSV5O-VETw6F3IvS3Jpc2l_0XZfBdbv9kpuxCSXbQTLS1YXj6VIkPZ4eh6e9-018vrVR59FFhx1mYjurqaLaSuNfNqHEFlt_A3dq0Y7pOxObnLyn_FdYbp6qdepK4Sw05GcpZyf7d2boqk5MxJctmIIUrc8LmVfLwLd33tUqmrVl6mEOcOrvTJnrjST-Xp7exlNPtfOf1YVmRCHw23bjrFWS0WaNbLhLvTTXYeYceMPPeFeC_v-Vr67Q25fw7kvgqnPgyVFnFMaoefUvBMcE7IveqWr-2gfNo0ZueiZUoJPoqRYW41TnICdhP_D6qz4OHDfRTeR2pkOhsYzvVEODzSYo83nKRlImylNWsLZTBZ-LxhZj9Hm-vPpCQ96ScAMu3ydhnu7x19wpfV_woPi11uQGpGup47STlihEtNaElJrdG2FWhMapMjf1Q3N6lTWpyY6w-tT0VZGmxvx6-qG3oXl9wWmvpxfKVm7eLaH3dwkhGa9aTnEyYLAwgmTnuxR70J3qrsDVFfB1GL8eMV3ctRgzPqJvG2mY48bPahMALaLFWSTVgMWzHU_rtD0v8jEibaTL21HT_I-uzRju3JTRcrjGrdQKyo8b7sGKrjk6xo73Cin_OiqvHFZkJtRR4dM62taKHe-U5RbVuxjsbqlbdqSBO3TK0U8KtMfFSStzDDKjt9CMr6eM62jIlrc5CP6E2lL52PqIcxsogPZtJ7aQLsXibdFb1Ev7hvXFYBxdfMM8BZrJroJ9NiTR9tp2ea7VW41yYjtV5oJ3qxzNQ0yyZLJEbSNlXC_eCCXlNDb8R2IzaL2N5GY15-ho6WjtTuoMg2isKj8AwnHVCXjNd1diaIHCmLEx5x66ukb1sOd6-O5nXT0bxuIpo3Arb5tF1XHPwTNXj1Gz4XderqpfOBTuWPiQdgsgwM7al7yluZSr2VEf-nvI1Rbde_yDEVub8L767F6He8nkogrh_cnwmqXrtf-jGXV33GThza7DSQ5XZI9mDmTSavDWL2T7nAB8Rqr-Ww3dD4zdH4Guz5sLFHfKLYte4fTwKz2rh_PEFAeKNDlI8nUFWFn_zxZCUiDEWS3mKxRaAXDtLK9A99bt9PxJjJHfPI27OS8mQ4gPUzMEwmnwjryiF2LupHaZ6FDolLdcCmcK37WxTeS2VZltQ3nqU3YPt2Vl6v6BFdpMwakJhnOO9_cFlexuuSZyogVZ55v_rxcHDLH_fD8scjFEkO21ecSSyDN8dwF8n_q_Okv-lMYpeOZ1MVvmoNpXnYxXi-VnJpth4muZsSzL1TgWnWqNCvZw70mcRxeb2w-UYJ3y8lLCOAL9C0RoqhYdOaXs8abUNZPWu0rQXY5w41F_1ycxv9w4yNQWMbfwE26FQz1ZlmPh6noOrZg-bXgqIMr_5eZDkXknYiNKZUGVqQOovBrjWZ5wybXEt9rRgmiUEHwyeSOdY1wzYuZCmCZR1H4W7bs47lTrZ1LK6eYxnfq2Spa15LyJ6ybOO9TOaxU27lU3teW3gjz_nwtovJRD2XvrZwsGUZw-Yj2bpytTCLYalM4NGLJm2BsUYxr_XB3Kjrh6auNxKVV-YlSSlyMy-p1dNEVUrzLc9uYakcNL4-nf6X0bahGBm5n9G-RLHlPmy7XDTD0qEgML_1zZkF7nhXC_9_zBVwuvpVmJyevbIgbGT1ytJ3Ninl_VSp6FbnrPfqNlqds3oaFBg583GmP6T12ITB4x_A-7Eh-gpAejlXZ8Oid-Hm6ERFTf8cOzIKbd6syKhm7yYyGkZzwc7XBy8nQpXXs2hnGiO8qS-b9k-YvmzS1LL6smlynS88fGNPtrkma1M91Ra0UfNsn_bfdSKaQIWL0sYFNHop40IP2KlxLYoiDu1oO0wkdxp-3ImGH3f9NPL3wvn__uAbEPruk8snwoNX6wE8-PMNqX8kUl-JS69kjJmArzYqIOAr0sCdcK90-wxDvQc31OvGa5WxsQ03fWNDbmcZG8Yf4RgcAxndC78uCaaq4Omg4hoCo14CWujlniXWP1HyiOvVT5SgNEGtU2PdlKitnOKyxg7_SPHcDKVzA_47XSoFRZ3SggPv-U6m19ju873uDG3c59rFAyEiY7w59bjHKNwerwSJmmUWWrOgnH5hRMl67cXhX_0W2v5Tjwk-QTcgZZ00kMmNbf01UMrvxKqs9ZNZx6Ologrt4eJo5I3ybpQ3SnlvJrgvULu-H9Su74V8_1OVq0-WqR-cVxV5zG6uPzsnRCY_Ci2Ind2mC1sxBnngwtJlZ9eqzcqCJVboeAdjlJxbFfK3vWznJUncZv_F1AsHQTRF7TTiIztDjvfezPNpF6Xm-sap5zNQZd6FyT_dmMxSnX6qAtlW-unW5KhaeJlMPV2goajU02H0GXJP53tJWEAhT6XdMuDQ6xHYYsqGHQJnvzKxD-_cr0zoUOH8VyZ063JLHTxKd8R83t_Q9zzSQ3nM9zwSfoSX8OX35LXcBU6CjGzYa6B3wlxxB2DepHU3Uvk35SN-1WdEbgj-lgh-HV6_eHdCkyow05_wzu1PuP9qzQjn5ctMM8Jh_4TXdSN0OCimFoSHKTv9Dx9daT4fySy7fvN5kQLdaz7fbz2vbliv8bySVSNt5yF8v5e97U303gRyrAj-WDq1X6nL1-1Y_4bEDo8G91Zux4B6pjve--T5jFbQKN9NL93Dg2ffyOpHJKs3U5OPpIhJ4Ybi4lTT1WYbhRuB5TjtExGflTuegTg9YUSl9BCOxLm8fNjQM7tLb768LYM-COxnvdWwEUNqLL-DmecXSZnL8-8DXLmIDcRNFrbsUV9rbUj0J5NNMmpTDAfWR1xDxw7Qm-rh1YM7K_PAzZWVpo91XbluYGNJPshyoMt1w6C9-sGnkei17K33vS-IYVStfuv1P5tzdx8U2Zr6JmnkWbVNR6h3chzeUMZ0xeW9jSSLdFze64Oq0nfqm3RbRUcVHjZNHI98jH1b6wtUOH3JkiX_-iSrJGlCsg7y_L5G9duNOr4H6ngLUXhmVCS4Vsze5FSQtkixcR0lRLNvyV8TYqVhK06dOMbyRo0ofOiqnpd-H367W-CBdwvULQQlEXBpYadhkGmZeiUNg7hC0k7DMBarV9HDsCXgbAG0TFlZ_YYHHxuifEh1zjE9NNKThmK009Fmmj7qgv3oKKLNx60Y1iCXaKFppi_Ave5ltVAn1Vsspnm9cEjg-pdJj89IYxJvs-GHhOFC0L09s-ooA112ZtVBpqfVw9xJO69K62dWxwnNCkBl20k3mtHZpBPNyb0f9D34ut0nBraTv_fmerOKmWoLKyPs0GteYZtOVz-EdlW1dHPGZv2lOnxpeUyP-stTxmUKJZmWFBh8bW7m28nzQPX6dvKiFLrZwME_Cp4dt_q9yGq3Uo11dY2d8m7W1fYLi8BWV-vIVqTIn3U1LeqstbJEIIgMMWWn-K8fQ1ar7DbkkLN4pQ05RJtjRCkuHaE9n2BkXs43dx1e3T_k7MSQF3Quh2ezfBLmfK16TYeOzQaylzksFXfPChlPSC0O4XSs4pa3NzdqmQK6hyi7EdcPSlxfgqa8OrYRRl7kDkZVetHt9mS-In156Rtb9IUVVuUMyyluVcNLM0mO6k_ODCok1DHLNSK5bsj31Q-DIviRULp8tC_Vc1_6r3o996XeY3fdVz1hv3DX_bnWAK5eONZDztNi-Uubr37m5Qt-fqZN6HoR9LdsKpNZpbPwXT-CjrvaXgSIlioPwj7c7q-GWMe9B3p7y3sAUcBr3XOG2Pua3XMW9cIZ9Rzsnb433vLqy7uVbsTwJySGt9GAj2RZXHSy4dDfHObLTkyD5Zmykzshaxz0fPPCk2Fmw9WqkzvPplH8W-6HftMoI3I6RwzZjaPMRTBBKpGc6ihh37Z51NJPvh57ARDewHv1C6Iprhd0Nd2POS82637DTKi_s9wXUieynRdAt2M68LWPisLWywvv9Mph4Z3-ZTKaUCFGi-ev04j0h4LtUpD6cE5GMXaAy6iraTKa4kaAVvonGW2bsjBZToyiOpNsYRvujnKGbsykPynDTOqxgLphCf2iPdjO-9tjTgunJV8eUwdB-bnaaeyrY2qq-ujYeIun6QQCTyY8Fywz6gloNpqm52uHTHDKaRR5P8wmVG62We1monqo72iz4GzA-Pain8OSnGOoejBdb-F-z7a9hdZtVttbzVPAr7EJjz2_BjgdpjtmLWiV-4bGbk5n3Zm2bibbebqn20jO5GzLrT33Y4ovVyScgORDJx39B8W88cJD9Pk_" },
+  ];
+  const BUILTIN_SCENES = [
+    { id: "builtin:neon-reef", name: "Neon Reef", at: 0, thumb: "7e604d09d0" },
+    { id: "builtin:storm-front", name: "Storm Front", at: 1, thumb: "d61a182058" },
+    { id: "builtin:slime-cathedral", name: "Slime Cathedral", at: 2, thumb: "60ba316cd8" },
+    { id: "builtin:ember-attractor", name: "Ember Attractor", at: 3, thumb: "2cfda866ed" },
+    { id: "builtin:deep-sea-glass", name: "Deep Sea Glass", at: 4, thumb: "27e57cfac5" },
+    { id: "builtin:mandelbox-drive", name: "Mandelbox Drive", at: 5, thumb: "ea863f25df" },
+    { id: "builtin:truchet-circuit", name: "Truchet Circuit", at: 6, thumb: "9d014b09c8" },
+    { id: "builtin:galaxy-bloom", name: "Galaxy Bloom", at: 7, thumb: "79fbcb45e6" },
+    { id: "builtin:event-horizon", name: "Event Horizon", at: 8, thumb: "3945c4aa89" },
+    { id: "builtin:menger-bass", name: "Menger Bass", at: 9, thumb: "419a612147" },
+    { id: "builtin:survey-lines", name: "Survey Lines", at: 10, thumb: "9bc313b697" },
+    { id: "builtin:chimney", name: "Chimney", at: 11, thumb: "3b2cfea739" },
+    { id: "builtin:tape-rewind", name: "Tape Rewind", at: 12, thumb: "de486c9e77" },
+    { id: "builtin:jelly-cathedral", name: "Jelly Cathedral", at: 13, thumb: "f0671aa8b2" },
+    { id: "builtin:mirage-highway", name: "Mirage Highway", at: 14, thumb: "e2d5b1f793" },
+    { id: "builtin:weather-map", name: "Weather Map", at: 15, thumb: "a62cf46d22" },
+    { id: "builtin:incense", name: "Incense", at: 16, thumb: "e3cdff2478" },
+    { id: "builtin:broken-broadcast", name: "Broken Broadcast", at: 17, thumb: "adb4c9dcd9" },
+    { id: "builtin:desert-glass", name: "Desert Glass", at: 18, thumb: "93fa72cc9c" },
+    { id: "builtin:jelly-reef", name: "Jelly Reef", at: 19, thumb: "541af2b497" },
+    { id: "builtin:steam-room", name: "Steam Room", at: 20, thumb: "8e71c2598b" },
+    { id: "builtin:contour-reactor", name: "Contour Reactor", at: 21, thumb: "e070b9efaf" },
+    { id: "builtin:pirate-signal", name: "Pirate Signal", at: 22, thumb: "f83b41ec07" },
+    { id: "builtin:ash-cloud", name: "Ash Cloud", at: 23, thumb: "a364f0c5c7" },
+    { id: "builtin:static-garden", name: "Static Garden", at: 24, thumb: "d7007891a0" },
   ];
   // ---- cloud profiles: the Kicktro API (server/ in this repo, at api.kicktro.com) ---------
   // Keep your preset library against a Google account so it follows you between machines.
@@ -25977,7 +26078,64 @@
     return "HTTP " + status;
   }
 
-  // ---- publish ----
+  // ---- publish ONE scene to the gallery (card 825, M3) ---------------------------------
+  // "Publish to gallery" in the Scene box: the selected scene, as a one-scene library blob (the
+  // shape a #zp= bundle and a profile carry, same serializeBlob + zipToB64), so loading a card
+  // runs the validated restore path everything else uses. Credited to your PROFILE name, which
+  // the server keeps on the account -- so it is written there first (PATCH /api/me) rather than
+  // trusting that a profile save already carried it.
+  // Only your own scenes: one from a collection you loaded, or one shared with you, is someone
+  // else's to publish. A copy you made with New is yours, and keeps its `origin`.
+  function cloudPublishScene() {
+    if (!cloudOn()) return;
+    const btn = el("publishpreset");
+    if (!cloudSess) {
+      alert("Sign in first (☰ → Cloud profile). A published scene is credited to your profile name.");
+      return;
+    }
+    if (!(curPreset >= 0 && presets[curPreset])) return;
+    autosavePreset();                     // publish what is on screen, not the last autosave
+    const p = presets[curPreset];
+    const coll = collectionOf(p);
+    if (coll) {
+      alert("“" + p.name + "” came from " + (coll === SHARED_COLLECTION ? "someone else (Shared with you)" : "the “" + coll + "” collection")
+        + " — only your own scenes can be published. Press New to make your own copy first.");
+      return;
+    }
+    const author = myProfileName();
+    if (!author) {
+      alert("Give your profile a name first (☰ → Cloud profile) — published scenes are credited to it.");
+      return;
+    }
+    const name = (String(p.name || "").trim() || "Untitled").slice(0, 60);
+    if (!confirm("Publish “" + name + "” to the public gallery as " + author + "?\n\nAnyone can watch it, favourite it and load it. "
+      + "You can remove it again from the gallery (✕ on its card).")) return;
+    const one = { ...p };
+    delete one.rotate;                    // your auto-cycle choice, not part of the scene
+    if (!originOk(one.origin)) one.origin = author;
+    const wire = serializeBlob({ presets: [one], curPreset: 0, cycle: false });
+    const pal = palettesUsedBy(wire);
+    if (pal) wire.palettes = pal;
+    const say = t => { if (btn) btn.textContent = t; };
+    say("Publishing…");
+    apiFetch("/api/me", { method: "PATCH", body: JSON.stringify({ name: author }) })
+      .then(() => zipToB64(JSON.stringify(wire)))
+      .then(payload => {
+        if (payload == null) throw new Error("this browser cannot compress the scene");
+        if (payload.length >= 200000) throw new Error("the scene is too large to publish");
+        return apiFetch("/api/gallery", { method: "POST", body: JSON.stringify({ name, payload }) });
+      })
+      .then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
+      .then(() => {
+        galBust();                        // your card must be in the next listing you open
+        track("gallery_publish", {});
+        say("Published!");
+        setTimeout(() => say("Publish to gallery"), 1800);
+        cloudMsg("“" + name + "” is in the gallery. Its thumbnail appears after the next render run.");
+      })
+      .catch(e => { say("Publish to gallery"); alert("Could not publish: " + e.message); });
+  }
+  // ---- publish your whole profile (the Collections tab) ----
   // Toggling this re-saves the WHOLE profile rather than patching `pub` alone: the API's PUT
   // takes name/payload/count/pub together, so a pub-only write to a profile that does not
   // exist yet has nothing to be. Going through cloudSave() always produces a whole profile.
@@ -25994,13 +26152,33 @@
   }
 
   // ---- gallery ----
-  // Public profiles, readable WITHOUT signing in (GET /api/profiles), so any visitor can browse.
-  // v2: the listing moved off Firestore and its rows carry the API's uids. A cached v1 listing
-  // would still open (the API resolves an old Firebase uid too), but it is dropped so the next
-  // open shows the migrated list.
-  const GAL_KEY = "burnTheWeb.gallery.v2";
-  try { localStorage.removeItem("burnTheWeb.gallery.v1"); } catch (e) { /* private mode */ }
-  // ONE request for the whole listing; filter, pages and the shuffle are all client-side.
+  // ONE PUBLISHED SCENE PER CARD (card 825, M3): a poster, the clip while hovered or focused,
+  // the author, a heart with its count. Readable signed out. Four tabs:
+  //   Most loved / Newest   GET /api/gallery?sort=favs|new, paged as you scroll
+  //   My favourites         the same with mine=favs (needs a session)
+  //   Collections           the older per-profile listing (GET /api/profiles), which is also
+  //                         what refollowCollections resolves a uid-less follow against
+  // The built-in AI-Generated scenes are cards too (BUILTIN_SCENES, 'builtin:<slug>'): they
+  // ship with the app, thumbnails included, and are MERGED into the server's order by the
+  // same key, so a loved built-in sits where its count puts it. Their counts ride on every
+  // listing response (`builtin`).
+  // The listing is not billed per read any more, so the old once-a-day limit is gone: answers
+  // are kept in memory for galleryTtlMs (10 minutes) and a favourite patches them in place.
+  try {                                 // the Firestore-era caches, a day long each
+    localStorage.removeItem("burnTheWeb.gallery.v1");
+    localStorage.removeItem("burnTheWeb.gallery.v2");
+  } catch (e) { /* private mode */ }
+  const GAL_TTL = () => CLOUD.galleryTtlMs || 600000;
+  const galMem = {};                    // request path -> { t, j }
+  function galBust() { for (const k in galMem) delete galMem[k]; }
+  function galJson(p, authed) {
+    const hit = galMem[p];
+    if (hit && Date.now() - hit.t < GAL_TTL()) return Promise.resolve(hit.j);
+    return (authed ? apiFetch(p, { method: "GET" }) : apiGet(p))
+      .then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
+      .then(j => { if (!authed) galMem[p] = { t: Date.now(), j }; return j; });
+  }
+  // Public profiles. Uncached on purpose: refollowCollections calls it once per cloud load.
   function galList() {
     return apiGet("/api/profiles").then(r => (r.ok ? r.json()
       : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status)))))).then(j =>
@@ -26008,114 +26186,321 @@
         uid: String(p.uid), name: p.name || "Untitled", count: p.count || 0,
         updated: p.updated ? new Date(+p.updated).toISOString() : "" })));
   }
-  // Cache the listing for a DAY: one query per browser per day however often the dialog
-  // opens. Filter, pages and the shuffle all work on this array and cost nothing.
-  const GAL_TTL = () => CLOUD.galleryTtlMs || 86400000;
-  function galCached() {
-    try {
-      const c = JSON.parse(localStorage.getItem(GAL_KEY) || "null");
-      if (c && Date.now() - c.t < GAL_TTL()) return c.items;
-    } catch (e) { /* fall through to a live fetch */ }
-    return null;
-  }
-  function galStore(items) {
-    try { localStorage.setItem(GAL_KEY, JSON.stringify({ t: Date.now(), items })); } catch (e) {}
-  }
-  function galBust() { try { localStorage.removeItem(GAL_KEY); } catch (e) {} }
-  // WHEN THE LISTING MAY BE FETCHED AGAIN. The cached entry carries the time it was fetched,
-  // so this needs no second timestamp -- and using the same number for both means the Refresh
-  // button cannot undercut the cache, which is what would make "at most once a day" untrue
-  // while still reading as true.
-  function galNextReloadAt() {
-    try {
-      const c = JSON.parse(localStorage.getItem(GAL_KEY) || "null");
-      if (c && c.t) return c.t + GAL_TTL();
-    } catch (e) { /* no cache, no limit */ }
-    return 0;
-  }
-  // Whole units, like the cloud box's automatic-save line.
-  function galSpan(ms) {
-    const m = Math.ceil(ms / 60000);
-    if (m < 1) return "less than a minute";
-    if (m < 60) return m + " minute" + (m === 1 ? "" : "s");
-    const h = Math.floor(m / 60), r = m % 60;
-    return h + " hour" + (h === 1 ? "" : "s") + (r ? " " + r + " min" : "");
-  }
-  // Dim Refresh and say when it comes back. setOff, not a bare class: a dimmed button that
-  // still answers Enter is a bug this codebase has already had once.
-  function galSyncRefresh() {
-    const b = el("gal-refresh");
-    if (!b) return;
-    const now = Date.now(), next = galNextReloadAt();
-    const waiting = next > now;
-    setOff(b, waiting);
-    b.title = waiting
-      ? "The list reloads at most once a day \u2014 next reload possible in " + galSpan(next - now)
-      : "Fetch the list again";
-    return waiting ? next : 0;
-  }
+  // A thumbnail path from the API is server-relative ("/thumbs/..."); a built-in's is relative
+  // to the page ("thumbs/..."), shipped beside index.html by pages.yml.
+  const galUrl = u => (!u ? "" : u.charAt(0) === "/" ? API + u : u);
+  const galBuiltinCards = () => BUILTIN_SCENES.map(b => {
+    const slug = b.id.slice(8), v = b.thumb ? "?" + b.thumb : "";
+    return { id: b.id, name: b.name, author: BUILTIN_GALLERY[0].name, owner: "",
+      created: Date.parse(BUILTIN_GALLERY[0].updated) || 0, favs: 0, at: b.at,
+      poster: b.thumb ? "thumbs/" + slug + ".webp" + v : null, clip: b.thumb ? "thumbs/" + slug + ".mp4" + v : null };
+  });
 
-  // The listing as shown: the cached array shuffled ONCE per open (Math.random -- this is
-  // UI, not scene content), then a name filter and 20-a-page slices, all client-side.
-  let galItems = [], galFilter = "", galPage = 0;
-  function galShuffle(items) {
-    const a = items.slice();
-    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
-    return a;
+  // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
+  // answer to a request a newer tab or filter has overtaken.
+  const gal = { tab: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
+    shown: new Set(), seq: 0 };
+  const galHint = t => { const h = el("gal-hint"); if (h) h.textContent = t; };
+  const galMatch = c => !gal.q || (c.name + "\n" + c.author).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0;
+  // The order both lists are already in: favourites then newest, or newest alone.
+  const galBefore = (a, b) => (gal.tab === "new" ? a.created > b.created
+    : a.favs > b.favs || (a.favs === b.favs && a.created > b.created));
+  function galSyncMore() {
+    const b = el("gal-more");
+    if (b) b.style.display = gal.done || gal.tab === "people" ? "none" : "";
+    if (b) setOff(b, gal.busy);
   }
-  function galMatches() {
-    const f = galFilter.trim().toLowerCase();
-    return f ? galItems.filter(p => String(p.name).toLowerCase().indexOf(f) >= 0) : galItems;
-  }
-  function galPaint() {
-    const all = galMatches(), n = CLOUD.galleryPage || 20, pages = Math.max(1, Math.ceil(all.length / n));
-    galPage = Math.max(0, Math.min(pages - 1, galPage));
-    galRender(all.slice(galPage * n, galPage * n + n));
-    if (galItems.length && !all.length) el("gal-hint").textContent = "No one matches “" + galFilter.trim() + "”.";
-    const pager = el("gal-pager");
-    if (pager) {
-      pager.classList.toggle("hidden", pages <= 1);
-      el("gal-page").textContent = (galPage + 1) + " / " + pages;
-      setOff(el("gal-prev"), galPage <= 0);
-      setOff(el("gal-next"), galPage >= pages - 1);
+  function galReset() {
+    gal.seq++;
+    gal.offset = 0; gal.total = 0; gal.busy = false; gal.shown = new Set();
+    el("gal-list").textContent = "";
+    el("gal-list").className = gal.tab === "people" ? "gal-rows" : "gal-grid";
+    for (const t of document.querySelectorAll("#galdlg .gal-tab")) {
+      t.setAttribute("aria-selected", String(t.dataset.tab === gal.tab));
     }
-  }
-  // The built-in rows (gallery-builtin.js) lead, unshuffled and never cached: they ship with
-  // the app, so they update with it rather than with the once-a-day listing.
-  const galBuiltin = () => BUILTIN_GALLERY.map(b => ({ uid: b.uid, name: b.name, count: b.count, updated: b.updated }));
-  function galShow(items) { galItems = galBuiltin().concat(galShuffle(items)); galPage = 0; galPaint(); }
-  function galRender(items) {
-    const host = el("gal-list");
-    host.textContent = "";
-    if (!items.length) {
-      el("gal-hint").textContent = galItems.length ? "" : "No one has published any scenes yet. Tick “Publish to gallery” to be the first.";
+    if (gal.tab === "people") { gal.done = true; galSyncMore(); galPeople(); return; }
+    if (gal.tab === "mine" && !cloudSess) {
+      gal.done = true; gal.pend = []; galSyncMore();
+      galHint("Favourites belong to an account — sign in under ☰ → Cloud profile, then press ♥ on any scene.");
       return;
     }
-    el("gal-hint").textContent = "";
-    items.forEach(p => {
-      const row = document.createElement("div");
-      row.className = "gal-row";
-      const nm = document.createElement("div");
-      nm.className = "gal-name";
-      nm.textContent = p.name;
-      const meta = document.createElement("div");
-      meta.className = "gal-meta";
-      meta.textContent = p.count + " scene" + (p.count === 1 ? "" : "s")
-        + (p.updated ? " · " + String(p.updated).slice(0, 10) : "");
-      // ONE button, because there is no longer a merge-vs-replace question to answer:
-      // someone else's scenes are installed as their own collection under their name, so
-      // they cannot overwrite yours and re-loading simply refreshes their set. That is also
-      // what lets the whole row be one line — see the .gal-row grid.
-      const btns = document.createElement("div");
-      btns.className = "gal-btns";
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "audbtn"; b.textContent = "Load scenes";
-      b.title = "Add these as a “" + p.name + "” collection in your scene list — your own scenes are untouched";
-      b.addEventListener("click", () => galLoad(p));
-      btns.appendChild(b);
-      row.appendChild(nm); row.appendChild(meta); row.appendChild(btns);
-      host.appendChild(row);
+    gal.pend = galBuiltinCards().filter(c => galMatch(c) && (gal.tab !== "mine" || gal.mine.has(c.id)));
+    gal.done = false;
+    galHint("Loading…");
+    galMore();
+  }
+  function galMore() {
+    if (gal.done || gal.busy || gal.tab === "people") return;
+    gal.busy = true; galSyncMore();
+    const seq = gal.seq, n = CLOUD.galleryPage || 24;
+    const sp = new URLSearchParams({ sort: gal.tab === "new" ? "new" : "favs", limit: String(n), offset: String(gal.offset) });
+    if (gal.q) sp.set("q", gal.q);
+    if (gal.tab === "mine") sp.set("mine", "favs");
+    galJson("/api/gallery?" + sp, gal.tab === "mine").then(j => {
+      if (seq !== gal.seq) return;
+      const rows = (j && Array.isArray(j.items)) ? j.items : [];
+      if (gal.offset === 0 && j && j.builtin) {
+        for (const c of gal.pend) c.favs = +j.builtin[c.id] || 0;
+        gal.pend.sort((a, b) => (galBefore(a, b) ? -1 : galBefore(b, a) ? 1 : 0));
+      }
+      gal.offset += rows.length;
+      gal.total = +j.total || 0;
+      gal.done = !rows.length || gal.offset >= gal.total;
+      const out = [];
+      for (const r of rows) {
+        while (gal.pend.length && galBefore(gal.pend[0], r)) out.push(gal.pend.shift());
+        out.push(r);
+      }
+      if (gal.done) out.push(...gal.pend.splice(0));
+      galCards(out);
+      gal.busy = false; galSyncMore(); galEmpty();
+      galWatchMore();
+    }).catch(e => {
+      if (seq !== gal.seq) return;
+      // The built-ins need no network, so an unreachable API still leaves something to show.
+      gal.busy = false; gal.done = true;
+      galCards(gal.pend.splice(0));
+      galSyncMore();
+      galHint("Could not reach the gallery: " + e.message);
     });
+  }
+  function galEmpty() {
+    if (el("gal-list").children.length) { galHint(""); return; }
+    galHint(gal.q ? "Nothing matches “" + gal.q + "”."
+      : gal.tab === "mine" ? "No favourites yet — press ♥ on a scene you like."
+      : "No one has published a scene yet. Publish to gallery, in the Scene box, puts yours here.");
+  }
+  // Keep paging while the end of the list is in view: the grid scrolls inside .gal-box, so
+  // that is the observer's root. The Load more button is the same call, for anything else.
+  let galObs = null;
+  function galWatchMore() {
+    const b = el("gal-more");
+    if (!b || !window.IntersectionObserver) return;
+    if (!galObs) galObs = new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) galMore(); },
+      { root: document.querySelector("#galdlg .gal-box"), rootMargin: "240px" });
+    galObs.disconnect();
+    if (!gal.done) galObs.observe(b);
+  }
+  // A placeholder until a thumbnail is rendered: a gradient keyed on the id, never random,
+  // so a card looks the same every time it is listed.
+  function galHue(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return h % 360;
+  }
+  function galCards(list) {
+    const host = el("gal-list");
+    for (const c of list) {
+      if (gal.shown.has(c.id)) continue;           // a row can repeat across pages if favs move
+      gal.shown.add(c.id);
+      host.appendChild(galCard(c));
+    }
+  }
+  function galCard(c) {
+    const card = document.createElement("div");
+    card.className = "gal-card";
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.dataset.id = c.id;
+    card.setAttribute("aria-label", "Load " + c.name + " by " + (c.author || "someone"));
+    card.__card = c;
+    const th = document.createElement("div");
+    th.className = "gal-thumb";
+    if (c.poster) {
+      const img = document.createElement("img");
+      img.loading = "lazy"; img.alt = ""; img.decoding = "async";
+      img.src = galUrl(c.poster);
+      th.appendChild(img);
+    } else {
+      const h = galHue(c.id);
+      th.classList.add("gal-ph");
+      th.style.background = "linear-gradient(135deg, hsl(" + h + " 70% 22%), hsl(" + ((h + 60) % 360) + " 80% 45%))";
+      const t = document.createElement("span");
+      t.textContent = c.name;
+      th.appendChild(t);
+    }
+    const cap = document.createElement("div");
+    cap.className = "gal-cap";
+    const nm = document.createElement("div");
+    nm.className = "gal-cname"; nm.textContent = c.name; nm.title = c.name;
+    const by = document.createElement("div");
+    by.className = "gal-by"; by.textContent = c.author || "";
+    const heart = document.createElement("button");
+    heart.type = "button"; heart.className = "gal-heart";
+    galPaintHeart(heart, c);
+    heart.addEventListener("click", e => { e.stopPropagation(); galFav(c, heart); });
+    cap.append(nm, heart, by);
+    if (cloudSess && c.owner && c.owner === cloudSess.uid) {
+      const rm = document.createElement("button");
+      rm.type = "button"; rm.className = "gal-rm"; rm.textContent = "✕";
+      rm.title = "Remove your scene from the gallery";
+      rm.setAttribute("aria-label", "Remove " + c.name + " from the gallery");
+      rm.addEventListener("click", e => { e.stopPropagation(); galRemove(c, card); });
+      cap.appendChild(rm);
+    }
+    card.append(th, cap);
+    // The clip plays while the card is hovered (mouse, pen) or focused (keyboard). On touch
+    // there is no hover, so the FIRST tap plays it and the second loads the scene. A tap
+    // focuses the card before its click arrives, so focus must not start the preview then, or
+    // the click would find it already playing and load on the first tap.
+    let touch = false;
+    card.addEventListener("pointerdown", e => { touch = e.pointerType === "touch"; });
+    card.addEventListener("keydown", () => { touch = false; }, true);
+    card.addEventListener("pointerenter", e => { if (e.pointerType !== "touch") galPreview(card, true); });
+    card.addEventListener("pointerleave", e => { if (e.pointerType !== "touch") galPreview(card, false); });
+    card.addEventListener("focus", () => { if (!touch) galPreview(card, true); });
+    card.addEventListener("blur", () => galPreview(card, false));
+    card.addEventListener("click", () => {
+      if (touch && c.clip && !card.classList.contains("previewing")) { galPreview(card, true); return; }
+      galLoadCard(c);
+    });
+    card.addEventListener("keydown", e => {
+      if (e.target === card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); galLoadCard(c); }
+    });
+    return card;
+  }
+  function galPreview(card, on) {
+    const c = card.__card;
+    if (!c.clip) return;
+    const th = card.querySelector(".gal-thumb");
+    let v = th.querySelector("video");
+    if (on) {
+      card.classList.add("previewing");
+      if (!v) {
+        v = document.createElement("video");
+        v.muted = true; v.setAttribute("muted", "");
+        v.loop = true; v.playsInline = true; v.setAttribute("playsinline", "");
+        v.preload = "none";
+        // Shown only once frames arrive, so the poster stays up while the clip loads.
+        v.addEventListener("playing", () => { if (card.classList.contains("previewing")) card.classList.add("playing"); });
+        v.src = galUrl(c.clip);
+        th.appendChild(v);
+      }
+      const pr = v.play();
+      if (pr && pr.catch) pr.catch(() => { /* interrupted by leaving, or autoplay refused: the poster stays */ });
+    } else {
+      card.classList.remove("previewing", "playing");
+      if (v) { v.pause(); try { v.currentTime = 0; } catch (e) { /* not loaded yet */ } }
+    }
+  }
+  function galPaintHeart(heart, c) {
+    const on = gal.mine.has(c.id);
+    heart.classList.toggle("on", on);
+    heart.setAttribute("aria-pressed", String(on));
+    heart.textContent = (on ? "♥ " : "♡ ") + (c.favs || 0);
+    heart.title = cloudSess ? (on ? "Remove from your favourites" : "Add to your favourites")
+      : "Sign in to keep favourites";
+    heart.setAttribute("aria-label", (on ? "Unfavourite " : "Favourite ") + c.name + ", " + (c.favs || 0) + " favourites");
+  }
+  // OPTIMISTIC: the heart flips at once and the server's count settles it; a failure flips it
+  // back. Every cached listing is patched too, so switching tabs does not show the old count.
+  function galFav(c, heart) {
+    if (!cloudSess) { galHint("Favourites belong to an account — sign in under ☰ → Cloud profile."); return; }
+    const want = !gal.mine.has(c.id), before = c.favs || 0;
+    const set = (mine, favs) => {
+      if (mine) gal.mine.add(c.id); else gal.mine.delete(c.id);
+      c.favs = favs;
+      galPatchFavs(c.id, favs);
+      for (const h of document.querySelectorAll("#gal-list .gal-card")) {
+        if (h.dataset.id === c.id) galPaintHeart(h.querySelector(".gal-heart"), h.__card);
+      }
+    };
+    set(want, Math.max(0, before + (want ? 1 : -1)));
+    apiFetch("/api/gallery/" + encodeURIComponent(c.id) + "/fav", { method: want ? "PUT" : "DELETE" })
+      .then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
+      .then(j => { set(!!j.mine, +j.favs || 0); track("gallery_fav", { on: !!j.mine }); })
+      .catch(e => { set(!want, before); galHint("Could not save that favourite: " + e.message); });
+  }
+  function galPatchFavs(id, favs) {
+    for (const k in galMem) {
+      const j = galMem[k].j;
+      if (!j) continue;
+      if (j.builtin && id.indexOf("builtin:") === 0) j.builtin[id] = favs;
+      for (const r of (j.items || [])) if (r.id === id) r.favs = favs;
+    }
+    for (const c of gal.pend) if (c.id === id) c.favs = favs;
+  }
+  function galMineFetch() {
+    if (!cloudSess) { gal.mine = new Set(); return Promise.resolve(); }
+    return apiFetch("/api/me/favs", { method: "GET" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (j && Array.isArray(j.ids)) gal.mine = new Set(j.ids); })
+      .catch(() => { /* offline: hearts just show unmarked */ });
+  }
+  function galRemove(c, card) {
+    if (!confirm("Remove “" + c.name + "” from the public gallery? Its favourites go with it. The scene stays in your own list.")) return;
+    apiFetch("/api/gallery/" + encodeURIComponent(c.id), { method: "DELETE" })
+      .then(r => {
+        if (!r.ok && r.status !== 404) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
+        card.remove();
+        galBust();
+        galEmpty();
+        track("gallery_remove", {});
+      }).catch(e => galHint("Could not remove it: " + e.message));
+  }
+  // One card into your scenes. A built-in is cut out of the shipped collection (no request);
+  // anyone else's is fetched by id. Either way it is a one-scene library blob by now.
+  function galLoadCard(c) {
+    galHint("Fetching “" + c.name + "”…");
+    const raw = c.at != null
+      ? galFetchLibrary(BUILTIN_GALLERY[0].uid).then(lib => {
+        const p = lib && Array.isArray(lib.presets) && lib.presets[c.at];
+        if (!p) throw new Error("that scene is missing from this build");
+        return { presets: [p], curPreset: 0, cycle: false, palettes: lib.palettes };
+      })
+      : apiGet("/api/gallery/" + encodeURIComponent(c.id)).then(r => {
+        if (!r.ok) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
+        return r.json();
+      }).then(d => unzipFromB64(d.payload)).then(json => {
+        if (json == null) throw new Error("could not read that scene");
+        try { return JSON.parse(json); } catch (e) { throw new Error("that scene is corrupt"); }
+      });
+    raw.then(blob => {
+      galOpen(false);
+      applyGalleryScene(blob, c.author);
+      track("gallery_load", { builtin: c.at != null });
+    }).catch(e => galHint("Could not load: " + e.message));
+  }
+
+  // ---- the Collections tab: whole published profiles, as before M3 ----
+  function galPeople() {
+    galHint("Loading…");
+    const seq = gal.seq;
+    const builtin = BUILTIN_GALLERY.map(b => ({ uid: b.uid, name: b.name, count: b.count, updated: b.updated }));
+    const show = items => {
+      if (seq !== gal.seq) return;
+      const host = el("gal-list");
+      host.textContent = "";
+      const rows = builtin.concat(items).filter(p => !gal.q || String(p.name).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0);
+      for (const p of rows) host.appendChild(galPersonRow(p));
+      galHint(rows.length ? "" : "No one matches “" + gal.q + "”.");
+    };
+    const hit = galMem.profiles;
+    if (hit && Date.now() - hit.t < GAL_TTL()) return show(hit.j);
+    galList().then(items => { galMem.profiles = { t: Date.now(), j: items }; show(items); })
+      .catch(e => { show([]); galHint("Could not load the collections: " + e.message); });
+  }
+  function galPersonRow(p) {
+    const row = document.createElement("div");
+    row.className = "gal-row";
+    const nm = document.createElement("div");
+    nm.className = "gal-name";
+    nm.textContent = p.name;
+    const meta = document.createElement("div");
+    meta.className = "gal-meta";
+    meta.textContent = p.count + " scene" + (p.count === 1 ? "" : "s")
+      + (p.updated ? " · " + String(p.updated).slice(0, 10) : "");
+    // ONE button: someone else's scenes are installed as their own collection under their
+    // name, so they cannot overwrite yours and re-loading simply refreshes their set.
+    const btns = document.createElement("div");
+    btns.className = "gal-btns";
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "audbtn"; b.textContent = "Load scenes";
+    b.title = "Add these as a “" + p.name + "” collection in your scene list — your own scenes are untouched";
+    b.addEventListener("click", () => galLoad(p));
+    btns.appendChild(b);
+    row.append(nm, meta, btns);
+    return row;
   }
   // One public profile, fetched and decoded into its blob. Split out of galLoad because
   // refollowCollections needs exactly the same three steps (fetch → payload → unzip → parse)
@@ -26139,47 +26524,47 @@
     });
   }
   function galLoad(p) {
-    el("gal-hint").textContent = "Fetching “" + p.name + "”…";
+    galHint("Fetching “" + p.name + "”…");
     galFetchLibrary(p.uid).then(raw => {
       galOpen(false);
-      // Straight in, no Restore dialog: there is nothing left to ask, since the scenes go
-      // into their own collection rather than over yours. Same validation and the same
-      // write/reload underneath (applySharedLibrary drives applyRestore), so nothing about
-      // the load path itself changes — only where the scenes land. The uid rides along so
-      // the follow is noted INSIDE applySharedLibrary, after validation — noting it here
-      // first left a phantom follow whenever every scene failed validation.
+      // Straight in, no Restore dialog: the scenes go into their own collection rather than
+      // over yours. Same validation and the same write/reload underneath (applySharedLibrary
+      // drives applyRestore). The uid rides along so the follow is noted INSIDE
+      // applySharedLibrary, after validation — noting it here first left a phantom follow
+      // whenever every scene failed validation.
       applySharedLibrary(raw, false, p.name, p.uid);
       track("cloud_gallery_load", { collection: p.name });
-    }).catch(e => { el("gal-hint").textContent = "Could not load: " + e.message; });
+    }).catch(e => galHint("Could not load: " + e.message));
   }
-  function galOpen(show, force) {
+
+  function galOpen(show) {
     const dlg = el("galdlg");
     if (!dlg) return;
     dlg.classList.toggle("hidden", !show);
     const box = dlg.querySelector(".gal-box");
-    if (!show) { dlgRelease(box); return; }
-    dlgModal(box);
-    // AT MOST ONE LIVE FETCH A DAY, Refresh included. A listing of published profiles does
-    // not change minute to minute -- but the button existed to bypass
-    // the cache entirely, so it could be held down. Inside the day it re-renders what is
-    // already cached and says when a real reload becomes possible, rather than pretending.
-    const now = Date.now(), next = galNextReloadAt();
-    const fresh = galCached();
-    const fi = el("gal-filter");
-    if (fi && !force) { fi.value = ""; galFilter = ""; }
-    if (fresh && (!force || next > now)) {
-      galShow(fresh);
-      if (force && next > now) {
-        el("gal-hint").textContent =
-          "This list reloads at most once a day. Next reload possible in " + galSpan(next - now) + ".";
-      }
-      galSyncRefresh();
+    if (!show) {
+      gal.seq++;                          // an answer still on its way lands nowhere
+      for (const v of dlg.querySelectorAll("video")) v.pause();
+      if (galObs) galObs.disconnect();
+      dlgRelease(box);
       return;
     }
-    el("gal-list").textContent = "";
-    el("gal-hint").textContent = "Loading…";
-    galList().then(items => { galStore(items); galShow(items); galSyncRefresh(); })
-      .catch(e => { galShow([]); el("gal-hint").textContent = "Could not load the gallery: " + e.message; });
+    dlgModal(box);
+    if (box) box.scrollTop = 0;           // open at the top, header and help in view
+    const fi = el("gal-filter");
+    if (fi) fi.value = gal.q;
+    // Hearts first, so the first paint already shows which ones are yours.
+    galMineFetch().then(() => { if (!dlg.classList.contains("hidden")) galReset(); });
+  }
+  let galFilterT = 0;
+  function galSetFilter(v) {
+    clearTimeout(galFilterT);
+    galFilterT = setTimeout(() => { gal.q = String(v || "").trim().slice(0, 60); galReset(); }, 250);
+  }
+  function galSetTab(t) {
+    if (t === gal.tab) return;
+    gal.tab = t;
+    galReset();
   }
 
   // ---- share the running scene through the API ---------------------------------------
@@ -26432,6 +26817,7 @@
     if (!cloudOn()) return;              // feature off ⇒ the row stays hidden, nothing loads
     const row = el("cloudrow");
     if (row) row.classList.remove("hidden");
+    if (el("publishrow")) el("publishrow").style.display = "";
     cloudLoadSess();
     // Seed the field from the cached name BEFORE any request, so the box shows who you are
     // straight away and the scene list's heading (already reading the same cache) agrees.
@@ -26500,10 +26886,10 @@
   // No #cloud-browse listener: the gallery is opened from the ☰ root item "Public scenes",
   // which calls galOpen(true) directly (see ui-menubar.js).
   if (el("gal-close")) el("gal-close").addEventListener("click", () => galOpen(false));
-  if (el("gal-refresh")) el("gal-refresh").addEventListener("click", () => galOpen(true, true));
-  if (el("gal-filter")) el("gal-filter").addEventListener("input", e => { galFilter = e.target.value; galPage = 0; galPaint(); });
-  if (el("gal-prev")) el("gal-prev").addEventListener("click", () => { galPage--; galPaint(); });
-  if (el("gal-next")) el("gal-next").addEventListener("click", () => { galPage++; galPaint(); });
+  if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
+  if (el("gal-more")) el("gal-more").addEventListener("click", galMore);
+  for (const t of document.querySelectorAll("#galdlg .gal-tab")) t.addEventListener("click", () => galSetTab(t.dataset.tab));
+  if (el("publishpreset")) el("publishpreset").addEventListener("click", cloudPublishScene);
   if (el("galdlg")) el("galdlg").addEventListener("click", e => { if (e.target === el("galdlg")) galOpen(false); });
   cloudInit();
   // ---- Orbit editor ----------------------------------------------------------
@@ -27868,8 +28254,9 @@
         + "picture (pixelate, mirror, bloom). <b>+ Add filter</b> opens the full catalogue." },
     { head: "Keeping and sharing", art: TUT_ART.share,
       body: "Your scenes live in this browser. <b>Cloud profile</b> keeps the whole library against a "
-        + "Google account and can publish it; <b>Public scenes</b> browses what other people have "
-        + "published and loads it alongside your own. <b>Share</b> copies a link to the one scene you "
+        + "Google account; <b>Publish to gallery</b> puts one scene in <b>Public scenes</b>, where "
+        + "everyone's published scenes play as you hover them and <b>♥</b> sorts the best to the top. "
+        + "<b>Share</b> copies a link to the one scene you "
         + "have open.<br><br>That is the tour. <b>☰ → Help</b> explains every single control, and "
         + "<b>☰ → Tutorial</b> brings this back whenever you want it." },
   ];
@@ -28194,10 +28581,10 @@
       { label: "Audio", sub: [{ adopt: "audiobox" }] },
       { label: "Resolution", sub: [{ adopt: "resbox" }] },
       { label: "Cloud profile", sub: [{ adopt: "cloudbox" }] },
-      // A ROOT item, not a row inside Cloud profile: the gallery is readable signed out (the
-      // rules allow an unauthenticated `pub == true` query), so filing it under a sign-in box
-      // implied an account was needed. Gated on cloudOn() for the same reason #cloudrow is —
-      // with no apiKey there is nothing to browse. Calls galOpen directly; the app is one
+      // A ROOT item, not a row inside Cloud profile: the gallery is readable signed out
+      // (GET /api/profiles needs no account), so filing it under a sign-in box implied an
+      // account was needed. Gated on cloudOn() for the same reason #cloudrow is — with no
+      // apiBase there is nothing to browse. Calls galOpen directly; the app is one
       // IIFE and this slice runs last, so the function is simply in scope.
       ...(cloudOn() ? [{ label: "Public scenes", title: "Browse the scenes other people have published, and load them",
         run: () => galOpen(true) }] : []),
