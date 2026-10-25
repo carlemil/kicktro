@@ -15,6 +15,18 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.86.0] — 2026-10-25
+
+### Changed
+- **Cloud profiles now live on Kicktro's own server** (`api.kicktro.com`) instead of Firebase. Your profile, your published gallery entry and every scene you shared have been moved across as they were, and old share links (`#c=`) still open. **Sign in once more** (☰ → Cloud): the first visit after this release signs you out of the old Firebase session, and signing in with the same Google account lands you on your migrated profile.
+- **My shared links** now lists every link you have shared, from any computer, including the ones made before the move. It used to show only the links shared from this browser.
+- Opening the gallery or starting the page no longer downloads your whole library just to check whether it changed.
+
+### Internal
+- `server/`: the Node API (no npm packages) behind `api.kicktro.com`, with `tools/serverprobe.js`, `tools/deploy-api.ps1` and a nightly encrypted backup.
+- `tools/firebase-export.js` moved the Firebase data across and checked every profile and share; `firestore.rules` is frozen read-only until the Firebase project is deleted.
+- `tools/cloudprobe.js` rewritten for the API client; `tools/gallery-check.js` stubs the API listing.
+
 ## [1.85.0] — 2026-10-24
 
 ### Added

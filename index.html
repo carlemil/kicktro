@@ -441,7 +441,7 @@
     background: rgba(255, 122, 26, 0.3); opacity: 1;
   }
   [data-k="cardbtn"], #addlayer { background: transparent; opacity: .82; }   /* quieter, matching the Orbit editor button */
-  /* Cloud profile row. Hidden wholesale when CONFIG.cloud.apiKey is "" — an unconfigured
+  /* Cloud profile row. Hidden wholesale when CONFIG.cloud.apiBase is "" — an unconfigured
      build shows no trace of the feature rather than a dead button. */
   #panel #cloudrow.hidden { display: none; }
   #panel #cloudrow .cloud-who { color: #ffcf87; opacity: .7; font-weight: normal; }
@@ -1988,7 +1988,7 @@
        are gone. -->
   <div id="cloudbox" hidden>
 
-  <!-- Hidden entirely unless CONFIG.cloud.apiKey is set (same kill switch as analytics), so
+  <!-- Hidden entirely unless CONFIG.cloud.apiBase is set (same kill switch as analytics), so
        an unconfigured build shows an empty box rather than a broken one. -->
   <div id="cloudrow" class="hidden">
     <p class="hint" id="cloud-who"></p>
@@ -2629,7 +2629,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.85.0",
+    version: "1.86.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -2697,78 +2697,37 @@
     sync: { delays: [30000, 300000, 3600000] },   // active-tab ms before each of the (max 3) nudges (SYNC_DELAYS)
     analyticsId: "G-7CMDJP72N7",                  // GA4 Measurement id; "" makes analytics completely inert
 
-    // --- cloud profiles (Firebase Auth + Firestore, over REST; no SDK) ---
-    // apiKey "" makes the WHOLE feature inert: no Google script is loaded, no request is
+    // --- cloud profiles (the Kicktro API, server/ in this repo; no SDK) ---
+    // apiBase "" makes the WHOLE feature inert: no Google script is loaded, no request is
     // made, and the Cloud row is hidden from the menu — the same kill switch analyticsId
-    // above has. Fill both in from the Firebase console (Project settings → Web app) to
-    // turn it on.
-    //
-    // ┌─ THE apiKey BELOW IS NOT A SECRET, AND SECRET SCANNERS WILL FLAG IT ANYWAY ─────┐
-    // A Firebase *web* API key is a project IDENTIFIER, not a credential: it selects which
-    // project a request is for, and grants nothing on its own. It has to reach the browser
-    // for the app to work, so it is in this file, in dev-index.html, and in index.html —
-    // there is nowhere to hide it and nothing is gained by trying. Rotating it changes the
-    // string and nothing else, since the replacement is equally public.
-    //
-    // What actually protects the data:
-    //   1. firestore.rules (repo root) — the authorization boundary. Verified live: an
-    //      unauthenticated read of a private profile, an unauthenticated write, and an
-    //      unfiltered listing are all denied.
-    //   2. Only Google sign-in is enabled, so the key cannot be used to mint accounts
-    //      (accounts:signUp returns ADMIN_ONLY_OPERATION). Do NOT enable Anonymous or
-    //      Email/Password sign-in without re-checking that — those turn this key into a
-    //      way for anyone to create users on the project.
-    //   3. The key is restricted in Google Cloud Console (Credentials → this key) by HTTP
-    //      referrer to the site's own origins, and to only the APIs used: Identity Toolkit,
-    //      Token Service, Cloud Firestore. That is what limits quota abuse from elsewhere.
-    // Dispositioned as intentional on exactly this basis by BOTH scanners watching this repo:
-    // GitHub secret-scanning alert #1, and a GitGuardian incident on 2026-08-26.
-    //
-    // EXPECT IT TO KEEP COMING BACK, and do not read a repeat as a new exposure. Every release
-    // rewrites dev-index.html and index.html, the key is in both, and a scanner re-reports the
-    // string it finds — the 2026-08-26 incident was five releases in one day, not a new leak.
-    // Before dismissing the next one, re-check the two things above that live in a console and
-    // can therefore drift silently: that ONLY Google sign-in is enabled (2), and that the key's
-    // referrer and API restrictions are still in place (3). Those are the claims worth
-    // re-verifying; the key being public is not.
-    // └────────────────────────────────────────────────────────────────────────────────┘
+    // above has. On a local page, ?api=http://localhost:8080 points it at a dev server.
     cloud: {
-      apiKey: "AIzaSyB_VfQ6W0ui79rMzHrYvbe8f_1OkSSymRM",   // public identifier, see above ⇒ "" = feature off
-      projectId: "burntheweb-3cd05",              // Firebase project id
-      // NOT renamed with the app, and it never can be: this is the real Firebase project id.
-      // Changing the string points the app at a project that does not exist and every cloud
-      // feature 404s. Same for apiKey and clientId above/below — they name the Google project,
-      // not the product.
-      //
-      // MOVING DOMAIN NEEDS THREE ALLOWLISTS UPDATED. Miss any one and the failure is an opaque
-      // console error with nothing on the page to explain it:
-      //
-      //   1. Firebase console -> Authentication -> Settings -> Authorized domains
-      //      add kicktro.com.  Gates sign-in; cloudSignIn sends requestUri: location.origin.
-      //   2. Google Cloud console -> APIs & Services -> Credentials -> the OAuth 2.0 client id
-      //      below -> Authorized JavaScript origins: add https://kicktro.com.  Google Identity
-      //      Services checks the PAGE ORIGIN before it will render the sign-in button at all.
-      //   3. Google Cloud console -> APIs & Services -> Credentials -> the API KEY above ->
-      //      Application restrictions -> HTTP referrers: add https://kicktro.com/*
-      //      THIS ONE IS THE EASY ONE TO MISS and it is the widest: the key is referrer-locked,
-      //      so from an un-listed host EVERY keyed call 403s with API_KEY_HTTP_REFERRER_BLOCKED
-      //      -- not just sign-in, but the gallery browse and every #c= share-link fetch too.
-      //
-      // Leave carlemil.github.io in all three while that host still serves the page.
-      //
-      // AND NOTE: all of this needs HTTPS anyway. Google Identity Services refuses to run in a
-      // non-secure context, the same rule that hides the audio buttons -- so none of it can be
-      // tested until the custom domain's certificate is issued.
+      apiBase: "https://api.kicktro.com",
+      // The Google OAuth client the sign-in button uses. The API checks every ID token's
+      // audience against its own GOOGLE_CLIENT_ID (server/.env), so the two must be the same
+      // string. Google Identity Services checks the PAGE ORIGIN before it renders the button:
+      // a new host needs adding under Google Cloud console -> APIs & Services -> Credentials
+      // -> this client -> Authorized JavaScript origins, and in the API's ALLOWED_ORIGINS. It
+      // needs HTTPS too (GIS refuses a non-secure context), so test on the real domain.
       clientId: "180474887753-jf22fn1kgkecamc2inr2eoomh0e1e0j4.apps.googleusercontent.com",
+      // ┌─ FIREBASE, READ-ONLY AND TEMPORARY (card 825, M2) ───────────────────────────────┐
+      // Used for ONE thing: a #c= link the API does not know is tried against its old public
+      // Firestore document (cloudFetchScene). Remove both keys, the fallback, firestore.rules
+      // and firebase.json together once the import counts are confirmed and the project is
+      // deleted. "" for either drops the fallback; neither turns the feature on.
+      // The apiKey is a public project IDENTIFIER, not a secret (secret scanners flag it
+      // anyway: GitHub alert #1 and a 2026-08-26 GitGuardian incident were both dispositioned
+      // as intentional). It is referrer-locked to the site's origins in Google Cloud console.
+      // projectId is the real Firebase project id and can never be renamed.
+      // └──────────────────────────────────────────────────────────────────────────────────┘
+      apiKey: "AIzaSyB_VfQ6W0ui79rMzHrYvbe8f_1OkSSymRM",
+      projectId: "burntheweb-3cd05",
       // ONE number, and it is both the cache lifetime and the reload limit -- see galOpen.
       // Two separate intervals would let the Refresh button undercut the cache and make
-      // "reloads once an hour" quietly untrue.
+      // "reloads once a day" quietly untrue.
       galleryTtlMs: 86400000,                     // cache the gallery listing, and reload at most, 24h
-      // ONE query brings the WHOLE listing (pages are cut client-side); a read is billed
-      // per document returned, so a day costs as many reads as there are published profiles.
-      galleryLimit: 200,
       galleryPage: 20,                            // profiles per gallery page
-      maxPayload: 300000,                         // must match the cap in firestore.rules
+      maxPayload: 300000,                         // must match CAP.profilePayload in server/routes.js
     },
 
     // --- effect / physics tuning (implementation constants; several are load-bearing) ---
@@ -22155,10 +22114,10 @@
       unzipFromB64(zp[1]).then(json => openSharedLibrary(parse(json)));
       return;
     }
-    // #c=<id> — a scene stored in Firestore (see cloudShareScene). Same payload as ?z=, just
+    // #c=<id> — a scene stored by the API (see cloudShareScene). Same payload as ?z=, just
     // fetched instead of carried, so it lands through installShared exactly like one.
     // DEFERRED for the same reason #sp= is: cloudFetchScene lives in a much later slice whose
-    // `CLOUD` const is still in the temporal dead zone while this slice is loading. The fetch
+    // `CLOUD`/`API` consts are still in the temporal dead zone while this slice is loading. The fetch
     // is anonymous — a share link has to open for someone with no account.
     const c = (location.hash.match(/[?&#]c=([A-Za-z0-9_-]+)/) || location.search.match(/[?&]c=([A-Za-z0-9_-]+)/));
     if (c) {
@@ -24842,7 +24801,7 @@
     persist();
   });
   // Share the CURRENT scene as a link on the clipboard. cloudShareScene stores the scene
-  // in Firestore and returns a ~30-char #c= link; signed out (or on any cloud failure) it
+  // through the API and returns a ~30-char #c= link; signed out (or on any cloud failure) it
   // falls back to the self-contained ?z= link, so the button always yields something that
   // opens. The copy goes through ClipboardItem's PROMISE form where available — the write
   // must be claimed inside the click gesture, before the async link resolves — with
@@ -25478,39 +25437,56 @@
     { uid: "builtin:ai-generated", name: "AI-Generated", count: 25, updated: "2026-10-24",
       payload: "7T3Zjtw4kr-S0LOcUJ6uqrfpnp2eXWwvBt0D7IPhB0piSpqSRA1FVVaW4X8f8AqSupKqst1tOF8KNpOHFBGMO0KfgobiFrM2ePjwKahRhYOH4P8wqVe_YXwKwgCfTjhhwUPwRCipSRGEQcsQw8HDp-CJJLgs-dJDeP8xDJ4ITjMcPHyI1rswWsuhfxVMjNyF0fpOjLQNxqkY24fRev8xDF5OcfDwYbOONodQ_JVjjxg3cu2BL-ajcUlIJU_gY7vDx89hEGPE5PPI8z8FJTkHDydUtjgMqiINHhjtcBjkRZar8c-fw6DpyhbbC4Om7JLHgP9U4tr-JVpvD5_DAD8zivh4g0rMOBQCXOKE0SIJwuBUlAxTDo_ghZDqFAf6gflTlugif_x0A6oD1KWw5P_AdRo8BBV6DsIgQ0UdPGw-hxZgK8xQjDgcLdBWcUK6mkPuGB4_hkEVU5QWXStefRNG6-1WjBpYvg-j9XsxJg_5sFlvws168zEMkpySColZh3BvQ8xsq2Am4SRApsBnw8xsNQJiZz7fxwGxOSloz7gsA7NX0NaosYFu5go0w8RovXVwUCTYBb-aOAJ-lKYA_mh9_PyRo0DxkN8ZodXqb5TUzOYiSUm61EFKUibkCVMByGMYrTlikrJNUIkFvLfhZr0VY2WR5Zrst4LEk1Kjysx7KrJavgq_C5ye95zGMyoRGK0jfkp0dOhe3hkLh3CaFwptnMDKAKMW2xiAX6L1BC9pu7rFzAU_vI9-hylecgMtgHYpRH04ijigLurMhnDJWkaLRwGRkHOFklHEDLfeiaGYlELA7kL5_0y8t8XQ0-J06vg7ftiuD-F2fVBjwKvvxUQLiOZgTx6jT13MY8xJkqWYrYaM3czl7wYT-yxmnM1rIFxlNPcuoymLCq9-RizHKUWlzWya_NIi2lU2xppcy4DdIYpC_udjGDR5i2uBgGO4VQMgBPSVaPIUJ-giEbLlGNnKmQliTF0zLUDD4IRSSQf3XIjccykCgpxPcgWvvk0WiuGZvCSv9ciL7xWcpDEMWwVt1zIOdgvJMFvgGKZG6_04U8soxnWOXnpiRcBHweSamnRD5DdH5Ovw58NIswslRWqjMrucKP63EDV34UYotNmF5UXyKEC6PSjZlV0szilFUnY5I9o4uMguBuNS6lm4gH092aY-cjHbhIOkrDI7DbkmTJWKmZ7Y55oJaRpMHSRY8E7TbFIX-68qxnT1F8YoShihNotE1iDgAzEEcp-TO2Lckni3Xe9C_keMJEJYbcOtwAxiqZyx4TM2YkTbKFoONqSohRjcRlEUheLvxzBozwUt-aiwdsT_jNjjOL3nSK0KSgkFGWrum8S6hWHx8J7YFa_heSvVcy6-k-J5NBGIA-EuwqYDZV0s4i8nV3AtSs-N1rsJQ5Rj2b2jcglA7xqbvRHD90kMr6IBH1Y9QxDvNuv7kP8Bktisj6FGNyeId9x8fhcpolEksecksXdIghPW3iaJzZ6ThPjriF_OzO-PLnrjBegVBy5m5OIMxbRhlyETF9MkA1dz-vz7VNAxETqp5t45PPyvGDer3zFa_VKitrVZOEkwqh1xStqOnsQtEiKS5Ngy7zZSSBKKT6XYwHIjZeREUAUXVQ4lOWkcy0TftwnDcMSHZB7BV-yqB1kuduEkkLtqqxG5C3O5ogATJd5GGOzAMyIBYb3-FGO9oehroGgRZrw0U3W1DJrAYajwFLfFi6v5Z3GFBIbCSPyvEIJpIxTUezECOutBMTrwHGrs2GiQG_jiIJ7UTud9s-oYS_jorQbSR00VUkdPGqim_I3G3YYT7G3jMLdfUZ3iMibPq7_S4gnb3K2KybONkvhZ-6_ebdbvD1wEHQTFPwOc9wrO8bNt-sm7QuMSVQxMCDVUFc-Ok2zGewXne6JIP5fXNTHPt1izgOfSl0ofDKJLbz3AMCwVOoZexwUzrJlUOpuONmUP8zQuu-vK5g2xfx7ELsKnDydtGaKnApeOmd8y2zDnmnvLtPWu4iwtS3HdFuwiuKPGt-UeFWzYdY0KJ-rORiUc5IlK_RiL2SgcBOEXvdXAQw1ThbNFT-NS-Con1a8_qSm-d5jpP2mX5Jitfi5o0hVO9IXJn2yk8CEVbzyGGy7DGO3ORcpypZxLMcdoZ-IBB6WhNMUzLiGallBWofbRkY4JZXHZD0xa4UZlDbYJqp0pfABE7z4Kt_vIRrB5aE97zbzT4vtnzgpahhuuH5jdhhqLmS4kppk6HUFOjnsX4QKuSAQoEsomOegNm384Nhcg0Stq3dVJbuPzmVBAVBQeOEL5kBKUBjMNaaXjeu-Gos36xZAySwdyxfw0UAQz1IOCfDDr7Z-FN0Gzrr3z_tLFGSPqhjFBC-dvFwaJFaA_CIGQxIbGdQzSjjjGLhD8bRVYOSQN-KkPAx5SjMm554VJUF0WNW6nufjO4eK_oBI9X1Y_KUPGuGQ6Sihy_DFd0lGuxZsQI-ras4pv6DuIujYvqgqiwdJObMmJ8dfhzpodd9bs1CBF6ahBORrgsPZe7l4xa4eOL_PbpFH-hGmK6l6EV73WpJ_zR4ahJ-i87GVBo47B_IxoZWCYPbeNSg2AgM1zQigGaXQvZ40G3iZ8xC8SilIVtLyDwj18dJ0a6nxfc1o923KXhjoHHBpqoxGHhpopNHI9rY-YMSVchduuhsZt_OSIVqQmGUWNI1XyjCJWEIc48yzFrKslMKOIAzPai_GK0EarDz1PrYsYgwtulN3fua4OqWZYyDEneop9eJTFsswcFcSkq4W3CHYbC42aBULuw9yBvj6eyqCQNe8C4akqTpTuCdds9XdCixdS2yw_zomgBmMq56wouTzc3IUbDuY4h3t2p5lNHmPlJzxqszknNFZOd57txl31bU5klDWE_6FKGlYRx2J0p4eNhN1wfrjZj0Re-ilCAxs7X3Qf9Tv4BmXkuyy3sHP39upjwcBWGw_t61xf5v3BLBMBa72Gh2JH5RYaidSIJaG_W_lGGN87YbySHnyEc3KpECsSV5O-VETw6F3IvS3Jpc2l_0XZfBdbv9kpuxCSXbQTLS1YXj6VIkPZ4eh6e9-018vrVR59FFhx1mYjurqaLaSuNfNqHEFlt_A3dq0Y7pOxObnLyn_FdYbp6qdepK4Sw05GcpZyf7d2boqk5MxJctmIIUrc8LmVfLwLd33tUqmrVl6mEOcOrvTJnrjST-Xp7exlNPtfOf1YVmRCHw23bjrFWS0WaNbLhLvTTXYeYceMPPeFeC_v-Vr67Q25fw7kvgqnPgyVFnFMaoefUvBMcE7IveqWr-2gfNo0ZueiZUoJPoqRYW41TnICdhP_D6qz4OHDfRTeR2pkOhsYzvVEODzSYo83nKRlImylNWsLZTBZ-LxhZj9Hm-vPpCQ96ScAMu3ydhnu7x19wpfV_woPi11uQGpGup47STlihEtNaElJrdG2FWhMapMjf1Q3N6lTWpyY6w-tT0VZGmxvx6-qG3oXl9wWmvpxfKVm7eLaH3dwkhGa9aTnEyYLAwgmTnuxR70J3qrsDVFfB1GL8eMV3ctRgzPqJvG2mY48bPahMALaLFWSTVgMWzHU_rtD0v8jEibaTL21HT_I-uzRju3JTRcrjGrdQKyo8b7sGKrjk6xo73Cin_OiqvHFZkJtRR4dM62taKHe-U5RbVuxjsbqlbdqSBO3TK0U8KtMfFSStzDDKjt9CMr6eM62jIlrc5CP6E2lL52PqIcxsogPZtJ7aQLsXibdFb1Ev7hvXFYBxdfMM8BZrJroJ9NiTR9tp2ea7VW41yYjtV5oJ3qxzNQ0yyZLJEbSNlXC_eCCXlNDb8R2IzaL2N5GY15-ho6WjtTuoMg2isKj8AwnHVCXjNd1diaIHCmLEx5x66ukb1sOd6-O5nXT0bxuIpo3Arb5tF1XHPwTNXj1Gz4XderqpfOBTuWPiQdgsgwM7al7yluZSr2VEf-nvI1Rbde_yDEVub8L767F6He8nkogrh_cnwmqXrtf-jGXV33GThza7DSQ5XZI9mDmTSavDWL2T7nAB8Rqr-Ww3dD4zdH4Guz5sLFHfKLYte4fTwKz2rh_PEFAeKNDlI8nUFWFn_zxZCUiDEWS3mKxRaAXDtLK9A99bt9PxJjJHfPI27OS8mQ4gPUzMEwmnwjryiF2LupHaZ6FDolLdcCmcK37WxTeS2VZltQ3nqU3YPt2Vl6v6BFdpMwakJhnOO9_cFlexuuSZyogVZ55v_rxcHDLH_fD8scjFEkO21ecSSyDN8dwF8n_q_Okv-lMYpeOZ1MVvmoNpXnYxXi-VnJpth4muZsSzL1TgWnWqNCvZw70mcRxeb2w-UYJ3y8lLCOAL9C0RoqhYdOaXs8abUNZPWu0rQXY5w41F_1ycxv9w4yNQWMbfwE26FQz1ZlmPh6noOrZg-bXgqIMr_5eZDkXknYiNKZUGVqQOovBrjWZ5wybXEt9rRgmiUEHwyeSOdY1wzYuZCmCZR1H4W7bs47lTrZ1LK6eYxnfq2Spa15LyJ6ybOO9TOaxU27lU3teW3gjz_nwtovJRD2XvrZwsGUZw-Yj2bpytTCLYalM4NGLJm2BsUYxr_XB3Kjrh6auNxKVV-YlSSlyMy-p1dNEVUrzLc9uYakcNL4-nf6X0bahGBm5n9G-RLHlPmy7XDTD0qEgML_1zZkF7nhXC_9_zBVwuvpVmJyevbIgbGT1ytJ3Ninl_VSp6FbnrPfqNlqds3oaFBg583GmP6T12ITB4x_A-7Eh-gpAejlXZ8Oid-Hm6ERFTf8cOzIKbd6syKhm7yYyGkZzwc7XBy8nQpXXs2hnGiO8qS-b9k-YvmzS1LL6smlynS88fGNPtrkma1M91Ra0UfNsn_bfdSKaQIWL0sYFNHop40IP2KlxLYoiDu1oO0wkdxp-3ImGH3f9NPL3wvn__uAbEPruk8snwoNX6wE8-PMNqX8kUl-JS69kjJmArzYqIOAr0sCdcK90-wxDvQc31OvGa5WxsQ03fWNDbmcZG8Yf4RgcAxndC78uCaaq4Omg4hoCo14CWujlniXWP1HyiOvVT5SgNEGtU2PdlKitnOKyxg7_SPHcDKVzA_47XSoFRZ3SggPv-U6m19ju873uDG3c59rFAyEiY7w59bjHKNwerwSJmmUWWrOgnH5hRMl67cXhX_0W2v5Tjwk-QTcgZZ00kMmNbf01UMrvxKqs9ZNZx6Ologrt4eJo5I3ybpQ3SnlvJrgvULu-H9Su74V8_1OVq0-WqR-cVxV5zG6uPzsnRCY_Ci2Ind2mC1sxBnngwtJlZ9eqzcqCJVboeAdjlJxbFfK3vWznJUncZv_F1AsHQTRF7TTiIztDjvfezPNpF6Xm-sap5zNQZd6FyT_dmMxSnX6qAtlW-unW5KhaeJlMPV2goajU02H0GXJP53tJWEAhT6XdMuDQ6xHYYsqGHQJnvzKxD-_cr0zoUOH8VyZ063JLHTxKd8R83t_Q9zzSQ3nM9zwSfoSX8OX35LXcBU6CjGzYa6B3wlxxB2DepHU3Uvk35SN-1WdEbgj-lgh-HV6_eHdCkyow05_wzu1PuP9qzQjn5ctMM8Jh_4TXdSN0OCimFoSHKTv9Dx9daT4fySy7fvN5kQLdaz7fbz2vbliv8bySVSNt5yF8v5e97U303gRyrAj-WDq1X6nL1-1Y_4bEDo8G91Zux4B6pjve--T5jFbQKN9NL93Dg2ffyOpHJKs3U5OPpIhJ4Ybi4lTT1WYbhRuB5TjtExGflTuegTg9YUSl9BCOxLm8fNjQM7tLb768LYM-COxnvdWwEUNqLL-DmecXSZnL8-8DXLmIDcRNFrbsUV9rbUj0J5NNMmpTDAfWR1xDxw7Qm-rh1YM7K_PAzZWVpo91XbluYGNJPshyoMt1w6C9-sGnkei17K33vS-IYVStfuv1P5tzdx8U2Zr6JmnkWbVNR6h3chzeUMZ0xeW9jSSLdFze64Oq0nfqm3RbRUcVHjZNHI98jH1b6wtUOH3JkiX_-iSrJGlCsg7y_L5G9duNOr4H6ngLUXhmVCS4Vsze5FSQtkixcR0lRLNvyV8TYqVhK06dOMbyRo0ofOiqnpd-H367W-CBdwvULQQlEXBpYadhkGmZeiUNg7hC0k7DMBarV9HDsCXgbAG0TFlZ_YYHHxuifEh1zjE9NNKThmK009Fmmj7qgv3oKKLNx60Y1iCXaKFppi_Ave5ltVAn1Vsspnm9cEjg-pdJj89IYxJvs-GHhOFC0L09s-ooA112ZtVBpqfVw9xJO69K62dWxwnNCkBl20k3mtHZpBPNyb0f9D34ut0nBraTv_fmerOKmWoLKyPs0GteYZtOVz-EdlW1dHPGZv2lOnxpeUyP-stTxmUKJZmWFBh8bW7m28nzQPX6dvKiFLrZwME_Cp4dt_q9yGq3Uo11dY2d8m7W1fYLi8BWV-vIVqTIn3U1LeqstbJEIIgMMWWn-K8fQ1ar7DbkkLN4pQ05RJtjRCkuHaE9n2BkXs43dx1e3T_k7MSQF3Quh2ezfBLmfK16TYeOzQaylzksFXfPChlPSC0O4XSs4pa3NzdqmQK6hyi7EdcPSlxfgqa8OrYRRl7kDkZVetHt9mS-In156Rtb9IUVVuUMyyluVcNLM0mO6k_ODCok1DHLNSK5bsj31Q-DIviRULp8tC_Vc1_6r3o996XeY3fdVz1hv3DX_bnWAK5eONZDztNi-Uubr37m5Qt-fqZN6HoR9LdsKpNZpbPwXT-CjrvaXgSIlioPwj7c7q-GWMe9B3p7y3sAUcBr3XOG2Pua3XMW9cIZ9Rzsnb433vLqy7uVbsTwJySGt9GAj2RZXHSy4dDfHObLTkyD5Zmykzshaxz0fPPCk2Fmw9WqkzvPplH8W-6HftMoI3I6RwzZjaPMRTBBKpGc6ihh37Z51NJPvh57ARDewHv1C6Iprhd0Nd2POS82637DTKi_s9wXUieynRdAt2M68LWPisLWywvv9Mph4Z3-ZTKaUCFGi-ev04j0h4LtUpD6cE5GMXaAy6iraTKa4kaAVvonGW2bsjBZToyiOpNsYRvujnKGbsykPynDTOqxgLphCf2iPdjO-9tjTgunJV8eUwdB-bnaaeyrY2qq-ujYeIun6QQCTyY8Fywz6gloNpqm52uHTHDKaRR5P8wmVG62We1monqo72iz4GzA-Pain8OSnGOoejBdb-F-z7a9hdZtVttbzVPAr7EJjz2_BjgdpjtmLWiV-4bGbk5n3Zm2bibbebqn20jO5GzLrT33Y4ovVyScgORDJx39B8W88cJD9Pk_" },
   ];
-  // ---- cloud profiles: Firebase Auth + Firestore, over REST ---------------------------
+  // ---- cloud profiles: the Kicktro API (server/ in this repo, at api.kicktro.com) ---------
   // Keep your preset library against a Google account so it follows you between machines.
   //
-  // NO FIREBASE SDK. Everything here is fetch() against three documented REST endpoints, so
-  // the page stays a single self-contained file with no bundled dependency. The one remote
-  // script is Google Identity Services, for the sign-in button — the same class of thing
-  // initAnalytics() already loads (gtag.js), not a new one.
+  // NO SDK. Everything here is fetch() against our own small JSON API, so the page stays a
+  // single self-contained file with no bundled dependency. The one remote script is Google
+  // Identity Services, for the sign-in button — the same class of thing initAnalytics()
+  // already loads (gtag.js), not a new one. It hands back a Google ID token, which the API
+  // verifies and trades for its own session token.
   //
-  // The whole feature is gated on CONFIG.cloud.apiKey: empty ⇒ no script, no request, and the
-  // Cloud row stays hidden. Identical kill switch to CONFIG.analyticsId.
+  // The whole feature is gated on CONFIG.cloud.apiBase: empty ⇒ no script, no request, and
+  // the Cloud row stays hidden. Identical kill switch to CONFIG.analyticsId.
   //
-  // **The security boundary is firestore.rules in the repo root, not this file.** The web API
-  // key below is public by design (it names the project; it authorises nothing), so anything
-  // this file declines to do can still be attempted by hand. Client-side checks here are for
-  // the user's benefit — clear errors, no pointless round trips — never for security.
+  // **The security boundary is server/routes.js, not this file.** Anything this file declines
+  // to do can still be attempted by hand against the API. Client-side checks here are for the
+  // user's benefit — clear errors, no pointless round trips — never for security.
+  //
+  // Moved off Firebase in card 825 (M2). Firestore is still READ for one thing, a #c= link the
+  // import did not carry (cloudFetchScene), and that fallback goes once the import is confirmed.
   const CLOUD = CONFIG.cloud;
-  const cloudOn = () => !!(CLOUD && CLOUD.apiKey && CLOUD.projectId);
-  const CLOUD_KEY = "burnTheWeb.cloud.v1";     // its own localStorage key, NOT part of the scene blob
-  // FROZEN PREFIX (the old app name) — renaming it signs every existing user out.
-  const IDP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp";
-  const TOKEN_URL = "https://securetoken.googleapis.com/v1/token";
+  // ?api=<origin> points a LOCAL page (file://, localhost) at a dev server, node server/main.js.
+  // Ignored on any other host, so a crafted link can never send someone's session elsewhere.
+  const API = (function () {
+    try {
+      const q = new URLSearchParams(location.search).get("api");
+      const local = location.protocol === "file:" || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+      if (q && local && /^https?:\/\/[^/?#]+$/.test(q)) return q;
+    } catch (e) { /* no location: the configured base */ }
+    return String((CLOUD && CLOUD.apiBase) || "").replace(/\/+$/, "");
+  })();
+  const cloudOn = () => !!API;
+  // v2: an API session. v1 held a FIREBASE session (refresh token and all), which the API
+  // cannot use, so it is dropped on load and the user signs in once more — landing on the
+  // profile the migration imported under the same Google account.
+  const CLOUD_KEY = "burnTheWeb.cloud.v2";     // its own localStorage key, NOT part of the scene blob
+  const CLOUD_KEY_FIREBASE = "burnTheWeb.cloud.v1";
   const GIS_SRC = "https://accounts.google.com/gsi/client";
-  const docUrl = uid => "https://firestore.googleapis.com/v1/projects/" + CLOUD.projectId
-    + "/databases/(default)/documents/profiles/" + encodeURIComponent(uid);
 
-  // Session: uid + the two tokens + when the short-lived one expires. Refresh tokens live in
+  // Session: our uid + the API's bearer token + when it expires. The token lives in
   // localStorage, which any XSS on the page could read — standard for a static app, and the
-  // blast radius is one user's presets, but it is a real trade and worth knowing.
+  // blast radius is one user's presets, but it is a real trade and worth knowing. "Sign out
+  // everywhere" on the server (token_ver) is what kills a leaked one.
   let cloudSess = null;
   function cloudLoadSess() {
+    try { localStorage.removeItem(CLOUD_KEY_FIREBASE); } catch (e) { /* private mode */ }
     try { cloudSess = JSON.parse(localStorage.getItem(CLOUD_KEY) || "null"); }
     catch (e) { cloudSess = null; }
-    if (cloudSess && !cloudSess.refreshToken) cloudSess = null;
+    if (cloudSess && (typeof cloudSess.token !== "string" || !(cloudSess.expires > Date.now()))) {
+      cloudSess = null;
+      cloudSaveSess();
+    }
   }
   function cloudSaveSess() {
     try {
@@ -25519,107 +25495,72 @@
     } catch (e) { /* private mode — session just won't survive the reload */ }
   }
 
-  // ---- Firestore typed values ----
-  // The REST API wraps every field in its type: {"stringValue":…}, {"integerValue":"7"} —
-  // integers really are strings on the wire, which is the one genuinely surprising bit. This
-  // stays a dozen lines ONLY because a profile is five scalar fields; the preset library
-  // itself rides as one already-compressed string (see cloudPayload below) rather than being
-  // mapped into Firestore structure, which would mean re-encoding the whole preset schema.
-  function fsOut(o) {
-    const f = {};
-    for (const k in o) {
-      const v = o[k];
-      if (typeof v === "string") f[k] = { stringValue: v };
-      else if (typeof v === "boolean") f[k] = { booleanValue: v };
-      else if (typeof v === "number") f[k] = Number.isInteger(v)
-        ? { integerValue: String(v) } : { doubleValue: v };
-      else if (v instanceof Date) f[k] = { timestampValue: v.toISOString() };
-    }
-    return { fields: f };
-  }
-  function fsIn(doc) {
-    const out = {};
-    const f = (doc && doc.fields) || {};
-    for (const k in f) {
-      const v = f[k];
-      if ("stringValue" in v) out[k] = v.stringValue;
-      else if ("booleanValue" in v) out[k] = v.booleanValue;
-      else if ("integerValue" in v) out[k] = +v.integerValue;
-      else if ("doubleValue" in v) out[k] = +v.doubleValue;
-      else if ("timestampValue" in v) out[k] = v.timestampValue;
-      else if ("nullValue" in v) out[k] = null;
-    }
-    return out;
-  }
-
   // ---- tokens ----
-  // Firebase id tokens last about an hour. Refresh 60s early so a save can't fail on a token
-  // that expired between the check and the request landing.
+  // An API session lasts SESSION_DAYS (60). It is renewed once it is inside its last week, so
+  // a regular visitor never meets the sign-in button again; one away longer than that does.
+  const CLOUD_RENEW_MS = 7 * 86400000;
+  let cloudRenewing = null;
   function cloudFresh() {
     if (!cloudSess) return Promise.reject(new Error("not signed in"));
-    if (cloudSess.idToken && Date.now() < (cloudSess.expires || 0) - 60000) {
-      return Promise.resolve(cloudSess.idToken);
+    if (Date.now() >= (cloudSess.expires || 0)) {
+      cloudSignOut();
+      return Promise.reject(new Error("your session ended — sign in again"));
     }
-    return fetch(TOKEN_URL + "?key=" + encodeURIComponent(CLOUD.apiKey), {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(cloudSess.refreshToken),
-    }).then(r => (r.ok ? r.json() : Promise.reject(new Error("refresh failed (" + r.status + ")"))))
-      .then(j => {
-        cloudSess.idToken = j.id_token;
-        cloudSess.refreshToken = j.refresh_token || cloudSess.refreshToken;
-        cloudSess.expires = Date.now() + (+j.expires_in || 3600) * 1000;
-        cloudSess.uid = j.user_id || cloudSess.uid;
-        cloudSaveSess();
-        return cloudSess.idToken;
-      })
-      .catch(e => {                       // a dead refresh token is permanent — sign out cleanly
-        cloudSignOut();
-        throw e;
-      });
+    if (Date.now() < cloudSess.expires - CLOUD_RENEW_MS) return Promise.resolve(cloudSess.token);
+    if (!cloudRenewing) {
+      cloudRenewing = fetch(API + "/api/auth/refresh", {
+        method: "POST", headers: { Authorization: "Bearer " + cloudSess.token },
+      }).then(r => {
+        if (r.status === 401) { cloudSignOut(); return; }       // revoked: sign out cleanly
+        if (!r.ok) return;                                       // try again on the next call
+        return r.json().then(j => {
+          if (!cloudSess || typeof j.token !== "string") return;
+          cloudSess.token = j.token;
+          cloudSess.expires = +j.expires || cloudSess.expires;
+          cloudSaveSess();
+        });
+      }).catch(() => { /* offline: the current token is still good for days */ })
+        .then(() => { cloudRenewing = null; });
+    }
+    return cloudRenewing.then(() => (cloudSess ? cloudSess.token : Promise.reject(new Error("not signed in"))));
   }
-  // One authorised Firestore call. A 401 mid-flight means the token died early (revoked, or a
-  // clock skew) — refresh ONCE and retry, never loop, or a genuinely rejected token spins.
-  function cloudFetch(url, opts, retried) {
-    return cloudFresh().then(tok => fetch(url, {
+  // One authorised API call. A 401 means the session is over (expired, or revoked by "sign
+  // out everywhere"): there is no refresh token to retry with, so it signs out and the caller
+  // reports the error. `p` is a path under API.
+  function apiFetch(p, opts) {
+    return cloudFresh().then(tok => fetch(API + p, {
       ...opts,
       headers: { ...(opts && opts.headers), "Content-Type": "application/json", Authorization: "Bearer " + tok },
     })).then(r => {
-      if (r.status === 401 && !retried && cloudSess) {   // a parallel sign-out may have nulled the session
-        cloudSess.expires = 0;            // force the refresh, then one more attempt
-        return cloudFetch(url, opts, true);
-      }
+      if (r.status === 401 && cloudSess) cloudSignOut();
       return r;
     });
+  }
+  // A public read: no token, so a signed-out visitor can browse the gallery and open a link.
+  function apiGet(p) {
+    return fetch(API + p);
   }
 
   // ---- sign in / out ----
   function cloudSignIn(googleIdToken) {
-    return fetch(IDP_URL + "?key=" + encodeURIComponent(CLOUD.apiKey), {
+    return fetch(API + "/api/auth/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        postBody: "id_token=" + encodeURIComponent(googleIdToken) + "&providerId=google.com",
-        requestUri: location.origin,
-        returnSecureToken: true,
-      }),
-    }).then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(t || ("HTTP " + r.status))))))
+      body: JSON.stringify({ idToken: googleIdToken }),
+    }).then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
       .then(j => {
-        cloudSess = {
-          uid: j.localId,
-          idToken: j.idToken,
-          refreshToken: j.refreshToken,
-          expires: Date.now() + (+j.expiresIn || 3600) * 1000,
-        };
+        cloudSess = { uid: j.uid, token: j.token, expires: +j.expires };
         cloudSaveSess();
         track("cloud_sign_in", {});
         cloudSyncUI();
         // ...and, if this account has no profile yet, put this machine's library into it.
         cloudFetchProfileMeta(true);      // pick up the profile name, if there is one already
+        cloudLinksFetch();
       });
   }
   function cloudSignOut() {
     cloudSess = null;
+    cloudLinks = [];
     cloudSaveSess();
     cloudSyncUI();
   }
@@ -25682,32 +25623,24 @@
   // devices are otherwise silent last-write-wins, and the sharpest case is not even a Save
   // button — the Publish checkbox routes through cloudSave(), so ticking it on a fresh machine
   // would overwrite a real library with the shipped default scenes. cloudSess.docTime tracks
-  // the profile document's server updateTime as this browser last saw it ("none" = known to
-  // not exist, absent = never seen — a pre-feature session, which saves unguarded exactly as
-  // before). Every read/write that learns the document's version records it here.
+  // the profile's `updated` version as this browser last saw it ("none" = known to not exist,
+  // absent = never seen, which saves unguarded). It travels as If-Match; the API answers 412
+  // when it no longer matches. Every read/write that learns the version records it here.
   function cloudNoteDocTime(t) {
     if (!cloudSess) return;
-    cloudSess.docTime = t;
+    cloudSess.docTime = t == null ? null : String(t);
     cloudSaveSess();
   }
-  // The document metadata alone — used to re-arm docTime after a precondition failure, so the
+  // The profile's metadata alone — used to re-arm docTime after a precondition failure, so the
   // user's next Save carries the NEW version and succeeds as a deliberate overwrite.
   function cloudRearmDocTime() {
     if (!cloudSess) return Promise.resolve();
-    return cloudFetch(docUrl(cloudSess.uid) + "?mask.fieldPaths=count", { method: "GET" })
-      .then(r => (r.ok ? r.json().then(doc => cloudNoteDocTime(doc.updateTime || null))
+    return apiFetch("/api/profile?meta=1", { method: "GET" })
+      .then(r => (r.ok ? r.json().then(d => cloudNoteDocTime(d.updated))
         : (r.status === 404 ? cloudNoteDocTime("none") : null)))
-      .catch(() => { /* next save just goes unguarded, like a pre-feature session */ });
+      .catch(() => { /* next save just goes unguarded */ });
   }
-  // Firestore maps a failed document precondition to 409/FAILED_PRECONDITION; match either,
-  // since the HTTP code has varied across API surfaces while the status string has not.
-  function fsStale(text, status) {
-    if (status === 409) return true;
-    try {
-      const j = JSON.parse(text);
-      return !!(j && j.error && j.error.status === "FAILED_PRECONDITION");
-    } catch (e) { return false; }
-  }
+  const cloudIfMatch = t => (t === "none" ? { "If-Match": "none" } : t ? { "If-Match": '"' + t + '"' } : {});
   // ---- AUTOMATIC CLOUD SAVE ----------------------------------------------------------
   // Three rules, and they are the user's: save only when something actually changed, wait
   // two hours after the LAST change (each new change restarts that), and at most once a day.
@@ -25817,11 +25750,10 @@
     // A library can hold no scenes of your own and STILL have something to store: the
     // follow-list. A collections-only user syncing machines is exactly who needs it saved —
     // refusing here would mean their follows could never reach the cloud at all. Only a
-    // truly empty profile (no scenes, no follows) has nothing to say. The rules allow
-    // count 0 (`count >= 0`), so an empty presets array is a legal document.
+    // truly empty profile (no scenes, no follows) has nothing to say. The API allows
+    // count 0, so an empty presets array is a legal profile.
     if (!n && !nc) { cloudMsg("Nothing to save — you have no scenes yet.", true); return; }
-    // The rules cap count at 500; without this pre-check a larger library fails the write and
-    // surfaces as a bare "Missing or insufficient permissions", which explains nothing.
+    // The API caps count at 500; say so here rather than surfacing its 400 as the reason.
     if (n > 500) {
       cloudMsg("Your library has " + n + " scenes — the cloud cap is 500. Delete some and save again.", true);
       return;
@@ -25832,38 +25764,30 @@
       if (payload.length >= CLOUD.maxPayload) {
         throw new Error("library too big to store (" + Math.round(payload.length / 1024) + " KB)");
       }
-      const body = fsOut({
+      // The whole profile, every field: a PUT is a full replace, and the API refuses a body
+      // with a field it does not know (its version of the old rules' hasOnly()).
+      const body = {
         name: myProfileName() || DEFAULT_PROFILE_NAME,   // same default the list heading shows
         payload,
         count: n,
         pub: !!(cloudSess && cloudSess.pub),
-        updated: new Date(),
-      });
-      // Name every field in the mask so the write is a deterministic full replace rather than
-      // a merge onto whatever happens to be there — the rules' hasOnly() check is against the
-      // RESULTING document, so a stray leftover field would fail the write.
-      const mask = ["name", "payload", "count", "pub", "updated"]
-        .map(f => "updateMask.fieldPaths=" + f).join("&");
+      };
       // The precondition: replace only the version this browser last saw. "none" asserts the
-      // document does not exist yet (a first save that races another device's first save still
-      // loses cleanly), absent docTime sends no guard — the pre-feature behaviour, which a
-      // stale-failure re-arm below upgrades on first contact.
-      const t = cloudSess.docTime;
-      const pre = t === "none" ? "&currentDocument.exists=false"
-        : t ? "&currentDocument.updateTime=" + encodeURIComponent(t) : "";
-      return cloudFetch(docUrl(cloudSess.uid) + "?" + mask + pre,
-        { method: "PATCH", body: JSON.stringify(body) });
+      // profile does not exist yet (a first save that races another device's first save still
+      // loses cleanly); absent docTime sends no guard, which a stale-failure re-arm below
+      // upgrades on first contact.
+      return apiFetch("/api/profile", { method: "PUT", headers: cloudIfMatch(cloudSess.docTime), body: JSON.stringify(body) });
     }).then(r => {
       if (!r.ok) return r.text().then(txt => {
-        if (fsStale(txt, r.status)) {
+        if (r.status === 412) {
           // Learn the current version so a DELIBERATE second Save overwrites — the user has
           // read the warning by then; what must never happen is the silent first-click loss.
           return cloudRearmDocTime().then(() => Promise.reject(new Error(CLOUD_STALE_MSG)));
         }
         return Promise.reject(new Error(cloudErr(txt, r.status)));
       });
-      return r.json().then(doc => {
-        cloudNoteDocTime(doc.updateTime || null);
+      return r.json().then(res => {
+        cloudNoteDocTime(res.updated);
         // Manual saves count too: having just saved by hand, the daily automatic one has
         // nothing left to do.
         autoSaveNoteSaved();
@@ -25974,17 +25898,16 @@
   function cloudLoad() {
     if (!cloudSess) return;
     cloudMsg("Loading…");
-    cloudFetch(docUrl(cloudSess.uid), { method: "GET" }).then(r => {
+    apiFetch("/api/profile", { method: "GET" }).then(r => {
       if (r.status === 404) {
         cloudNoteDocTime("none");
         return Promise.reject(new Error("you have not saved a profile yet"));
       }
       if (!r.ok) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
       return r.json();
-    }).then(doc => {
+    }).then(d => {
       // Loading IS seeing the current version — the save precondition compares against this.
-      cloudNoteDocTime(doc.updateTime || null);
-      const d = fsIn(doc);
+      cloudNoteDocTime(d.updated);
       if (!d.payload) throw new Error("that profile is empty");
       return cloudApplyPayload(d.payload);
     }).then(() => {
@@ -25996,62 +25919,17 @@
     if (!cloudSess) return;
     if (!confirm("Delete your cloud profile permanently? Your scenes in this browser are not touched.")) return;
     cloudMsg("Deleting…");
-    // FIRESTORE DOES NOT CASCADE. Deleting a document leaves its subcollections completely
-    // intact — they simply hang off a path with nothing at it, still stored, still billed,
-    // still readable by their owner. So any leftover history has to be swept explicitly, and
-    // BEFORE the profile goes: if the sweep fails we still have a profile to point the user
-    // at, whereas deleting the parent first would strand the snapshots with no UI left to
-    // reach them from. (Version history is retired — see snapDeleteAll for why this stays.)
-    snapDeleteAll()
-      // Same reasoning, different collection: the /scenes this browser knows it shared are
-      // part of "everything in it". Best-effort — only the locally-noted ones can go.
-      .then(() => shareLinksDeleteAll())
-      .then(() => cloudFetch(docUrl(cloudSess.uid), { method: "DELETE" }))
+    // The share links you minted are part of "everything in it", and they go FIRST: if the
+    // sweep fails there is still a profile to point the user at. The server lists them
+    // (/api/me/scenes), so links made on another machine go too.
+    shareLinksDeleteAll()
+      .then(() => apiFetch("/api/profile", { method: "DELETE" }))
       .then(r => {
         if (!r.ok && r.status !== 404) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
         cloudNoteDocTime("none");
         cloudMsg("Profile deleted.");
         track("cloud_delete", {});
       }).catch(e => cloudMsg("Could not delete: " + e.message, true));
-  }
-  // ---- leftover version-history sweep ------------------------------------------------
-  // Version history shipped in 1.13.0 and was removed in 1.13.1, which took out every client
-  // path that could DELETE a snapshot — while the rules still permit the owner to, precisely
-  // so the cleanup remains possible. Anything written during that window is a full copy of a
-  // whole scene library, and without this it survives a "Delete profile" that reports success,
-  // permanently unreachable AND undeletable from the app.
-  //
-  // Nothing writes these any more, so this is one-way: it only ever removes. Recovered from
-  // the pre-removal code rather than rewritten. Retire it together with the
-  // `/profiles/{uid}/snapshots` block in firestore.rules once the console is confirmed clean.
-  //
-  // Deliberately SILENT on the common path: a profile that never had a subcollection lists
-  // empty (or 404s) and deletes exactly as before, with no mention of a feature its owner may
-  // never have seen.
-  const snapCollUrl = uid => docUrl(uid) + "/snapshots";
-  const snapDocUrl = (uid, sid) => snapCollUrl(uid) + "/" + encodeURIComponent(sid);
-  // Ids only, in effect: the mask keeps every stored library off the wire, the same reason
-  // galQuery projects `payload` away. **404 is an empty list, not an error** — that is the
-  // overwhelmingly common case, a profile with no subcollection at all, and treating it as a
-  // failure would block every ordinary delete.
-  //
-  // No pagination loop: 1.13.0 kept at most `snapshotKeep` (14) and was live for a single day,
-  // so one page of 300 cannot be short.
-  function snapList() {
-    if (!cloudSess) return Promise.resolve([]);
-    return cloudFetch(snapCollUrl(cloudSess.uid) + "?mask.fieldPaths=count&pageSize=300", { method: "GET" })
-      .then(r => (r.ok ? r.json()
-        : (r.status === 404 ? {} : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status)))))))
-      .then(j => ((j && j.documents) || []).map(doc => String(doc.name || "").split("/").pop()).filter(Boolean));
-  }
-  function snapDelete(id) {
-    return cloudFetch(snapDocUrl(cloudSess.uid, id), { method: "DELETE" })
-      .then(r => (r.ok || r.status === 404 ? null
-        : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))));
-  }
-  function snapDeleteAll() {
-    if (!cloudSess) return Promise.resolve();
-    return snapList().then(ids => Promise.all(ids.map(snapDelete)));
   }
 
   // Read just the metadata after signing in, so the name field shows what is already stored
@@ -26062,51 +25940,47 @@
   // deliberately DELETED their cloud profile opened the page.
   function cloudFetchProfileMeta(seedIfMissing) {
     if (!cloudSess) return;
-    cloudFetch(docUrl(cloudSess.uid) + "?mask.fieldPaths=name&mask.fieldPaths=count&mask.fieldPaths=pub",
-      { method: "GET" }).then(r => {
-        // 404 = no profile yet, and that is worth REMEMBERING: the save precondition asserts
-        // exists=false from it, so two fresh machines racing their first save still lose cleanly.
-        if (r.status === 404) {
-          cloudNoteDocTime("none");
-          // A BRAND-NEW ACCOUNT STARTS WITH WHAT IS ALREADY ON THIS MACHINE. Signing in used
-          // to leave the profile empty until you found the Save button, so the scenes you had
-          // been working on -- or the shipped library you had just been shown -- existed only
-          // in this browser and the account looked broken. cloudSave's precondition asserts
-          // exists=false from the docTime just recorded, so this can only ever CREATE: it
-          // cannot overwrite a profile, and two fresh machines racing still lose cleanly.
-          if (seedIfMissing) { track("cloud_seed", {}); cloudSave(); }
-          return null;
-        }
-        return r.ok ? r.json() : null;
-      }).then(doc => {
-        if (!doc) return;
-        cloudNoteDocTime(doc.updateTime || null);
-        const d = fsIn(doc);
-        // Through setProfileName, so the cache and the scene-list heading follow. This is the
-        // async arrival the cache exists to pre-empt — on a first-ever sign-in it is the only
-        // thing that puts your name on the list, and it must not wait for a rebuild.
-        if (d.name) { setProfileName(d.name); cloudNameShow(); }
-        if (cloudSess) { cloudSess.pub = !!d.pub; cloudSaveSess(); }
-        if (el("cloud-pub")) el("cloud-pub").checked = !!d.pub;
-        if (d.count != null) cloudMsg("Profile has " + d.count + " scene" + (d.count === 1 ? "" : "s") + " stored.");
-      }).catch(() => { /* no profile yet — nothing to show */ });
+    apiFetch("/api/profile?meta=1", { method: "GET" }).then(r => {
+      // 404 = no profile yet, and that is worth REMEMBERING: the save precondition asserts
+      // If-Match: none from it, so two fresh machines racing their first save still lose cleanly.
+      if (r.status === 404) {
+        cloudNoteDocTime("none");
+        // A BRAND-NEW ACCOUNT STARTS WITH WHAT IS ALREADY ON THIS MACHINE. Signing in used
+        // to leave the profile empty until you found the Save button, so the scenes you had
+        // been working on -- or the shipped library you had just been shown -- existed only
+        // in this browser and the account looked broken. cloudSave's precondition asserts
+        // "none" from the docTime just recorded, so this can only ever CREATE: it cannot
+        // overwrite a profile, and two fresh machines racing still lose cleanly.
+        if (seedIfMissing) { track("cloud_seed", {}); cloudSave(); }
+        return null;
+      }
+      return r.ok ? r.json() : null;
+    }).then(d => {
+      if (!d) return;
+      cloudNoteDocTime(d.updated);
+      // Through setProfileName, so the cache and the scene-list heading follow. This is the
+      // async arrival the cache exists to pre-empt — on a first-ever sign-in it is the only
+      // thing that puts your name on the list, and it must not wait for a rebuild.
+      if (d.name) { setProfileName(d.name); cloudNameShow(); }
+      if (cloudSess) { cloudSess.pub = !!d.pub; cloudSaveSess(); }
+      if (el("cloud-pub")) el("cloud-pub").checked = !!d.pub;
+      if (d.count != null) cloudMsg("Profile has " + d.count + " scene" + (d.count === 1 ? "" : "s") + " stored.");
+    }).catch(() => { /* no profile yet — nothing to show */ });
   }
 
-  // Firestore returns a JSON error envelope; surface its message rather than a bare status,
-  // because "Missing or insufficient permissions" is the one users will actually hit.
+  // The API answers errors as {error: "..."}; surface that rather than a bare status.
   function cloudErr(text, status) {
     try {
       const j = JSON.parse(text);
-      if (j && j.error && j.error.message) return j.error.message;
+      if (j && typeof j.error === "string") return j.error;
     } catch (e) { /* not JSON */ }
     return "HTTP " + status;
   }
 
   // ---- publish ----
-  // Toggling this re-saves the WHOLE profile rather than patching `pub` alone, and that is
-  // forced by the rules, not laziness: they require the resulting document to carry
-  // name/payload/count/pub, so a pub-only write to a profile that does not exist yet fails
-  // validation. Going through cloudSave() always produces a document the rules accept.
+  // Toggling this re-saves the WHOLE profile rather than patching `pub` alone: the API's PUT
+  // takes name/payload/count/pub together, so a pub-only write to a profile that does not
+  // exist yet has nothing to be. Going through cloudSave() always produces a whole profile.
   // That routing is also what makes the tick SAFE on a stale machine: the save precondition
   // fails instead of silently replacing a newer cloud library with this browser's, and the
   // kept cloudSess.pub means the intent still lands with the user's deliberate re-save.
@@ -26120,43 +25994,19 @@
   }
 
   // ---- gallery ----
-  // Public profiles, readable WITHOUT signing in: the rules allow a `pub == true` query from
-  // an unauthenticated caller (and deny an unfiltered one), so any visitor can browse.
-  const GAL_KEY = "burnTheWeb.gallery.v1";   // FROZEN PREFIX: the old app name. Renaming the key orphans existing data.
-  const galUrl = "https://firestore.googleapis.com/v1/projects/" + (CLOUD.projectId || "")
-    + "/databases/(default)/documents";
-  // Plain fetch with the api key, NOT cloudFetch: these documents are public, and gallery
-  // browsing must work for a signed-out visitor who has no token to attach.
-  function galFetchJson(url, opts) {
-    return fetch(url + (url.indexOf("?") < 0 ? "?" : "&") + "key=" + encodeURIComponent(CLOUD.apiKey), opts);
-  }
-  // `select` projects away the payload. Without it every listed profile drags its whole
-  // compressed library down the wire — 20 profiles would be megabytes to render a list of
-  // names. (It does not reduce the read quota, which is per document either way.)
-  function galQuery() {
-    const q = {
-      structuredQuery: {
-        from: [{ collectionId: "profiles" }],
-        where: { fieldFilter: { field: { fieldPath: "pub" }, op: "EQUAL", value: { booleanValue: true } } },
-        select: { fields: [{ fieldPath: "name" }, { fieldPath: "count" }, { fieldPath: "updated" }] },
-        limit: CLOUD.galleryLimit || 20,
-      },
-    };
-    return galFetchJson(galUrl + ":runQuery", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(q),
-    });
-  }
-  // ONE unordered query. It used to try 'orderBy updated' first and fall back when the
-  // composite index was missing -- two requests for one listing -- and the rendered order is
-  // random now anyway (galShow), so the ordered attempt bought nothing.
+  // Public profiles, readable WITHOUT signing in (GET /api/profiles), so any visitor can browse.
+  // v2: the listing moved off Firestore and its rows carry the API's uids. A cached v1 listing
+  // would still open (the API resolves an old Firebase uid too), but it is dropped so the next
+  // open shows the migrated list.
+  const GAL_KEY = "burnTheWeb.gallery.v2";
+  try { localStorage.removeItem("burnTheWeb.gallery.v1"); } catch (e) { /* private mode */ }
+  // ONE request for the whole listing; filter, pages and the shuffle are all client-side.
   function galList() {
-    return galQuery().then(r => (r.ok ? r.json()
-      : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status)))))).then(rows =>
-      (rows || []).filter(x => x.document).map(x => {
-        const d = fsIn(x.document);
-        return { uid: String(x.document.name).split("/").pop(), name: d.name || "Untitled",
-                 count: d.count || 0, updated: d.updated || "" };
-      }));
+    return apiGet("/api/profiles").then(r => (r.ok ? r.json()
+      : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status)))))).then(j =>
+      ((j && j.items) || []).map(p => ({
+        uid: String(p.uid), name: p.name || "Untitled", count: p.count || 0,
+        updated: p.updated ? new Date(+p.updated).toISOString() : "" })));
   }
   // Cache the listing for a DAY: one query per browser per day however often the dialog
   // opens. Filter, pages and the shuffle all work on this array and cost nothing.
@@ -26271,14 +26121,15 @@
   // refollowCollections needs exactly the same three steps (fetch → payload → unzip → parse)
   // and a second copy is how the two would drift. Rejects with a readable message at each
   // step; every caller turns that into a line of UI rather than a console trace.
+  // A follow stored before the move names the source by its old FIREBASE uid; the API
+  // resolves that as well as its own, so old follow-lists keep working unchanged.
   function galFetchLibrary(uid) {
     const builtin = BUILTIN_GALLERY.find(b => b.uid === uid);   // shipped in the app: no request
     const payload = builtin ? Promise.resolve(builtin.payload)
-      : galFetchJson(galUrl + "/profiles/" + encodeURIComponent(uid)).then(r => {
+      : apiGet("/api/profiles/" + encodeURIComponent(uid)).then(r => {
         if (!r.ok) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
         return r.json();
-      }).then(doc => {
-        const d = fsIn(doc);
+      }).then(d => {
         if (!d.payload) throw new Error("that profile is empty");
         return d.payload;
       });
@@ -26308,8 +26159,8 @@
     const box = dlg.querySelector(".gal-box");
     if (!show) { dlgRelease(box); return; }
     dlgModal(box);
-    // AT MOST ONE LIVE FETCH A DAY, Refresh included. Reads are quota, and a listing of
-    // published profiles does not change minute to minute -- but the button existed to bypass
+    // AT MOST ONE LIVE FETCH A DAY, Refresh included. A listing of published profiles does
+    // not change minute to minute -- but the button existed to bypass
     // the cache entirely, so it could be held down. Inside the day it re-renders what is
     // already cached and says when a real reload becomes possible, rather than pretending.
     const now = Date.now(), next = galNextReloadAt();
@@ -26331,13 +26182,13 @@
       .catch(e => { galShow([]); el("gal-hint").textContent = "Could not load the gallery: " + e.message; });
   }
 
-  // ---- share the running scene through Firestore -------------------------------------
-  // Signed in, "Share this scene" stores the scene as one immutable document in /scenes and
-  // hands back a ~30-character link. Signed out (or if the write fails for any reason) it
+  // ---- share the running scene through the API ---------------------------------------
+  // Signed in, "Share this scene" stores the scene as one immutable record (POST /api/scenes)
+  // and hands back a ~30-character link. Signed out (or if the write fails for any reason) it
   // falls back to the self-contained ?z= link, so sharing never stops working and never
   // requires an account — the cloud route is an optimisation, not a gate.
   //
-  // /scenes is deliberately NOT /profiles: a link pointing into a profile would only open
+  // A share is deliberately NOT a profile: a link pointing into a profile would only open
   // while that profile was published to the gallery, so sharing one scene would drag the
   // sharer's entire library public with it. These stay independent decisions.
   //
@@ -26355,84 +26206,65 @@
       if (payload == null || payload.length >= 200000) return shareUrl();
       const sceneName = (presetSel && presetSel.selectedIndex >= 0 && curPreset >= 0 && presets[curPreset]
         ? String(presets[curPreset].name) : "Shared scene").slice(0, 60);
-      const body = fsOut({
-        owner: cloudSess.uid,
-        payload,
-        name: sceneName,
-        created: new Date(),
-      });
-      // POST to the COLLECTION mints an auto-id; PATCH would need us to invent one and risk
-      // colliding with (or overwriting) someone else's — and /scenes forbids update anyway.
-      return cloudFetch(galUrl + "/scenes", { method: "POST", body: JSON.stringify(body) })
+      // The SERVER mints the id: inventing one here would risk colliding with someone else's.
+      return apiFetch("/api/scenes", { method: "POST", body: JSON.stringify({ name: sceneName, payload }) })
         .then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
-        .then(doc => {
-          const id = String(doc.name || "").split("/").pop();
-          if (!id) throw new Error("no document id returned");
-          // The note taken HERE is the only record that will ever exist: /scenes is unlisted
-          // by design (allow list: false), so a link that is not noted at mint time can never
-          // be found again — which is exactly what made retraction dead code before this.
-          shareLinkNote(id, sceneName);
+        .then(res => {
+          const id = String((res && res.id) || "");
+          if (!id) throw new Error("no id returned");
+          cloudLinks.unshift({ id, name: sceneName, created: Date.now() });
+          cloudLinksRender();
           track("share_scene_cloud", {});
           return dir + "#c=" + id;
         })
-        .catch(() => shareUrl());       // quota, rules, offline — the link still works
+        .catch(() => shareUrl());       // rate limit, offline — the link still works
     });
   }
 
-  // ---- my shared links: the local record that makes retraction possible --------------
-  // /scenes documents are immutable snapshots the rules let their owner DELETE — but they are
-  // deliberately unlistable (a link meant for one person must not be enumerable into a public
-  // directory), so the owner cannot ask the server what they shared. The ONLY workable record
-  // is this local note taken when the link is minted. Its own localStorage key, not the scene
-  // blob: which links you shared is device history, like the session, not scene data.
-  // Links shared before this record existed cannot be listed — only retracted by hand from a
-  // kept URL — and that is the accepted cost of keeping /scenes unlistable.
-  const SHARELINKS_KEY = "burnTheWeb.sharelinks.v1";   // FROZEN PREFIX: the old app name. Renaming the key orphans existing data.
-  function shareLinksLoad() {
-    try {
-      const a = JSON.parse(localStorage.getItem(SHARELINKS_KEY) || "[]");
-      return Array.isArray(a) ? a.filter(x => x && typeof x.id === "string") : [];
-    } catch (e) { return []; }
+  // ---- my shared links: the retraction list ------------------------------------------
+  // Share links are immutable and deliberately UNLISTED to everyone else (a link meant for one
+  // person must not be enumerable into a public directory) — but the server lists YOUR OWN
+  // (/api/me/scenes), so this list covers every machine you shared from, and the links the
+  // Firebase import carried over. It used to be a local note taken at mint time
+  // (burnTheWeb.sharelinks.v1), which only ever knew this browser's links; that note is gone.
+  try { localStorage.removeItem("burnTheWeb.sharelinks.v1"); } catch (e) { /* private mode */ }
+  let cloudLinks = [];
+  function cloudLinksFetch() {
+    if (!cloudSess) return Promise.resolve();
+    return apiFetch("/api/me/scenes", { method: "GET" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (j && Array.isArray(j.items)) { cloudLinks = j.items; cloudLinksRender(); } })
+      .catch(() => { /* offline: the list just stays as it was */ });
   }
-  function shareLinksSave(a) {
-    try { localStorage.setItem(SHARELINKS_KEY, JSON.stringify(a)); } catch (e) { /* private mode */ }
-  }
-  function shareLinkNote(id, name) {
-    if (!cloudSess) return;
-    const a = shareLinksLoad().filter(x => x.id !== id);
-    a.push({ id, name: String(name || "").slice(0, 60), uid: cloudSess.uid, created: Date.now() });
-    shareLinksSave(a.slice(-100));      // a cap, not a policy — nobody mints 100 live links
-    cloudLinksRender();
-  }
-  function shareLinkForget(id) {
-    shareLinksSave(shareLinksLoad().filter(x => x.id !== id));
-    cloudLinksRender();
-  }
-  // Deleting the document is the retraction: the link stops opening for everyone holding it.
+  // Deleting the record is the retraction: the link stops opening for everyone holding it.
   // 404 counts as done — already deleted from another device, or by Delete profile's sweep.
   function cloudLinkDelete(id) {
-    return cloudFetch(galUrl + "/scenes/" + encodeURIComponent(id), { method: "DELETE" })
+    return apiFetch("/api/scenes/" + encodeURIComponent(id), { method: "DELETE" })
       .then(r => {
-        if (r.ok || r.status === 404) { shareLinkForget(id); return; }
+        if (r.ok || r.status === 404) {
+          cloudLinks = cloudLinks.filter(x => x.id !== id);
+          cloudLinksRender();
+          return;
+        }
         return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
       });
   }
   // Best-effort sweep for Delete profile: "delete my cloud profile and everything in it"
-  // should take the scenes this browser knows it shared along with the rest. Only the noted
-  // ones CAN go (see above); a failure never blocks the profile delete itself.
+  // takes your share links with it. Re-listed first, so a link made elsewhere since this page
+  // loaded goes too; a failure never blocks the profile delete itself.
   function shareLinksDeleteAll() {
     if (!cloudSess) return Promise.resolve();
-    const mine = shareLinksLoad().filter(x => x.uid === cloudSess.uid);
-    return Promise.all(mine.map(x => cloudLinkDelete(x.id).catch(() => {})));
+    return cloudLinksFetch()
+      .then(() => Promise.all(cloudLinks.map(x => cloudLinkDelete(x.id).catch(() => {}))));
   }
   function cloudLinksRender() {
     const box = el("cloud-links"), list = el("cloud-linklist");
     if (!box || !list) return;
-    const mine = cloudSess ? shareLinksLoad().filter(x => x.uid === cloudSess.uid) : [];
+    const mine = cloudSess ? cloudLinks : [];
     box.style.display = mine.length ? "" : "none";
     list.textContent = "";
     const dir = location.origin + location.pathname.replace(/[^/]*$/, "");
-    mine.slice().reverse().forEach(x => {          // newest first
+    mine.forEach(x => {                           // newest first, as the server lists them
       const row = document.createElement("div");
       row.className = "cl-row";
       const name = document.createElement("span");
@@ -26469,19 +26301,30 @@
   // Recipient side of #c=<id>. Called (deferred) from applyShared: the fetch is anonymous,
   // because a share link must open for someone with no account.
   //
-  // Returns {json, name}, not the bare payload: the document carries the sender's own name for
+  // Returns {json, name}, not the bare payload: the record carries the sender's own name for
   // the scene, and a shared scene is now KEPT as a real scene in the recipient's library, so it
   // needs something to be called. ?z=/?s= have no equivalent — sceneBlob() has no name field —
   // so this is the only path that can supply one.
+  //
+  // FIRESTORE FALLBACK, TEMPORARY: a link the API does not know is tried against the old public
+  // /scenes document (CONFIG.cloud.apiKey/projectId), so a #c= minted in the last minutes before
+  // the freeze still opens. Remove it, and the two config keys, once the import is confirmed.
   function cloudFetchScene(id) {
-    if (!CLOUD.apiKey || !CLOUD.projectId) return Promise.resolve(null);
-    return galFetchJson(galUrl + "/scenes/" + encodeURIComponent(id))
-      .then(r => (r.ok ? r.json() : null))
-      .then(doc => {
-        if (!doc) return null;
-        const d = fsIn(doc);
-        if (!d.payload) return null;
-        return unzipFromB64(d.payload).then(json => (json ? { json, name: d.name || "" } : null));
+    if (!cloudOn()) return Promise.resolve(null);
+    const unzip = (payload, name) => unzipFromB64(payload).then(json => (json ? { json, name: name || "" } : null));
+    return apiGet("/api/scenes/" + encodeURIComponent(id))
+      .then(r => (r.ok ? r.json() : null), () => null)
+      .then(d => {
+        if (d && d.payload) return unzip(d.payload, d.name);
+        if (!CLOUD.apiKey || !CLOUD.projectId) return null;
+        return fetch("https://firestore.googleapis.com/v1/projects/" + CLOUD.projectId
+          + "/databases/(default)/documents/scenes/" + encodeURIComponent(id) + "?key=" + encodeURIComponent(CLOUD.apiKey))
+          .then(r => (r.ok ? r.json() : null))
+          .then(doc => {
+            const f = (doc && doc.fields) || {};
+            const payload = f.payload && f.payload.stringValue;
+            return payload ? unzip(payload, f.name && f.name.stringValue) : null;
+          });
       })
       .catch(() => null);
   }
@@ -26583,7 +26426,7 @@
   }
 
   // Google Identity Services renders the sign-in button and hands back a Google ID token,
-  // which cloudSignIn trades for a Firebase session. Loaded lazily and ONLY when configured,
+  // which cloudSignIn trades for an API session. Loaded lazily and ONLY when configured,
   // so an unconfigured build makes no third-party request at all.
   function cloudInit() {
     if (!cloudOn()) return;              // feature off ⇒ the row stays hidden, nothing loads
@@ -26597,6 +26440,7 @@
     cloudNameShow();
     cloudSyncUI();
     if (cloudSess) cloudFetchProfileMeta();
+    if (cloudSess) cloudLinksFetch();
     if (!CLOUD.clientId) { cloudMsg("Sign-in is not configured for this build.", true); return; }
     const s = document.createElement("script");
     s.src = GIS_SRC; s.async = true; s.defer = true;
