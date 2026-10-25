@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'   # node:sqlite (tools/serverprobe.js) needs >= 22.5
 
       # Rebuilds from src/ and compares byte-for-byte. Also runs the parse + collision gates.
       - name: dev-index.html matches src/

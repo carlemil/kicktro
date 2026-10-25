@@ -1,0 +1,52 @@
+# Kicktro API on the talebindery VPS. Its own Compose project, beside talebindery's:
+#   docker compose -f server/compose.yml --env-file .env up -d --build
+# (server/deploy.sh runs exactly that from /srv/kicktro.)
+#
+# No port is published. The only way in is talebindery's Caddy, over the shared external
+# network `edge`, by the container name kicktro-api (server/kicktro.caddy). That is also why
+# TRUST_XFF=1 is safe here: nothing but Caddy can reach the port, and Caddy replaces any
+# X-Forwarded-For a visitor sends.
+name: kicktro
+
+services:
+  api:
+    build:
+      context: .
+      args:
+        GIT_REV: ${GIT_REV:-dev}
+    image: kicktro-api:${GIT_REV:-dev}
+    container_name: kicktro-api
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      TRUST_XFF: "1"
+      ALLOW_DEV_ORIGINS: "1"
+    volumes:
+      - kicktro-data:/data
+      - kicktro-thumbs:/thumbs
+    networks:
+      - edge
+    # A guest on talebindery's box: capped so it can never starve talebindery's workers.
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  kicktro-data:
+  kicktro-thumbs:

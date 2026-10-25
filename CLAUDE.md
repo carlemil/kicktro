@@ -795,6 +795,35 @@ Browsable signed out (`galFetchJson`, plain keyed fetch). `cloudPublish` re-save
 `node tools/ai-scenes.js --emit`) ships rows in the app — listed first, never cached, uid
 `builtin:…`. Change the scenes in `tools/ai-scenes.js`, re-emit, rebuild.
 
+### Kicktro API (`server/`, replacing Firebase — card 825)
+A Node 24 server for `api.kicktro.com` on the TALEBINDERY VPS (`deploy@136.148.210.49`). The page
+does not use it yet (M2 switches the client); Firebase stays live until then.
+- **No npm packages, ever**: `node:http`, `node:sqlite` (built in, ≥22.5 — CI runs Node 24),
+  `node:crypto`. No `package.json`. The Dockerfile copies `*.js` and nothing else.
+- `db.js` owns the schema: migrations are APPEND-ONLY, keyed on `pragma user_version`. Favourite
+  counts are COUNTED from `favs`, never stored. Ids: `newId` (rejection-sampled base62). A migrated
+  share keeps its Firestore id verbatim — `#c=` links decode forever.
+- `auth.js`: Google ID token verified against the JWKS (RS256 pinned, `iss`/`aud`/`exp`/`iat`),
+  then our own HMAC session `kt1.<payload>.<mac>`; `token_ver` revokes (signout-all). A Firebase
+  uid maps to our uid through `users.firebase_uid`.
+- `routes.js` carries every cap (`CAP`, `BODY`, `LIMIT`) — the rules file's job. `onlyKeys` is
+  `hasOnly()`. `PUT /api/profile` honours `If-Match`: `none` = create only, `"<updated>"` = that
+  version, absent = unguarded; mismatch 412. That is `cloudSess.docTime`'s replacement.
+- Thumbnails are files `/thumbs/<id>-<ver>.webp|.mp4`, immutable, uploaded by the admin route
+  (`ADMIN_TOKEN`); a new version deletes the old one. Byte ranges are served (hover video).
+- Routing: talebindery's Caddy owns 80/443. KickTro is its OWN compose project (`/srv/kicktro`,
+  container `kicktro-api` on the external `edge` network) and drops `server/kicktro.caddy` into
+  `/srv/caddy-sites`. The one-time talebindery change (MyStoryGenerator repo, deploy only with the
+  owner's go-ahead): its `caddy` service joins network `edge` (external) and mounts
+  `/srv/caddy-sites:/etc/caddy/sites:ro`; `Caddyfile.selfhosted` gains
+  `import /etc/caddy/sites/*.caddy`. DNS `api.kicktro.com` is DNS-only (grey cloud).
+- Deploy: `pwsh tools/deploy-api.ps1 [-Rev sha]` pushes to `/srv/kicktro.git` and runs
+  `server/deploy.sh` FROM THAT COMMIT (build, wait healthy, caddy validate → reload, rollback on
+  reject). `.env` lives only on the server (`server/.env.example`); never commit it.
+- Backup: `server/backup.sh` (cron 03:40) — `VACUUM INTO`, gzip, talebindery's rclone crypt remote
+  under `kicktro/`. Thumbnails are not backed up (re-rendered).
+- `tools/serverprobe.js` spawns the real server on port 0 with a stand-in JWKS.
+
 ### Audio & beat reactivity
 `startAudio("capture"|"mic")` must run inside a user gesture. **The MIC is armed by default**:
 `restore()` (not `applyBlob`) calls `armAudioResume("mic")` when no source was ever chosen. The
@@ -987,5 +1016,6 @@ its own). What each pins:
   line, every CATS id a real id. **`noiseprobe`** — Contours/Smoke mirrors at a REAL-SIZED field
   (pixel-thick lines need the spacing): every cell written, deterministic, frozen at Drift/Rise
   0, Smoke empty above Height and at Density 0. Plus `docsprobe`, `worldprobe`, `glassprobe`,
-  `asciiprobe`, `dnutprobe`, `treeprobe`, `tempoprobe`, `heatprobe` and the browser `*-check.js`
+  `asciiprobe`, `dnutprobe`, `treeprobe`, `tempoprobe`, `heatprobe`, `serverprobe` (the API,
+  `server/`) and the browser `*-check.js`
   gates.

@@ -1,0 +1,21 @@
+# Kicktro's site in talebindery's Caddy. server/deploy.sh installs this file as
+# /srv/caddy-sites/kicktro.caddy, which talebindery's Caddyfile imports
+# (import /etc/caddy/sites/*.caddy), then validates and reloads Caddy.
+# Caddy gets the certificate itself, so the DNS record must be DNS-only (grey cloud).
+api.kicktro.com {
+	encode zstd gzip
+
+	# The API enforces its own per-route limits; this is only the outer bound
+	# (thumbnail uploads are the largest legitimate body).
+	request_body {
+		max_size 16MB
+	}
+
+	reverse_proxy kicktro-api:8080
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+}

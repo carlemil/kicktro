@@ -811,6 +811,13 @@ security boundary is [`firestore.rules`](firestore.rules), checked in so it's re
 in a diff rather than living only in a web console. The Firebase web API key in the
 source is public by design: it names the project and authorises nothing.
 
+Cloud profiles are moving to Kicktro's own API, **`api.kicktro.com`**: a small Node server in
+[`server/`](server/) with no npm packages (built-in `node:http`, `node:sqlite` and
+`node:crypto`), run in Docker on a VPS behind Caddy. It keeps the same sign-in (Google) and the
+same scene format, and adds a published-scene gallery with favourites and pre-rendered
+thumbnails. Until the page switches over, Firebase stays the live backend.
+`node tools/serverprobe.js` starts the server locally and runs its checks.
+
 A first-run **"Sync with your music"** nudge explains the Capture/Mic audio
 buttons to visitors who haven't tried them yet — shown at three growing gaps of
 active time (30s, 5min, 1h), at most three times, never again once an audio
