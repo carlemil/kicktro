@@ -340,7 +340,8 @@ function makeRoutes(ctx) {
   // -- gallery of scenes
   on("GET", "/api/gallery", r => {
     const sp = r.url.searchParams;
-    const sort = sp.get("sort") === "new" ? "new" : "favs";
+    // sort=name is the gallery's All tab, A to Z. An older client never sends it.
+    const sort = sp.get("sort") === "new" ? "new" : sp.get("sort") === "name" ? "name" : "favs";
     const lim = Math.max(1, Math.min(100, parseInt(sp.get("limit"), 10) || 48));
     const off = Math.max(0, parseInt(sp.get("offset"), 10) || 0);
     const needle = (sp.get("q") || "").slice(0, 60).trim();
@@ -350,7 +351,9 @@ function makeRoutes(ctx) {
     const favOf = sp.get("mine") === "favs" ? user(r).uid : "";
     const where = "where (? = '' or g.name like ? escape '\\' or u.name like ? escape '\\') "
       + "and (? = '' or g.id in (select scene_id from favs where uid = ?))";
-    const order = sort === "new" ? "order by g.created desc, g.id" : "order by favs desc, g.created desc, g.id";
+    const order = sort === "new" ? "order by g.created desc, g.id"
+      : sort === "name" ? "order by g.name collate nocase, g.id"
+      : "order by favs desc, g.created desc, g.id";
     const rows = q("select g.id, g.name, g.owner, g.created, g.thumb_ver, u.name author, "
       + "(select count(*) from favs f where f.scene_id = g.id) favs "
       + "from gallery g join users u on u.uid = g.owner " + where + " " + order + " limit ? offset ?")

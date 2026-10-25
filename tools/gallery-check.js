@@ -6,7 +6,8 @@
 //
 // case-out (signed out):
 //   the grid merges the server's rows with the BUILT-IN cards by favourites, pages on Load
-//   more, filters through the server and locally, switches to Newest; hover swaps in a muted
+//   more, filters through the server and locally, switches to Newest and All (sort=name,
+//   A to Z, built-ins placed by name); posters are NOT fetched below the fold; hover swaps in a muted
 //   looping <video preload=none> and leaving pauses it -- with the NEGATIVE CONTROL that a
 //   card with no clip never gets one and a 'playing' after leaving shows nothing; the heart
 //   asks you to sign in and sends nothing; My favourites says sign in. Then a built-in card
@@ -21,6 +22,9 @@
 //   scene into "Shared with you", credited to its author, selected, after the reload -- the
 //   built-in with NO request, the published one through GET /api/gallery/srv-7.
 // case-link-gone (#g=srv-99, a 404): no install; the gallery opens and says why.
+// case-lazy (REAL TIME, no budget -- virtual time never delivers an IntersectionObserver
+//   callback): the poster in view is fetched, one below the fold is not (NEGATIVE) until its
+//   card is scrolled into view; the page closes itself.
 // No backtick in the injected source; lines joined by an explicit newline.
 const fs = require("fs");
 const path = require("path");
@@ -130,6 +134,7 @@ const head = [
   "      if (favOnly && !auth) return answer(401, { error: 'sign in' });",
   "      var list = rows.filter(function (r) { return (!q || (r.name + ' ' + r.author).toLowerCase().indexOf(q) >= 0) && (!favOnly || mine[r.id]); });",
   "      list.sort(sp.get('sort') === 'new' ? function (a, b) { return b.created - a.created; }",
+  "        : sp.get('sort') === 'name' ? function (a, b) { var x = a.name.toLowerCase(), y = b.name.toLowerCase(); return x < y ? -1 : x > y ? 1 : a.id < b.id ? -1 : 1; }",
   "        : function (a, b) { return b.favs - a.favs || b.created - a.created; });",
   "      var off = +sp.get('offset') || 0, lim = +sp.get('limit') || 48;",
   "      return answer(200, { total: list.length, offset: off, sort: sp.get('sort'), builtin: builtin,",
@@ -158,7 +163,7 @@ const tail = [
   "  var heart = function (id) { var c = card(id); return c && c.querySelector('.gal-heart'); };",
   "  var count = function (h) { return +String(h.textContent).replace(/[^0-9]/g, ''); };",
   "  var reqs = function (re) { return window.__req.filter(function (r) { return re.test(r.m + ' ' + r.p); }); };",
-  "  var done = function () { console.log('DONE ' + CASE + ' fails=' + window.__fails()); };",
+  "  var done = function () { console.log('DONE ' + CASE + ' fails=' + window.__fails()); if (CASE === 'case-lazy') setTimeout(function () { try { window.close(); } catch (e) {} }, 200); };",
   "  var steps = [], at = 0;",
   "  function then(ms, f) { steps.push([ms, f]); }",
   "  function run() { if (at >= steps.length) return; var s = steps[at++]; setTimeout(function () { s[1](); run(); }, s[0]); }",
@@ -198,6 +203,23 @@ const tail = [
   "    ok('menubar has Gallery', !!item);",
   "    if (item) item.click();",
   "  });",
+  // ================= posters load as they scroll near (REAL TIME: virtual time never ==========
+  // ================= delivers an IntersectionObserver callback)                     ==========
+  "  if (CASE === 'case-lazy') {",
+  "    then(1500, function () {",
+  "      var near = card('srv-0').querySelector('img'), far = cards()[24].querySelector('img');",
+  "      ok('a poster in view is fetched', near.getAttribute('src') === 'https://api.kicktro.com/thumbs/srv-0-1.webp', near.getAttribute('src'));",
+  "      ok('NEGATIVE: a poster far below the fold is not', !!far && !far.hasAttribute('src') && !!far.dataset.src, far && far.getAttribute('src'));",
+  "      window.__far = far;",
+  "      far.closest('.gal-card').scrollIntoView();",
+  "    });",
+  "    then(1000, function () {",
+  "      ok('...until its card scrolls into view', window.__far.getAttribute('src') === window.__far.dataset.src, window.__far.getAttribute('src'));",
+  "      var b = cards().filter(function (c) { return /^builtin:/.test(c.dataset.id) && c.querySelector('img'); })[0];",
+  "      ok('a built-in poster comes from beside the page', !!b && /^thumbs\\/[a-z-]+\\.webp\\?[0-9a-f]+$/.test(b.querySelector('img').dataset.src), b && b.querySelector('img').dataset.src);",
+  "      done();",
+  "    });",
+  "  }",
   // ================= signed out =================
   "  if (CASE === 'case-out') {",
   "    then(600, function () {",
@@ -208,9 +230,12 @@ const tail = [
   "      ok('ordered by favourites', hs.every(function (v, i) { return !i || hs[i - 1] >= v; }), hs.join(','));",
   "      var nr = cards().map(function (c) { return c.dataset.id; }).indexOf('builtin:neon-reef');",
   "      ok('the loved built-in sits where its count puts it', nr === 15, nr);",
-  "      ok('a rendered scene shows its poster, from the API', !!card('srv-0').querySelector('img') && card('srv-0').querySelector('img').src === 'https://api.kicktro.com/thumbs/srv-0-1.webp', card('srv-0').querySelector('img') && card('srv-0').querySelector('img').src);",
+  "      ok('a rendered scene shows its poster, from the API', !!card('srv-0').querySelector('img') && card('srv-0').querySelector('img').dataset.src === 'https://api.kicktro.com/thumbs/srv-0-1.webp', card('srv-0').querySelector('img') && card('srv-0').querySelector('img').dataset.src);",
   "      ok('an unrendered one shows the placeholder', card('srv-1').querySelector('.gal-thumb').classList.contains('gal-ph') && !card('srv-1').querySelector('img'));",
-  "      ok('a built-in poster comes from beside the page', /^file:.*\\/thumbs\\/neon-reef\\.webp\\?[0-9a-f]+$/.test(card('builtin:neon-reef').querySelector('img').src), card('builtin:neon-reef').querySelector('img').src);",
+  "      ok('a built-in poster comes from beside the page', /^thumbs\\/neon-reef\\.webp\\?[0-9a-f]+$/.test(card('builtin:neon-reef').querySelector('img').dataset.src), card('builtin:neon-reef').querySelector('img').dataset.src);",
+  "      // ---- posters are fetched as their card scrolls near, not when it is added ----",
+  "      var far = cards()[24].querySelector('img');",
+  "      ok('a poster far below the fold is not fetched yet', !!far && !far.hasAttribute('src') && !!far.dataset.src, far && far.getAttribute('src'));",
   "      ok('nobody is signed in, so no ✕', document.querySelectorAll('#gal-list .gal-rm').length === 0);",
   "      // ---- hover: poster -> clip ----",
   "      var c0 = card('srv-0');",
@@ -266,6 +291,14 @@ const tail = [
   "      ok('...and marks its tab', document.querySelector('.gal-tab[data-tab=new]').getAttribute('aria-selected') === 'true');",
   "      var ids = cards().map(function (c) { return c.dataset.id; });",
   "      ok('...newest first', ids.indexOf('srv-29') < ids.indexOf('srv-28') && ids.indexOf('srv-28') >= 0, ids.slice(0, 4).join(','));",
+  "      document.querySelector('.gal-tab[data-tab=all]').click();",
+  "    });",
+  "    then(400, function () {",
+  "      ok('All asks for sort=name', reqs(/sort=name/).length === 1 && reqs(/sort=name/)[0].p.indexOf('offset=0') >= 0, reqs(/sort=name/).length);",
+  "      ok('...and marks its tab', document.querySelector('.gal-tab[data-tab=all]').getAttribute('aria-selected') === 'true');",
+  "      var ns = cards().map(function (c) { return c.querySelector('.gal-cname').textContent.toLowerCase(); });",
+  "      ok('...one page, A to Z', cards().length < 30 + " + BUILTIN_N + " && ns.every(function (v, i) { return !i || ns[i - 1] <= v; }), ns.join(','));",
+  "      ok('...with the built-ins placed by name among them', cards().some(function (c) { return /^builtin:/.test(c.dataset.id); }) && cards()[0].dataset.id.indexOf('builtin:') === 0, cards()[0].dataset.id);",
   "      var before = reqs(/mine=favs/).length;",
   "      document.querySelector('.gal-tab[data-tab=mine]').click();",
   "      ok('My favourites signed out says to sign in', /sign in/i.test($('gal-hint').textContent) && cards().length === 0);",
@@ -349,12 +382,12 @@ function build(c) {
   fs.writeFileSync(path.join(outDir, c + ".html"), html);
   console.log("wrote " + c + ".html");
 }
-const CASES = { "case-out": "", "case-in": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99" };
+const CASES = { "case-out": "", "case-in": "", "case-lazy": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99" };
 for (const c in CASES) build(c);
 const abs = path.resolve(outDir).split(path.sep).join("/");
 console.log(NL + "run each with:");
 for (const c in CASES) {
   console.log('  msedge --headless=new --disable-extensions --enable-logging=stderr --v=0'
-    + ' --virtual-time-budget=20000 --user-data-dir="' + abs + '/ud-' + c + '"'
+    + (c === "case-lazy" ? "" : ' --virtual-time-budget=20000') + ' --user-data-dir="' + abs + '/ud-' + c + '"'
     + ' "file:///' + abs + '/' + c + '.html' + CASES[c] + '" 2>&1 | grep -oE ' + Q + '"(PASS|FAIL|DONE)[^"]*"' + Q);
 }

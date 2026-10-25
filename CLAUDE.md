@@ -796,10 +796,15 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
   `firebase.json` stay only until the Firebase project is deleted (the `snapshots` sweep went with
   the client; those documents go with the project).
 
-**The gallery is ONE PUBLISHED SCENE PER CARD** (card 825, M3): a lazy poster `img`, the clip
-while hovered or focused, the author, a heart with its count. Tabs Most loved / Newest / My
-favourites (`GET /api/gallery?sort=favs|new[&mine=favs]&q=&offset=&limit=`, paged as you scroll,
-`galleryPage` 24) plus Collections (the older per-profile listing, `galPeople`). Readable signed out.
+**The gallery is ONE PUBLISHED SCENE PER CARD** (card 825, M3): a poster, the clip while
+hovered or focused, the author, a heart with its count. Tabs Most loved / Newest / All / My
+favourites (`GET /api/gallery?sort=favs|new|name[&mine=favs]&q=&offset=&limit=`, paged as you
+scroll, `galleryPage` 24) plus Collections (the older per-profile listing, `galPeople`).
+Readable signed out. **Nothing loads up front**: a poster's `src` is set by `galLazy` (an
+IntersectionObserver rooted on `.gal-box`) — `loading=lazy` measures from the WINDOW and
+fetches a whole page the dialog has not scrolled to. Built-ins merge by `gal.order`, the sort
+the SERVER answered with (an API without `sort=name` answers `favs`). Virtual time never
+delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs in REAL time.
 - **Publishing is per scene**: "Publish to gallery" (`#publishpreset`, Scene box, shown by
   `cloudInit`) → `cloudPublishScene()`: own scenes only (no `collection`), `PATCH /api/me {name}`
   first, then a one-scene `serializeBlob` + `zipToB64` blob to `POST /api/gallery`. The

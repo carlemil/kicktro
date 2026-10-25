@@ -613,8 +613,8 @@
 
   // ---- gallery ----
   // ONE PUBLISHED SCENE PER CARD (card 825, M3): a poster, the clip while hovered or focused,
-  // the author, a heart with its count. Readable signed out. Four tabs:
-  //   Most loved / Newest   GET /api/gallery?sort=favs|new, paged as you scroll
+  // the author, a heart with its count. Readable signed out. Five tabs:
+  //   Most loved / Newest / All   GET /api/gallery?sort=favs|new|name, paged as you scroll
   //   My favourites         the same with mine=favs (needs a session)
   //   Collections           the older per-profile listing (GET /api/profiles), which is also
   //                         what refollowCollections resolves a uid-less follow against
@@ -622,6 +622,9 @@
   // ship with the app, thumbnails included, and are MERGED into the server's order by the
   // same key, so a loved built-in sits where its count puts it. Their counts ride on every
   // listing response (`builtin`).
+  // NOTHING LOADS UP FRONT: a tab asks for one page (galleryPage) and the next only when the
+  // end of the grid scrolls near; a poster is fetched only when its card scrolls near
+  // (galLazy); a clip only while hovered (preload none).
   // The listing is not billed per read any more, so the old once-a-day limit is gone: answers
   // are kept in memory for galleryTtlMs (10 minutes) and a favourite patches them in place.
   try {                                 // the Firestore-era caches, a day long each
@@ -658,14 +661,19 @@
 
   // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
   // answer to a request a newer tab or filter has overtaken.
-  const gal = { tab: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
+  const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
     shown: new Set(), seq: 0, note: "" };
+  const galSort = () => (gal.tab === "new" ? "new" : gal.tab === "all" ? "name" : "favs");
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
   // dialog closes, so the listing's own "Loading…" passes through and then gives way to it.
   const galHint = t => { const h = el("gal-hint"); if (h) h.textContent = t || gal.note; };
   const galMatch = c => !gal.q || (c.name + "\n" + c.author).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0;
-  // The order both lists are already in: favourites then newest, or newest alone.
-  const galBefore = (a, b) => (gal.tab === "new" ? a.created > b.created
+  // The order both lists are already in: favourites then newest, newest alone, or by name
+  // (SQLite's NOCASE: ASCII folded, then code order). `order` is the one the SERVER answered
+  // with, so an API that does not know sort=name yet still gets its built-ins placed right.
+  const galKey = c => c.name.toLowerCase();
+  const galBefore = (a, b) => (gal.order === "new" ? a.created > b.created
+    : gal.order === "name" ? galKey(a) < galKey(b) || (galKey(a) === galKey(b) && a.id < b.id)
     : a.favs > b.favs || (a.favs === b.favs && a.created > b.created));
   function galSyncMore() {
     const b = el("gal-more");
@@ -674,7 +682,8 @@
   }
   function galReset() {
     gal.seq++;
-    gal.offset = 0; gal.total = 0; gal.busy = false; gal.shown = new Set();
+    gal.offset = 0; gal.total = 0; gal.busy = false; gal.shown = new Set(); gal.order = galSort();
+    if (galImgObs) galImgObs.disconnect();
     el("gal-list").textContent = "";
     el("gal-list").className = gal.tab === "people" ? "gal-rows" : "gal-grid";
     for (const t of document.querySelectorAll("#galdlg .gal-tab")) {
@@ -695,13 +704,14 @@
     if (gal.done || gal.busy || gal.tab === "people") return;
     gal.busy = true; galSyncMore();
     const seq = gal.seq, n = CLOUD.galleryPage || 24;
-    const sp = new URLSearchParams({ sort: gal.tab === "new" ? "new" : "favs", limit: String(n), offset: String(gal.offset) });
+    const sp = new URLSearchParams({ sort: galSort(), limit: String(n), offset: String(gal.offset) });
     if (gal.q) sp.set("q", gal.q);
     if (gal.tab === "mine") sp.set("mine", "favs");
     galJson("/api/gallery?" + sp, gal.tab === "mine").then(j => {
       if (seq !== gal.seq) return;
       const rows = (j && Array.isArray(j.items)) ? j.items : [];
       if (gal.offset === 0 && j && j.builtin) {
+        if (j.sort === "new" || j.sort === "name" || j.sort === "favs") gal.order = j.sort;
         for (const c of gal.pend) c.favs = +j.builtin[c.id] || 0;
         gal.pend.sort((a, b) => (galBefore(a, b) ? -1 : galBefore(b, a) ? 1 : 0));
       }
@@ -743,6 +753,18 @@
     galObs.disconnect();
     if (!gal.done) galObs.observe(b);
   }
+  // A poster is fetched when its card comes within a screen of view, not when the card is
+  // added: the grid scrolls inside .gal-box, and the browser's own loading=lazy measures from
+  // the WINDOW, which fetches every poster of a page the dialog has not scrolled to.
+  let galImgObs = null;
+  function galLazy(img, src) {
+    if (!window.IntersectionObserver) { img.src = src; return; }
+    if (!galImgObs) galImgObs = new IntersectionObserver(es => {
+      for (const x of es) if (x.isIntersecting) { galImgObs.unobserve(x.target); x.target.src = x.target.dataset.src; }
+    }, { root: document.querySelector("#galdlg .gal-box"), rootMargin: "100% 0px" });
+    img.dataset.src = src;
+    galImgObs.observe(img);
+  }
   // A placeholder until a thumbnail is rendered: a gradient keyed on the id, never random,
   // so a card looks the same every time it is listed.
   function galHue(id) {
@@ -770,8 +792,8 @@
     th.className = "gal-thumb";
     if (c.poster) {
       const img = document.createElement("img");
-      img.loading = "lazy"; img.alt = ""; img.decoding = "async";
-      img.src = galUrl(c.poster);
+      img.alt = ""; img.decoding = "async";
+      galLazy(img, galUrl(c.poster));
       th.appendChild(img);
     } else {
       const h = galHue(c.id);
@@ -1049,6 +1071,7 @@
       gal.seq++;                          // an answer still on its way lands nowhere
       for (const v of dlg.querySelectorAll("video")) v.pause();
       if (galObs) galObs.disconnect();
+      if (galImgObs) galImgObs.disconnect();
       if (gal.note) { gal.note = ""; galHint(""); }
       dlgRelease(box);
       return;

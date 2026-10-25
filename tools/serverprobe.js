@@ -11,7 +11,7 @@
 //   profile: If-Match none/stale/current (the currentDocument precondition), caps, hasOnly
 //   public profiles: private stays 404, published readable signed out, by legacy uid too
 //   shares: owner-only create/delete, anonymous get, no listing, per-user rate limit
-//   gallery: publish, sort by favourites vs newest, filter, idempotent favs, built-in favs,
+//   gallery: publish, sort by favourites vs newest vs name, filter, idempotent favs, built-in favs,
 //            delete takes its favourites with it
 //   admin: token required, thumbnail upload checks magic bytes, versioned immutable files,
 //          Range replies, old version removed; Firebase import is idempotent and maps accounts
@@ -245,6 +245,9 @@ async function main() {
   ok("gallery: no thumbnail yet means null poster and clip", r.json.items[0].poster === null && r.json.items[0].clip === null);
   r = await call("GET", "/api/gallery?sort=new");
   ok("gallery: sort=new puts the newest first", r.json.items[0].id === b1, r.text);
+  r = await call("GET", "/api/gallery?sort=name");
+  ok("gallery: sort=name is A to Z", r.json.sort === "name"
+    && r.json.items.map(x => x.id).join() === [b1, a1, a2].join(), r.text);
   r = await call("GET", "/api/gallery?q=storm");
   ok("gallery: q filters by name", r.json.total === 1 && r.json.items[0].id === a2, r.text);
   r = await call("GET", "/api/gallery?q=alice");
