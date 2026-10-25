@@ -822,6 +822,7 @@ favourites (`GET /api/gallery?sort=favs|new[&mine=favs]&q=&offset=&limit=`, page
   `--server` renders `/api/admin/thumbs/todo` and PUTs; `--check <slug>` proves two renders
   identical AND that the beat changes them (negative control). Three splices, each asserted once.
 - `tools/gallery-check.js` (stub API, two cases) is the gate.
+
 ### Kicktro API (`server/`, replacing Firebase — card 825)
 A Node 24 server for `api.kicktro.com` on the TALEBINDERY VPS (`deploy@136.148.210.49`). The page
 talks to it since M2.
