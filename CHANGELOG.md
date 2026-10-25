@@ -15,6 +15,25 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.88.0] — 2026-10-25
+
+### Added
+- **Share a gallery scene with a link**: every card in the gallery now has a **🔗** button beside the ♥. It copies a link to that one scene, and whoever opens the link gets it added to their scenes under **Shared with you**, credited to its author, as if they had clicked the card. It works for the built-in scenes too, and neither of you needs to be signed in. If the author has since taken the scene down, the link opens the gallery and says so.
+
+- **An All tab in the gallery**, beside Most loved and Newest: every published and built-in scene, A to Z by name. The filter box narrows it like the others.
+
+### Changed
+- **Public scenes is now called Gallery**, on the ☰ menu and in the dialog title.
+- The gallery is much wider. On a large screen it now fills almost the whole width, so six columns of cards fit at 1600 pixels. It still fits on a phone.
+- The gallery loads less up front. Cards still arrive a page at a time as you scroll, but a card's still picture is now fetched only when the card scrolls near, not as soon as its page arrives.
+
+### Fixed
+- Pasting a Kicktro link into a tab that already had Kicktro open did nothing. This affected scene links, scene bundles and the new gallery links, because only the part after the `#` changed and the page never reloaded. The page now reloads and opens the link.
+
+### Internal
+- `tools/gallery-check.js` covers the share button (copies the right link without loading the card or asking the server) and three link cases: a built-in scene, a published scene served with a real payload, and a removed one. It also covers the All tab, and a new real-time case checks that a still below the fold is fetched only once it scrolls into view.
+- The API learns `sort=name` for the All tab (`tools/serverprobe.js` asserts it). A page talking to an API that does not have it yet gets Most loved order, with the built-in scenes still placed correctly.
+
 ## [1.87.0] — 2026-10-25
 
 ### Added
