@@ -20,7 +20,12 @@ SITES=${CADDY_SITES:-/srv/caddy-sites}
 exec 9>"$BARE/deploy.lock"
 flock -n 9 || { echo "another kicktro deploy is running" >&2; exit 1; }
 
-[ -d "$APP/.git" ] || git clone -q "$BARE" "$APP"
+# init + fetch, not clone: the first deploy finds the directory already made, holding .env.
+if [ ! -d "$APP/.git" ]; then
+  mkdir -p "$APP"
+  git -C "$APP" init -q
+  git -C "$APP" remote add origin "$BARE"
+fi
 cd "$APP"
 prev=$(git rev-parse -q --verify HEAD || echo none)
 echo "kicktro: deploying $rev (previous release: $prev)"
