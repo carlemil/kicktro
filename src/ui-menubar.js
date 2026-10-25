@@ -214,7 +214,7 @@
       // account was needed. Gated on cloudOn() for the same reason #cloudrow is — with no
       // apiBase there is nothing to browse. Calls galOpen directly; the app is one
       // IIFE and this slice runs last, so the function is simply in scope.
-      ...(cloudOn() ? [{ label: "Public scenes", title: "Browse the scenes other people have published, and load them",
+      ...(cloudOn() ? [{ label: "Gallery", title: "Browse the scenes other people have published, and load them",
         run: () => galOpen(true) }] : []),
       { label: "Credits", sub: [{ adopt: "creditbox" }] },
       { sep: true },

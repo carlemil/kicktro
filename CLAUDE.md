@@ -720,7 +720,9 @@ Presets are local; `onEdit` → `autosavePreset()`. All four of `applyPreset`'s 
   stores differences; ride in localStorage, share URL and backup.
 
 ### Share / bundle / backup codecs
-**Everything that DECODES must keep working forever**: `?z=`/`?s=`, `#zp=`/`#sp=`, `#c=`.
+**Everything that DECODES must keep working forever**: `?z=`/`?s=`, `#zp=`/`#sp=`, `#c=`, `#g=`.
+- A fragment link pasted into an OPEN tab reloads nothing, so one `hashchange` listener beside
+  `applyShared()` reloads on `g|c|zp|sp=`; the startup path then handles it as a fresh open.
 - `?z=` — JSON → deflate-raw → base64url; `?s=` plain base64 fallback, decoded forever; `?z=`
   checked first. Values rounded to `CONTROLS.step` then clamped. Decoding is async, landing after
   startup's `setEffect`; `shareUrl()` is async; `stripShareParam()` at startup. Encodes only the
@@ -810,6 +812,11 @@ favourites (`GET /api/gallery?sort=favs|new[&mine=favs]&q=&offset=&limit=`, page
   into the server's order (`galBefore`, counts from the response's `builtin` map); loading one
   makes NO request. Generated: change scenes in `tools/ai-scenes.js`, `--emit`, rebuild; `--emit`
   keeps the `updated` date unless the scenes changed (it orders them under Newest).
+- **🔗 copies `#g=<card id>`** (`galCopyLink`; built-ins too, `builtin:<slug>`): nothing is minted,
+  so it is synchronous and works signed out. `applyShared` defers to `galOpenLink`, which installs
+  through `galSceneOf` + `applyGalleryScene` (author from the API ANSWER, not the link); a 404 opens
+  the gallery with `gal.note` (cleared on close). Its `replaceState` keeps the QUERY (`?api=` is
+  read by a later slice). The ☰ item and dialog are named **Gallery**.
 - Hover/focus → muted looping `<video preload=none>`, shown on `playing`; **touch: first tap
   previews, second loads** — a tap FOCUSES before its click, so focus must not preview on touch.
 - **Favourites are optimistic** (`galFav`: flip, then the server's `{mine, favs}` settles it; a

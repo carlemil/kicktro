@@ -228,7 +228,7 @@ wired to the music without opening a single box.
 the Capture/Mic buttons and the level meter, **Resolution ▸** the render resolution,
 **Cloud profile ▸** the whole sign-in, save and publish block, and **Credits ▸** the credit
 list and the two overlay switches.
-**Public scenes** sits at the root, because browsing what other people have published needs
+**Gallery** sits at the root, because browsing what other people have published needs
 no account. At the top sit **Controls panel**, **Fullscreen** and **Hide all UI** (the same
 things **M**, **F** and **H** do), and at the bottom **Tutorial** and **Help**. Click away
 or press **Esc** to close it.
@@ -720,7 +720,7 @@ Stored against your account: the profile name you choose, your own scenes, and t
 the collections you follow. Nothing else — not your email, name or picture, and none of
 anyone else's scenes.
 
-**Public scenes** on the ☰ menu is the gallery — and it needs no account, so anyone can
+**Gallery** on the ☰ menu needs no account, so anyone can
 look. Every published scene is a card: a still of the scene five seconds in, which turns into
 a short looping clip while you hover it (on a phone, the first tap plays the clip and the
 second loads the scene). Click a card to add that scene to your list, under **Shared with
@@ -731,6 +731,11 @@ load as you scroll. The twenty-five AI-Generated scenes that ship with Kicktro a
 **♥** on a card adds it to your favourites, and the number beside it is how many people
 love it — that count is what **Most loved** sorts by. Favourites belong to an account: one
 per person per scene, so sign in first.
+
+**🔗** on a card copies a link to that one scene. Whoever opens it gets the scene added to
+their list under **Shared with you**, credited to its author, just as if they had clicked
+the card. No account is needed on either end. A link to a scene its author has since taken
+out of the gallery opens the gallery instead and says so.
 
 **Publish to gallery**, under the Delete and Share buttons in the Scene box, puts the
 selected scene in the gallery under your profile name (signed in, with a name set). Only

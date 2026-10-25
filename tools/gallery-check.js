@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// BROWSER check (not *probe.js -- needs a real page): the Public scenes gallery as a grid of
+// BROWSER check (not *probe.js -- needs a real page): the Gallery as a grid of
 // scene cards (card 825, M3), against a stubbed API; and the ⚙ top button.
 //
 //   node tools/gallery-check.js <outdir> [dev-index.html]     then run the printed lines.
@@ -15,10 +15,16 @@
 // case-in (signed in):
 //   your favourites are marked; ✕ only on your own card; the heart flips at once and the
 //   server's count settles it (PUT, bearer token); a failed favourite flips back; un-hearting
-//   sends DELETE; My favourites asks the server with mine=favs and adds your built-ins.
+//   sends DELETE; My favourites asks the server with mine=favs and adds your built-ins. 🔗
+//   copies a #g= link (server card and built-in) without loading the card or asking the API.
+// case-link-b / case-link-s (#g=builtin:neon-reef, #g=srv-7): the link alone installs the
+//   scene into "Shared with you", credited to its author, selected, after the reload -- the
+//   built-in with NO request, the published one through GET /api/gallery/srv-7.
+// case-link-gone (#g=srv-99, a 404): no install; the gallery opens and says why.
 // No backtick in the injected source; lines joined by an explicit newline.
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 const NL = String.fromCharCode(10);
 const Q = String.fromCharCode(39);
 
@@ -34,6 +40,15 @@ if (BUILTIN_N < 3 || !/id: "builtin:neon-reef"/.test(app) || !/id: "builtin:stor
   console.error("BUILTIN_SCENES (with neon-reef and storm-front) not found in " + appFile); process.exit(2);
 }
 
+// GET /api/gallery/srv-* answers with a REAL one-scene payload: the shipped collection's first
+// scene renamed, deflated the way zipToB64 does it (deflate-raw, base64url).
+const shipped = /BUILTIN_GALLERY = \[\s*\{[^}]*?payload: "([A-Za-z0-9_-]+)"/.exec(app);
+if (!shipped) { console.error("BUILTIN_GALLERY payload not found in " + appFile); process.exit(2); }
+const lib = JSON.parse(zlib.inflateRawSync(Buffer.from(shipped[1], "base64url")).toString("utf8"));
+const one = Object.assign({}, lib.presets[0], { name: "Coral Reef Dawn" });
+const PAYLOAD = zlib.deflateRawSync(Buffer.from(JSON.stringify({ presets: [one], curPreset: 0, cycle: false, palettes: lib.palettes })))
+  .toString("base64url");
+
 const head = [
   "<script>",
   "(function () {",
@@ -48,19 +63,27 @@ const head = [
   "  requestAnimationFrame = function () { return 0; };",
   // After the built-in load (case-out) the page RELOADS: applyRestore writes localStorage and
   // reloads. The verdict is read here, before the seed below overwrites the blob.
+  "  var EXP = { 'case-out': ['Neon Reef', 'AI-Generated', ''], 'case-link-b': ['Neon Reef', 'AI-Generated', ''],",
+  "    'case-link-s': ['Coral Reef Dawn', 'Author 3', '/api/gallery/srv-7'] }[CASE];",
   "  var after = sessionStorage.getItem('galchk');",
   "  if (after) {",
   "    sessionStorage.removeItem('galchk'); window.__done = true; fails = (+after || 1) - 1;",
   "    var blob = JSON.parse(localStorage.getItem('burnTheWeb.v1') || '{}');",
-  "    var got = (blob.presets || []).filter(function (p) { return p.name === 'Neon Reef'; });",
-  "    ok('the second tap loaded the built-in scene', got.length === 1, got.length);",
+  "    var got = (blob.presets || []).filter(function (p) { return p.name === EXP[0]; });",
+  "    ok('the scene was loaded: ' + EXP[0], got.length === 1, got.length);",
   "    ok('...into Shared with you, not a collection of its own', got[0] && got[0].collection === 'Shared with you', got[0] && got[0].collection);",
-  "    ok('...credited to its author', got[0] && got[0].origin === 'AI-Generated', got[0] && got[0].origin);",
+  "    ok('...credited to its author', got[0] && got[0].origin === EXP[1], got[0] && got[0].origin);",
   "    ok('...through the validated path (string effect id, layers kept)', got[0] && typeof got[0].effect === 'string' && Array.isArray(got[0].layers));",
-  "    ok('...with NO gallery request for it', !sessionStorage.getItem('galchk-fetch'), sessionStorage.getItem('galchk-fetch'));",
+  "    ok('...and is the selected scene', blob.presets && blob.presets[blob.curPreset] && blob.presets[blob.curPreset].name === EXP[0], blob.curPreset);",
+  "    ok('...the link is gone from the address bar', location.hash === '', location.hash);",
+  "    ok(EXP[2] ? '...fetched by its id' : '...with NO gallery request for it', (sessionStorage.getItem('galchk-fetch') || '') === EXP[2], sessionStorage.getItem('galchk-fetch'));",
   "    sessionStorage.removeItem('galchk-fetch');",
   "    console.log('DONE ' + CASE + ' fails=' + window.__fails());",
   "  }",
+  "  else if (/g=/.test(location.hash) && EXP) sessionStorage.setItem('galchk', '1');",
+  "  if (!after) sessionStorage.removeItem('galchk-fetch');",
+  "  window.__copied = [];",
+  "  try { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: function (t) { window.__copied.push(t); return Promise.resolve(); } } }); } catch (e) {}",
   "  localStorage.setItem('burnTheWeb.tutorial.v1', '1');",
   "  localStorage.setItem('burnTheWeb.credits.v1', 'off');",
   "  localStorage.setItem('burnTheWeb.v1', JSON.stringify({ panelOpen: false, cycle: false, audio: 'off' }));",
@@ -112,7 +135,12 @@ const head = [
   "      return answer(200, { total: list.length, offset: off, sort: sp.get('sort'), builtin: builtin,",
   "        items: list.slice(off, off + lim).map(function (r) { return Object.assign({}, r); }) }, 30);",
   "    }",
-  "    if (path.indexOf('/api/gallery/') === 0) { sessionStorage.setItem('galchk-fetch', path); return answer(404, { error: 'no' }); }",
+  "    if (path.indexOf('/api/gallery/') === 0) {",
+  "      sessionStorage.setItem('galchk-fetch', path);",
+  "      var g0 = rows.filter(function (r) { return '/api/gallery/' + r.id === path; })[0];",
+  "      if (!g0) return answer(404, { error: 'no such scene' });",
+  "      return answer(200, Object.assign({}, g0, { payload: " + JSON.stringify(PAYLOAD) + " }), 30);",
+  "    }",
   "    return answer(404, { error: 'not stubbed' });",
   "  };",
   "})();",
@@ -135,6 +163,24 @@ const tail = [
   "  function then(ms, f) { steps.push([ms, f]); }",
   "  function run() { if (at >= steps.length) return; var s = steps[at++]; setTimeout(function () { s[1](); run(); }, s[0]); }",
   "  function pe(el, type, kind) { el.dispatchEvent(new PointerEvent(type, { pointerType: kind, bubbles: type !== 'pointerenter' && type !== 'pointerleave' })); }",
+  "  if (CASE === 'case-link-gone') {",
+  "    then(1500, function () {",
+  "      ok('a link to a removed scene opens the gallery instead', !$('galdlg').classList.contains('hidden'));",
+  "      ok('...and says why', /could not be opened: it has been taken out of the gallery/.test($('gal-hint').textContent), $('gal-hint').textContent);",
+  "      ok('...after asking for it', sessionStorage.getItem('galchk-fetch') === '/api/gallery/srv-99', sessionStorage.getItem('galchk-fetch'));",
+  "      var blob = JSON.parse(localStorage.getItem('burnTheWeb.v1') || '{}');",
+  "      ok('...and installs nothing', !(blob.presets || []).some(function (p) { return p.collection === 'Shared with you'; }));",
+  "      ok('...the link is gone from the address bar', location.hash === '', location.hash);",
+  "      $('gal-close').click();",
+  "      ok('closing the gallery clears the note', $('galdlg').classList.contains('hidden') && $('gal-hint').textContent.indexOf('could not be opened') < 0, $('gal-hint').textContent);",
+  "      done();",
+  "    });",
+  "    run(); return;",
+  "  }",
+  "  if (CASE === 'case-link-b' || CASE === 'case-link-s') {",
+  "    then(5000, function () { ok('the link loaded (the page reloads)', false, 'no reload in 5s'); done(); });",
+  "    run(); return;",
+  "  }",
   "  then(800, function () {",
   "    if (CASE === 'case-out') {",
   "      // ---- the ⚙ panel button ----",
@@ -148,8 +194,8 @@ const tail = [
   "    }",
   "    // ---- open the gallery through the real opener ----",
   "    $('toggle').click();",
-  "    var item = Array.prototype.find.call(document.querySelectorAll('#menubar button, #menubar .mb-item, #menubar li'), function (b) { return /Public scenes/.test(b.textContent); });",
-  "    ok('menubar has Public scenes', !!item);",
+  "    var item = Array.prototype.find.call(document.querySelectorAll('#menubar button, #menubar .mb-item, #menubar li'), function (b) { return b.textContent.trim() === 'Gallery'; });",
+  "    ok('menubar has Gallery', !!item);",
   "    if (item) item.click();",
   "  });",
   // ================= signed out =================
@@ -250,6 +296,17 @@ const tail = [
   "      ok('...and others are not', !heart('srv-4').classList.contains('on') && /♡/.test(heart('srv-4').textContent));",
   "      var rm = document.querySelectorAll('#gal-list .gal-rm');",
   "      ok('✕ on your own card only', rm.length === 1 && rm[0].closest('.gal-card').dataset.id === 'srv-2', rm.length);",
+  "      // ---- 🔗 copies the card's #g= link and does nothing else ----",
+  "      var dir = location.href.split('#')[0].replace(/[^/]*$/, ''), n0 = window.__req.length;",
+  "      ok('every card has a share button', document.querySelectorAll('#gal-list .gal-share').length === cards().length);",
+  "      var sh = card('srv-4').querySelector('.gal-share');",
+  "      sh.click();",
+  "      ok('🔗 copies the card link', window.__copied[0] === dir + '#g=srv-4', window.__copied[0]);",
+  "      card('builtin:neon-reef').querySelector('.gal-share').click();",
+  "      ok('...a built-in one too', window.__copied[1] === dir + '#g=builtin:neon-reef', window.__copied[1]);",
+  "      ok('...without loading the card', !/Fetching/.test($('gal-hint').textContent) && !$('galdlg').classList.contains('hidden'), $('gal-hint').textContent);",
+  "      ok('...or asking the API', window.__req.length === n0, window.__req.slice(n0).map(function (r) { return r.m + ' ' + r.p; }).join(' | '));",
+  "      window.__sh = sh;",
   "      var h5 = heart('srv-5'), n5 = count(h5);",
   "      h5.click();",
   "      ok('the heart flips AT ONCE (optimistic)', h5.classList.contains('on') && count(h5) === n5 + 1, h5.textContent);",
@@ -261,6 +318,7 @@ const tail = [
   // apiFetch awaits the session before fetch(), so the request is only on the wire a tick later
   "      var put = reqs(/PUT \\/api\\/gallery\\/srv-5\\/fav/);",
   "      ok('...sending PUT with your token', put.length === 1 && put[0].auth === 'Bearer tok-1', put.length);",
+  "      ok('🔗 confirmed the copy', window.__sh.classList.contains('copied') && window.__sh.textContent === '✓', window.__sh.textContent);",
   "      ok('the server count settles the first', count(heart('srv-5')) === 50 && heart('srv-5').classList.contains('on'), heart('srv-5').textContent);",
   "      ok('a failed favourite flips back', !heart('srv-6').classList.contains('on') && count(heart('srv-6')) === window.__n6, heart('srv-6').textContent);",
   "      ok('...and says so', /Could not save/.test($('gal-hint').textContent), $('gal-hint').textContent);",
@@ -291,12 +349,12 @@ function build(c) {
   fs.writeFileSync(path.join(outDir, c + ".html"), html);
   console.log("wrote " + c + ".html");
 }
-build("case-out");
-build("case-in");
+const CASES = { "case-out": "", "case-in": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99" };
+for (const c in CASES) build(c);
 const abs = path.resolve(outDir).split(path.sep).join("/");
 console.log(NL + "run each with:");
-for (const c of ["case-out", "case-in"]) {
+for (const c in CASES) {
   console.log('  msedge --headless=new --disable-extensions --enable-logging=stderr --v=0'
     + ' --virtual-time-budget=20000 --user-data-dir="' + abs + '/ud-' + c + '"'
-    + ' "file:///' + abs + '/' + c + '.html" 2>&1 | grep -oE ' + Q + '"(PASS|FAIL|DONE)[^"]*"' + Q);
+    + ' "file:///' + abs + '/' + c + '.html' + CASES[c] + '" 2>&1 | grep -oE ' + Q + '"(PASS|FAIL|DONE)[^"]*"' + Q);
 }

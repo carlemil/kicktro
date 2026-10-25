@@ -659,8 +659,10 @@
   // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
   // answer to a request a newer tab or filter has overtaken.
   const gal = { tab: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
-    shown: new Set(), seq: 0 };
-  const galHint = t => { const h = el("gal-hint"); if (h) h.textContent = t; };
+    shown: new Set(), seq: 0, note: "" };
+  // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
+  // dialog closes, so the listing's own "Loading…" passes through and then gives way to it.
+  const galHint = t => { const h = el("gal-hint"); if (h) h.textContent = t || gal.note; };
   const galMatch = c => !gal.q || (c.name + "\n" + c.author).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0;
   // The order both lists are already in: favourites then newest, or newest alone.
   const galBefore = (a, b) => (gal.tab === "new" ? a.created > b.created
@@ -789,7 +791,12 @@
     heart.type = "button"; heart.className = "gal-heart";
     galPaintHeart(heart, c);
     heart.addEventListener("click", e => { e.stopPropagation(); galFav(c, heart); });
-    cap.append(nm, heart, by);
+    const share = document.createElement("button");
+    share.type = "button"; share.className = "gal-share"; share.textContent = "🔗";
+    share.title = "Copy a link to this scene";
+    share.setAttribute("aria-label", "Copy a link to " + c.name);
+    share.addEventListener("click", e => { e.stopPropagation(); galCopyLink(c, share); });
+    cap.append(nm, share, heart, by);
     if (cloudSess && c.owner && c.owner === cloudSess.uid) {
       const rm = document.createElement("button");
       rm.type = "button"; rm.className = "gal-rm"; rm.textContent = "✕";
@@ -898,28 +905,64 @@
         track("gallery_remove", {});
       }).catch(e => galHint("Could not remove it: " + e.message));
   }
-  // One card into your scenes. A built-in is cut out of the shipped collection (no request);
-  // anyone else's is fetched by id. Either way it is a one-scene library blob by now.
+  // One card as a one-scene library blob plus who made it. A built-in is cut out of the
+  // shipped collection (no request); anyone else's is fetched by id, and the ANSWER names it,
+  // so a #g= link that knows nothing but the id still credits the author.
+  function galSceneOf(c) {
+    if (c.at != null) return galFetchLibrary(BUILTIN_GALLERY[0].uid).then(lib => {
+      const p = lib && Array.isArray(lib.presets) && lib.presets[c.at];
+      if (!p) throw new Error("that scene is missing from this build");
+      return { blob: { presets: [p], curPreset: 0, cycle: false, palettes: lib.palettes }, name: c.name, author: c.author };
+    });
+    return apiGet("/api/gallery/" + encodeURIComponent(c.id)).then(r => {
+      if (r.status === 404) throw new Error("it has been taken out of the gallery");
+      if (!r.ok) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
+      return r.json();
+    }).then(d => unzipFromB64(d.payload).then(json => {
+      if (json == null) throw new Error("could not read that scene");
+      let blob;
+      try { blob = JSON.parse(json); } catch (e) { throw new Error("that scene is corrupt"); }
+      return { blob, name: String(d.name || c.name || "Scene"), author: d.author || c.author };
+    }));
+  }
   function galLoadCard(c) {
     galHint("Fetching “" + c.name + "”…");
-    const raw = c.at != null
-      ? galFetchLibrary(BUILTIN_GALLERY[0].uid).then(lib => {
-        const p = lib && Array.isArray(lib.presets) && lib.presets[c.at];
-        if (!p) throw new Error("that scene is missing from this build");
-        return { presets: [p], curPreset: 0, cycle: false, palettes: lib.palettes };
-      })
-      : apiGet("/api/gallery/" + encodeURIComponent(c.id)).then(r => {
-        if (!r.ok) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
-        return r.json();
-      }).then(d => unzipFromB64(d.payload)).then(json => {
-        if (json == null) throw new Error("could not read that scene");
-        try { return JSON.parse(json); } catch (e) { throw new Error("that scene is corrupt"); }
-      });
-    raw.then(blob => {
+    galSceneOf(c).then(got => {
       galOpen(false);
-      applyGalleryScene(blob, c.author);
+      applyGalleryScene(got.blob, got.author);
       track("gallery_load", { builtin: c.at != null });
     }).catch(e => galHint("Could not load: " + e.message));
+  }
+  // A card's link: #g=<card id>, a built-in's "builtin:<slug>" included. The id is the whole
+  // link -- nothing is minted, so copying is synchronous and works signed out. A FRAGMENT, like
+  // #c=, so the page is served from cache and the id never reaches the static host.
+  const galLinkOf = c => location.href.split(/[?#]/)[0].replace(/[^/]*$/, "") + "#g=" + c.id;
+  function galCopyLink(c, btn) {
+    const url = galLinkOf(c);
+    const done = ok => {
+      if (!ok) return;
+      btn.textContent = "✓"; btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "🔗"; btn.classList.remove("copied"); }, 1600);
+    };
+    const ask = () => { prompt("Copy this link:", url); done(false); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => done(true), ask);
+    } else ask();
+    track("gallery_share", { builtin: c.at != null });
+  }
+  // #g=<id> at startup (applyShared defers to here once every slice has run). Same install as
+  // a click on the card; a link to a scene that is gone, or a built-in this build does not
+  // ship, opens the gallery instead and says so there.
+  function galOpenLink(id) {
+    id = String(id || "");
+    const b = id.indexOf("builtin:") === 0 ? galBuiltinCards().find(x => x.id === id) : null;
+    const c = b || { id, name: "", author: "" };
+    const fail = msg => { gal.note = "That shared scene could not be opened: " + msg + "."; galOpen(true); };
+    if (!b && (id.indexOf("builtin:") === 0 || !cloudOn())) return fail("this version does not have it");
+    galSceneOf(c).then(got => {
+      applyGalleryScene(got.blob, got.author);
+      track("gallery_link", { builtin: !!b });
+    }).catch(e => fail(e.message));
   }
 
   // ---- the Collections tab: whole published profiles, as before M3 ----
@@ -1006,6 +1049,7 @@
       gal.seq++;                          // an answer still on its way lands nowhere
       for (const v of dlg.querySelectorAll("video")) v.pause();
       if (galObs) galObs.disconnect();
+      if (gal.note) { gal.note = ""; galHint(""); }
       dlgRelease(box);
       return;
     }
@@ -1343,7 +1387,7 @@
       else if (e.key === "Escape") { e.preventDefault(); cloudNameCommit(); }
     });
   }
-  // No #cloud-browse listener: the gallery is opened from the ☰ root item "Public scenes",
+  // No #cloud-browse listener: the gallery is opened from the ☰ root item "Gallery",
   // which calls galOpen(true) directly (see ui-menubar.js).
   if (el("gal-close")) el("gal-close").addEventListener("click", () => galOpen(false));
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));

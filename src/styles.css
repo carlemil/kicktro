@@ -507,7 +507,7 @@
   #galdlg.hidden { display: none; }
   #galdlg .gal-box {
     position: relative; pointer-events: auto;
-    width: min(92vw, 940px); max-height: 88vh; overflow-y: auto;
+    width: min(96vw, 1640px); max-height: 90vh; overflow-y: auto;
     background: rgba(10, 6, 4, 0.8); border: 1px solid rgba(255, 140, 40, 0.4);
     border-radius: 12px; padding: 24px 26px 22px;
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
@@ -529,7 +529,7 @@
   #galdlg .gal-tab[aria-selected="true"] { background: rgba(255, 140, 40, 0.28); border-color: rgba(255, 160, 60, 0.85); color: #fff3df; }
   #galdlg .gal-tab:focus-visible { outline: 1px solid #ffb15a; outline-offset: 2px; }
   /* The scene grid: as many 200px+ columns as fit, each card a 16:9 thumbnail over two lines. */
-  #galdlg .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  #galdlg .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
   #galdlg .gal-card {
     min-width: 0; cursor: pointer; border-radius: 8px; overflow: hidden;
     border: 1px solid rgba(255, 140, 40, 0.22); background: rgba(255, 140, 40, 0.05);
@@ -549,20 +549,22 @@
     overflow: hidden; text-overflow: ellipsis;
   }
   #galdlg .gal-cap {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto auto;
+    display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-columns: auto; grid-template-rows: auto auto;
     gap: 2px 6px; align-items: center; padding: 7px 9px 8px;
   }
   #galdlg .gal-cname { grid-column: 1; grid-row: 1; color: #ffcf87; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #galdlg .gal-by { grid-column: 1; grid-row: 2; color: #ffb15a; opacity: .65; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #galdlg .gal-heart, #galdlg .gal-rm {
+  #galdlg .gal-share, #galdlg .gal-heart, #galdlg .gal-rm {
     grid-row: 1 / span 2; padding: 4px 8px; border-radius: 999px; cursor: pointer; white-space: nowrap;
     background: transparent; border: 1px solid rgba(255, 140, 40, 0.3); color: #ffcf87;
     font: 11px/1.2 ui-monospace, Consolas, monospace;
   }
-  #galdlg .gal-heart { grid-column: 2; }
-  #galdlg .gal-rm { grid-column: 3; }
+  #galdlg .gal-share { grid-column: 2; }
+  #galdlg .gal-heart { grid-column: 3; }
+  #galdlg .gal-rm { grid-column: 4; }
+  #galdlg .gal-share.copied { color: #9be37a; border-color: rgba(155, 227, 122, 0.7); }
   #galdlg .gal-heart.on { color: #ff6f61; border-color: rgba(255, 111, 97, 0.7); background: rgba(255, 111, 97, 0.12); }
-  #galdlg .gal-heart:hover, #galdlg .gal-rm:hover { border-color: rgba(255, 160, 60, 0.85); }
+  #galdlg .gal-share:hover, #galdlg .gal-heart:hover, #galdlg .gal-rm:hover { border-color: rgba(255, 160, 60, 0.85); }
   #galdlg .gal-morerow { display: flex; justify-content: center; margin-top: 12px; }
   #galdlg h2 { margin: 0 30px 14px 0; color: #ffb15a; font-size: 15px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.6); }
   /* ONE line: name, then the scene count / date centred between, then Load at the end.
@@ -659,7 +661,7 @@
   /* ---- music beat reactivity ---- */
   #panel .audiorow, #menubar .audiorow { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
   /* Keyed on the class alone, NOT scoped to #panel/#menubar — the same trap the close-button
-     rule documents. .audbtn is used by every dialog too (Public scenes' "Load scenes" and
+     rule documents. .audbtn is used by every dialog too (the Gallery's "Load scenes" and
      "Refresh", the palette editor's actions, the restore dialog), and while this was scoped
      to the panel all of those rendered as raw grey browser buttons. */
   .audbtn {
@@ -1522,7 +1524,7 @@
   #paldlg h2 { margin: 0 0 12px; color: #ffb15a; font-size: 15px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.6); }
   /* ---- EVERY dialog's close button, in ONE rule ----------------------------------
      Top-right of its box, out of the flow, uniform across the palette inspector, the
-     palette editor, the Public scenes gallery, the Orbit editor, the help panel and the
+     palette editor, the Gallery, the Orbit editor, the help panel and the
      sync nudge.
      This used to be four near-identical copies scoped per dialog (#paldlg, #carddlg,
      #help, #syncpop), and that failed the same way twice: a new dialog reuses .pal-close,

@@ -399,6 +399,16 @@
       });
       return;
     }
+    // #g=<card id> — a GALLERY card's link (galCopyLink): "builtin:<slug>" or a published scene's
+    // id. It installs into "Shared with you" exactly as clicking the card does, through
+    // applyRestore's write-and-reload. Deferred like #c=: galOpenLink is in a later slice.
+    const g = location.hash.match(/[?&#]g=([A-Za-z0-9:_-]+)/);
+    if (g) {
+      // Only the fragment goes: a query (?api=, ?debug=1) is the page's own, read by later slices.
+      try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+      Promise.resolve().then(() => galOpenLink(g[1]));
+      return;
+    }
     const z = location.search.match(/[?&]z=([^&#]+)/);
     const m = z ? null : location.search.match(/[?&]s=([^&#]+)/);
     if (!z && !m) return;
@@ -428,6 +438,10 @@
   ["ttl-lo", "ttl-hi", "tdur-lo", "tdur-hi"].forEach(id => el(id).dispatchEvent(new Event("input")));
   restore();
   applyShared();
+  // A link pasted into a tab that already shows the app changes only the FRAGMENT, and that
+  // reloads nothing -- so every fragment link (#g=, #c=, #zp=, #sp=) was silently ignored in
+  // an open tab. Reload, and it lands through applyShared exactly like a fresh open.
+  window.addEventListener("hashchange", () => { if (/[?&#](g|c|zp|sp)=/.test(location.hash)) location.reload(); });
   resize();          // re-apply the restored render resolution (cfg.scale)
 
   // `enter` = this is a *fresh* entry into the effect (first load, an effect switch, a preset

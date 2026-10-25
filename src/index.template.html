@@ -129,7 +129,7 @@
     </div>
     <!-- "Browse published scenes…" used to live here, outside #cloud-authed because the
          gallery is readable by signed-out visitors (the rules allow a `pub == true` query
-         unauthenticated). It is now the ROOT ☰ item "Public scenes" instead — browsing other
+         unauthenticated). It is now the ROOT ☰ item "Gallery" instead — browsing other
          people's scenes needs no account, so burying it inside "Cloud profile" implied it did.
          The menubar calls galOpen(true) directly rather than adopting a button. -->
     <p id="cloud-msg" class="hint"></p>
@@ -395,15 +395,15 @@
   </div>
 </div>
 
-<!-- Public scene gallery (card 825, M3). Readable without signing in. One published scene per
+<!-- The Gallery (card 825, M3). Readable without signing in. One published scene per
      card: a poster, the clip on hover or focus, a heart with its count. A click installs the
      scene STRAIGHT AWAY into "Shared with you" (applyGalleryScene) -- nothing is left to ask.
      The Collections tab is the older per-profile listing, still what a follow resolves against. -->
 <div id="galdlg" class="hidden">
   <div class="gal-box" role="dialog" aria-modal="true" aria-labelledby="gal-title">
     <button type="button" class="pal-close" id="gal-close" aria-label="Close">×</button>
-    <h2 id="gal-title">Public scenes</h2>
-    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>♥</b> marks a favourite (signed in). Your own scene goes in with <b>Publish to gallery</b> in the Scene box.</p>
+    <h2 id="gal-title">Gallery</h2>
+    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>♥</b> marks a favourite (signed in); <b>🔗</b> copies a link that opens the scene for anyone. Your own scene goes in with <b>Publish to gallery</b> in the Scene box.</p>
     <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
       <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true">Most loved</button>
       <button type="button" role="tab" class="gal-tab" data-tab="new" aria-selected="false">Newest</button>

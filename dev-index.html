@@ -525,7 +525,7 @@
   #galdlg.hidden { display: none; }
   #galdlg .gal-box {
     position: relative; pointer-events: auto;
-    width: min(92vw, 940px); max-height: 88vh; overflow-y: auto;
+    width: min(96vw, 1640px); max-height: 90vh; overflow-y: auto;
     background: rgba(10, 6, 4, 0.8); border: 1px solid rgba(255, 140, 40, 0.4);
     border-radius: 12px; padding: 24px 26px 22px;
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
@@ -547,7 +547,7 @@
   #galdlg .gal-tab[aria-selected="true"] { background: rgba(255, 140, 40, 0.28); border-color: rgba(255, 160, 60, 0.85); color: #fff3df; }
   #galdlg .gal-tab:focus-visible { outline: 1px solid #ffb15a; outline-offset: 2px; }
   /* The scene grid: as many 200px+ columns as fit, each card a 16:9 thumbnail over two lines. */
-  #galdlg .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  #galdlg .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
   #galdlg .gal-card {
     min-width: 0; cursor: pointer; border-radius: 8px; overflow: hidden;
     border: 1px solid rgba(255, 140, 40, 0.22); background: rgba(255, 140, 40, 0.05);
@@ -567,20 +567,22 @@
     overflow: hidden; text-overflow: ellipsis;
   }
   #galdlg .gal-cap {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto auto;
+    display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-columns: auto; grid-template-rows: auto auto;
     gap: 2px 6px; align-items: center; padding: 7px 9px 8px;
   }
   #galdlg .gal-cname { grid-column: 1; grid-row: 1; color: #ffcf87; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #galdlg .gal-by { grid-column: 1; grid-row: 2; color: #ffb15a; opacity: .65; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #galdlg .gal-heart, #galdlg .gal-rm {
+  #galdlg .gal-share, #galdlg .gal-heart, #galdlg .gal-rm {
     grid-row: 1 / span 2; padding: 4px 8px; border-radius: 999px; cursor: pointer; white-space: nowrap;
     background: transparent; border: 1px solid rgba(255, 140, 40, 0.3); color: #ffcf87;
     font: 11px/1.2 ui-monospace, Consolas, monospace;
   }
-  #galdlg .gal-heart { grid-column: 2; }
-  #galdlg .gal-rm { grid-column: 3; }
+  #galdlg .gal-share { grid-column: 2; }
+  #galdlg .gal-heart { grid-column: 3; }
+  #galdlg .gal-rm { grid-column: 4; }
+  #galdlg .gal-share.copied { color: #9be37a; border-color: rgba(155, 227, 122, 0.7); }
   #galdlg .gal-heart.on { color: #ff6f61; border-color: rgba(255, 111, 97, 0.7); background: rgba(255, 111, 97, 0.12); }
-  #galdlg .gal-heart:hover, #galdlg .gal-rm:hover { border-color: rgba(255, 160, 60, 0.85); }
+  #galdlg .gal-share:hover, #galdlg .gal-heart:hover, #galdlg .gal-rm:hover { border-color: rgba(255, 160, 60, 0.85); }
   #galdlg .gal-morerow { display: flex; justify-content: center; margin-top: 12px; }
   #galdlg h2 { margin: 0 30px 14px 0; color: #ffb15a; font-size: 15px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.6); }
   /* ONE line: name, then the scene count / date centred between, then Load at the end.
@@ -677,7 +679,7 @@
   /* ---- music beat reactivity ---- */
   #panel .audiorow, #menubar .audiorow { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
   /* Keyed on the class alone, NOT scoped to #panel/#menubar — the same trap the close-button
-     rule documents. .audbtn is used by every dialog too (Public scenes' "Load scenes" and
+     rule documents. .audbtn is used by every dialog too (the Gallery's "Load scenes" and
      "Refresh", the palette editor's actions, the restore dialog), and while this was scoped
      to the panel all of those rendered as raw grey browser buttons. */
   .audbtn {
@@ -1540,7 +1542,7 @@
   #paldlg h2 { margin: 0 0 12px; color: #ffb15a; font-size: 15px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.6); }
   /* ---- EVERY dialog's close button, in ONE rule ----------------------------------
      Top-right of its box, out of the flow, uniform across the palette inspector, the
-     palette editor, the Public scenes gallery, the Orbit editor, the help panel and the
+     palette editor, the Gallery, the Orbit editor, the help panel and the
      sync nudge.
      This used to be four near-identical copies scoped per dialog (#paldlg, #carddlg,
      #help, #syncpop), and that failed the same way twice: a new dialog reuses .pal-close,
@@ -2075,7 +2077,7 @@
     </div>
     <!-- "Browse published scenes…" used to live here, outside #cloud-authed because the
          gallery is readable by signed-out visitors (the rules allow a `pub == true` query
-         unauthenticated). It is now the ROOT ☰ item "Public scenes" instead — browsing other
+         unauthenticated). It is now the ROOT ☰ item "Gallery" instead — browsing other
          people's scenes needs no account, so burying it inside "Cloud profile" implied it did.
          The menubar calls galOpen(true) directly rather than adopting a button. -->
     <p id="cloud-msg" class="hint"></p>
@@ -2341,15 +2343,15 @@
   </div>
 </div>
 
-<!-- Public scene gallery (card 825, M3). Readable without signing in. One published scene per
+<!-- The Gallery (card 825, M3). Readable without signing in. One published scene per
      card: a poster, the clip on hover or focus, a heart with its count. A click installs the
      scene STRAIGHT AWAY into "Shared with you" (applyGalleryScene) -- nothing is left to ask.
      The Collections tab is the older per-profile listing, still what a follow resolves against. -->
 <div id="galdlg" class="hidden">
   <div class="gal-box" role="dialog" aria-modal="true" aria-labelledby="gal-title">
     <button type="button" class="pal-close" id="gal-close" aria-label="Close">×</button>
-    <h2 id="gal-title">Public scenes</h2>
-    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>♥</b> marks a favourite (signed in). Your own scene goes in with <b>Publish to gallery</b> in the Scene box.</p>
+    <h2 id="gal-title">Gallery</h2>
+    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>♥</b> marks a favourite (signed in); <b>🔗</b> copies a link that opens the scene for anyone. Your own scene goes in with <b>Publish to gallery</b> in the Scene box.</p>
     <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
       <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true">Most loved</button>
       <button type="button" role="tab" class="gal-tab" data-tab="new" aria-selected="false">Newest</button>
@@ -22188,6 +22190,16 @@
       });
       return;
     }
+    // #g=<card id> — a GALLERY card's link (galCopyLink): "builtin:<slug>" or a published scene's
+    // id. It installs into "Shared with you" exactly as clicking the card does, through
+    // applyRestore's write-and-reload. Deferred like #c=: galOpenLink is in a later slice.
+    const g = location.hash.match(/[?&#]g=([A-Za-z0-9:_-]+)/);
+    if (g) {
+      // Only the fragment goes: a query (?api=, ?debug=1) is the page's own, read by later slices.
+      try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+      Promise.resolve().then(() => galOpenLink(g[1]));
+      return;
+    }
     const z = location.search.match(/[?&]z=([^&#]+)/);
     const m = z ? null : location.search.match(/[?&]s=([^&#]+)/);
     if (!z && !m) return;
@@ -22217,6 +22229,10 @@
   ["ttl-lo", "ttl-hi", "tdur-lo", "tdur-hi"].forEach(id => el(id).dispatchEvent(new Event("input")));
   restore();
   applyShared();
+  // A link pasted into a tab that already shows the app changes only the FRAGMENT, and that
+  // reloads nothing -- so every fragment link (#g=, #c=, #zp=, #sp=) was silently ignored in
+  // an open tab. Reload, and it lands through applyShared exactly like a fresh open.
+  window.addEventListener("hashchange", () => { if (/[?&#](g|c|zp|sp)=/.test(location.hash)) location.reload(); });
   resize();          // re-apply the restored render resolution (cfg.scale)
 
   // `enter` = this is a *fresh* entry into the effect (first load, an effect switch, a preset
@@ -26199,8 +26215,10 @@
   // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
   // answer to a request a newer tab or filter has overtaken.
   const gal = { tab: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
-    shown: new Set(), seq: 0 };
-  const galHint = t => { const h = el("gal-hint"); if (h) h.textContent = t; };
+    shown: new Set(), seq: 0, note: "" };
+  // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
+  // dialog closes, so the listing's own "Loading…" passes through and then gives way to it.
+  const galHint = t => { const h = el("gal-hint"); if (h) h.textContent = t || gal.note; };
   const galMatch = c => !gal.q || (c.name + "\n" + c.author).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0;
   // The order both lists are already in: favourites then newest, or newest alone.
   const galBefore = (a, b) => (gal.tab === "new" ? a.created > b.created
@@ -26329,7 +26347,12 @@
     heart.type = "button"; heart.className = "gal-heart";
     galPaintHeart(heart, c);
     heart.addEventListener("click", e => { e.stopPropagation(); galFav(c, heart); });
-    cap.append(nm, heart, by);
+    const share = document.createElement("button");
+    share.type = "button"; share.className = "gal-share"; share.textContent = "🔗";
+    share.title = "Copy a link to this scene";
+    share.setAttribute("aria-label", "Copy a link to " + c.name);
+    share.addEventListener("click", e => { e.stopPropagation(); galCopyLink(c, share); });
+    cap.append(nm, share, heart, by);
     if (cloudSess && c.owner && c.owner === cloudSess.uid) {
       const rm = document.createElement("button");
       rm.type = "button"; rm.className = "gal-rm"; rm.textContent = "✕";
@@ -26438,28 +26461,64 @@
         track("gallery_remove", {});
       }).catch(e => galHint("Could not remove it: " + e.message));
   }
-  // One card into your scenes. A built-in is cut out of the shipped collection (no request);
-  // anyone else's is fetched by id. Either way it is a one-scene library blob by now.
+  // One card as a one-scene library blob plus who made it. A built-in is cut out of the
+  // shipped collection (no request); anyone else's is fetched by id, and the ANSWER names it,
+  // so a #g= link that knows nothing but the id still credits the author.
+  function galSceneOf(c) {
+    if (c.at != null) return galFetchLibrary(BUILTIN_GALLERY[0].uid).then(lib => {
+      const p = lib && Array.isArray(lib.presets) && lib.presets[c.at];
+      if (!p) throw new Error("that scene is missing from this build");
+      return { blob: { presets: [p], curPreset: 0, cycle: false, palettes: lib.palettes }, name: c.name, author: c.author };
+    });
+    return apiGet("/api/gallery/" + encodeURIComponent(c.id)).then(r => {
+      if (r.status === 404) throw new Error("it has been taken out of the gallery");
+      if (!r.ok) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
+      return r.json();
+    }).then(d => unzipFromB64(d.payload).then(json => {
+      if (json == null) throw new Error("could not read that scene");
+      let blob;
+      try { blob = JSON.parse(json); } catch (e) { throw new Error("that scene is corrupt"); }
+      return { blob, name: String(d.name || c.name || "Scene"), author: d.author || c.author };
+    }));
+  }
   function galLoadCard(c) {
     galHint("Fetching “" + c.name + "”…");
-    const raw = c.at != null
-      ? galFetchLibrary(BUILTIN_GALLERY[0].uid).then(lib => {
-        const p = lib && Array.isArray(lib.presets) && lib.presets[c.at];
-        if (!p) throw new Error("that scene is missing from this build");
-        return { presets: [p], curPreset: 0, cycle: false, palettes: lib.palettes };
-      })
-      : apiGet("/api/gallery/" + encodeURIComponent(c.id)).then(r => {
-        if (!r.ok) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
-        return r.json();
-      }).then(d => unzipFromB64(d.payload)).then(json => {
-        if (json == null) throw new Error("could not read that scene");
-        try { return JSON.parse(json); } catch (e) { throw new Error("that scene is corrupt"); }
-      });
-    raw.then(blob => {
+    galSceneOf(c).then(got => {
       galOpen(false);
-      applyGalleryScene(blob, c.author);
+      applyGalleryScene(got.blob, got.author);
       track("gallery_load", { builtin: c.at != null });
     }).catch(e => galHint("Could not load: " + e.message));
+  }
+  // A card's link: #g=<card id>, a built-in's "builtin:<slug>" included. The id is the whole
+  // link -- nothing is minted, so copying is synchronous and works signed out. A FRAGMENT, like
+  // #c=, so the page is served from cache and the id never reaches the static host.
+  const galLinkOf = c => location.href.split(/[?#]/)[0].replace(/[^/]*$/, "") + "#g=" + c.id;
+  function galCopyLink(c, btn) {
+    const url = galLinkOf(c);
+    const done = ok => {
+      if (!ok) return;
+      btn.textContent = "✓"; btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "🔗"; btn.classList.remove("copied"); }, 1600);
+    };
+    const ask = () => { prompt("Copy this link:", url); done(false); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => done(true), ask);
+    } else ask();
+    track("gallery_share", { builtin: c.at != null });
+  }
+  // #g=<id> at startup (applyShared defers to here once every slice has run). Same install as
+  // a click on the card; a link to a scene that is gone, or a built-in this build does not
+  // ship, opens the gallery instead and says so there.
+  function galOpenLink(id) {
+    id = String(id || "");
+    const b = id.indexOf("builtin:") === 0 ? galBuiltinCards().find(x => x.id === id) : null;
+    const c = b || { id, name: "", author: "" };
+    const fail = msg => { gal.note = "That shared scene could not be opened: " + msg + "."; galOpen(true); };
+    if (!b && (id.indexOf("builtin:") === 0 || !cloudOn())) return fail("this version does not have it");
+    galSceneOf(c).then(got => {
+      applyGalleryScene(got.blob, got.author);
+      track("gallery_link", { builtin: !!b });
+    }).catch(e => fail(e.message));
   }
 
   // ---- the Collections tab: whole published profiles, as before M3 ----
@@ -26546,6 +26605,7 @@
       gal.seq++;                          // an answer still on its way lands nowhere
       for (const v of dlg.querySelectorAll("video")) v.pause();
       if (galObs) galObs.disconnect();
+      if (gal.note) { gal.note = ""; galHint(""); }
       dlgRelease(box);
       return;
     }
@@ -26883,7 +26943,7 @@
       else if (e.key === "Escape") { e.preventDefault(); cloudNameCommit(); }
     });
   }
-  // No #cloud-browse listener: the gallery is opened from the ☰ root item "Public scenes",
+  // No #cloud-browse listener: the gallery is opened from the ☰ root item "Gallery",
   // which calls galOpen(true) directly (see ui-menubar.js).
   if (el("gal-close")) el("gal-close").addEventListener("click", () => galOpen(false));
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
@@ -28254,7 +28314,7 @@
         + "picture (pixelate, mirror, bloom). <b>+ Add filter</b> opens the full catalogue." },
     { head: "Keeping and sharing", art: TUT_ART.share,
       body: "Your scenes live in this browser. <b>Cloud profile</b> keeps the whole library against a "
-        + "Google account; <b>Publish to gallery</b> puts one scene in <b>Public scenes</b>, where "
+        + "Google account; <b>Publish to gallery</b> puts one scene in the <b>Gallery</b>, where "
         + "everyone's published scenes play as you hover them and <b>♥</b> sorts the best to the top. "
         + "<b>Share</b> copies a link to the one scene you "
         + "have open.<br><br>That is the tour. <b>☰ → Help</b> explains every single control, and "
@@ -28586,7 +28646,7 @@
       // account was needed. Gated on cloudOn() for the same reason #cloudrow is — with no
       // apiBase there is nothing to browse. Calls galOpen directly; the app is one
       // IIFE and this slice runs last, so the function is simply in scope.
-      ...(cloudOn() ? [{ label: "Public scenes", title: "Browse the scenes other people have published, and load them",
+      ...(cloudOn() ? [{ label: "Gallery", title: "Browse the scenes other people have published, and load them",
         run: () => galOpen(true) }] : []),
       { label: "Credits", sub: [{ adopt: "creditbox" }] },
       { sep: true },
