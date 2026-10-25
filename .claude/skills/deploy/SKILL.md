@@ -163,6 +163,7 @@ node tools/rndkeep-check.js  <scratchdir> dev-index.html
 node tools/tempoui-check.js  <scratchdir> dev-index.html
 node tools/tunedim-check.js  <scratchdir> dev-index.html
 node tools/author-check.js   <scratchdir> dev-index.html
+node tools/gallery-check.js  <scratchdir> dev-index.html  # gallery grid, hover clip, favourites, built-in load
 ```
 
 If you are short of time, `world-check` and `flipcheck` are the two that guard silent-rendering
@@ -188,6 +189,21 @@ that class; the GPU compile is the complete claim.
 
 If any probe, the gate or the compile check fails, **stop and report it** rather than
 deploying.
+
+### Gallery thumbnails
+
+Render whatever has no thumbnail yet — both are no-ops when nothing is missing:
+
+```
+node tools/thumbs.js --builtin     # AI-Generated scenes -> thumbs/<slug>.webp|.mp4, re-emits + rebuilds
+node tools/thumbs.js --server      # published scenes with none -> uploaded to api.kicktro.com (ssh for the token)
+```
+
+`--builtin` changes `thumbs/`, `src/gallery-builtin.js` and `dev-index.html`; if it rendered
+anything, run `cp dev-index.html index.html` again and stage `thumbs/ src/gallery-builtin.js`
+with the release (pages.yml ships `thumbs/`). `--server` needs no commit — the files live on the
+API. Each render is ~9 s on the real GPU; a failure there is not a reason to stop the release,
+but say so.
 
 ## 5. Commit, tag and push
 

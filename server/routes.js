@@ -345,21 +345,25 @@ function makeRoutes(ctx) {
     const off = Math.max(0, parseInt(sp.get("offset"), 10) || 0);
     const needle = (sp.get("q") || "").slice(0, 60).trim();
     const like = "%" + needle.replace(/[\\%_]/g, c => "\\" + c) + "%";
-    const where = "where (? = '' or g.name like ? escape '\\' or u.name like ? escape '\\')";
+    // ?mine=favs narrows to the caller's own favourites (the gallery's My favourites tab), so
+    // that list pages and filters exactly like the others. It needs a session; the rest does not.
+    const favOf = sp.get("mine") === "favs" ? user(r).uid : "";
+    const where = "where (? = '' or g.name like ? escape '\\' or u.name like ? escape '\\') "
+      + "and (? = '' or g.id in (select scene_id from favs where uid = ?))";
     const order = sort === "new" ? "order by g.created desc, g.id" : "order by favs desc, g.created desc, g.id";
     const rows = q("select g.id, g.name, g.owner, g.created, g.thumb_ver, u.name author, "
       + "(select count(*) from favs f where f.scene_id = g.id) favs "
       + "from gallery g join users u on u.uid = g.owner " + where + " " + order + " limit ? offset ?")
-      .all(needle, like, like, lim, off);
+      .all(needle, like, like, favOf, favOf, lim, off);
     const total = q("select count(*) n from gallery g join users u on u.uid = g.owner " + where)
-      .get(needle, like, like).n;
+      .get(needle, like, like, favOf, favOf).n;
     const builtin = {};
     for (const b of S.galBuiltinFavs.all()) builtin[b.scene_id] = b.n;
     sendJson(r.res, 200, {
       total, offset: off, sort, builtin,
       items: rows.map(g => ({ id: g.id, name: g.name, author: g.author, owner: g.owner, created: g.created,
         favs: g.favs, ...thumbUrls(g.id, g.thumb_ver) })),
-    }, { "Cache-Control": "public, max-age=30" });
+    }, { "Cache-Control": favOf ? "private, no-store" : "public, max-age=30" });
   });
   on("GET", "/api/gallery/([^/]+)", r => {
     const id = decodeURIComponent(r.m[1]);

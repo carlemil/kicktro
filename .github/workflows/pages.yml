@@ -42,6 +42,9 @@ jobs:
           # what is staged here, so without this the custom domain (kicktro.com) is dropped on
           # the next deploy and Pages falls back to carlemil.github.io/kicktro.
           cp CNAME _site/
+          # The built-in gallery scenes' thumbnails (poster .webp + hover clip .mp4), rendered
+          # by tools/thumbs.js --builtin and referenced as thumbs/<slug>.* beside the page.
+          if [ -d thumbs ]; then cp -r thumbs _site/; fi
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

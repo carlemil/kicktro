@@ -105,7 +105,7 @@
       <!-- Opt-in, and off by default: publishing is a deliberate act, not a side effect of
            saving. Ticking it re-saves the whole profile (see cloudPublish for why a
            pub-only write cannot satisfy the rules). -->
-      <label class="check" title="List your profile in the public gallery so anyone can load your scenes. Your name and scene count become visible."><input type="checkbox" id="cloud-pub"> Publish to gallery</label>
+      <label class="check" title="List your whole profile on the gallery's Collections tab so anyone can load all your scenes at once. Your name and scene count become visible. One scene goes in with Publish to gallery in the Scene box instead."><input type="checkbox" id="cloud-pub"> List my profile under Collections</label>
       <!-- ON by default. An automatic upload is still an upload, so it gets a control you can
            see and switch off rather than happening silently. data-nopersist: this is a device
            preference with its own localStorage key, not scene data. -->
@@ -160,6 +160,11 @@
   <div class="presetrow">
     <button id="delpreset" class="audbtn" type="button" title="Delete the selected scene">Delete</button>
     <button id="sharepreset" class="audbtn" type="button" title="Copy a link to this scene — short via your cloud profile when signed in, self-contained otherwise">Share</button>
+  </div>
+  <!-- One scene into the public gallery, credited to your profile name (card 825, M3). Shown
+       only when the cloud is configured (cloudInit); signed out it says how to sign in. -->
+  <div class="presetrow" id="publishrow" style="display:none">
+    <button id="publishpreset" class="audbtn" type="button" title="Put this scene in the public gallery under your profile name, where anyone can watch it, favourite it and load it">Publish to gallery</button>
   </div>
   <!-- Auto-cycle / Scene TTL / Transition defaults come from CONFIG.scene (set in JS at startup),
        not from value=/checked here — so they live in one place. -->
@@ -390,25 +395,26 @@
   </div>
 </div>
 
-<!-- Public scene gallery. Readable without signing in, so it is available to any visitor.
-     Each row applies STRAIGHT AWAY on its own two buttons — the Restore dialog would only
-     ask merge-vs-replace a second time, having already been asked here. (That dialog is
-     still live for `#zp=` links and Load from cloud, where the answer isn't in the click.) -->
+<!-- Public scene gallery (card 825, M3). Readable without signing in. One published scene per
+     card: a poster, the clip on hover or focus, a heart with its count. A click installs the
+     scene STRAIGHT AWAY into "Shared with you" (applyGalleryScene) -- nothing is left to ask.
+     The Collections tab is the older per-profile listing, still what a follow resolves against. -->
 <div id="galdlg" class="hidden">
   <div class="gal-box" role="dialog" aria-modal="true" aria-labelledby="gal-title">
     <button type="button" class="pal-close" id="gal-close" aria-label="Close">×</button>
     <h2 id="gal-title">Public scenes</h2>
-    <p class="pal-hint gal-help"><b>Load scenes</b> adds someone's scenes to your list as their own collection, named after them — your own scenes are never touched, and loading the same person again just refreshes their set. Collections start folded in the Scenes list; click a name to open it, or <b>✕</b> to remove the whole collection. The page reloads onto what you loaded.</p>
-    <input type="search" id="gal-filter" placeholder="Filter by name" aria-label="Filter the list by name" autocomplete="off">
-    <div id="gal-list"></div>
-    <p class="pal-hint" id="gal-hint"></p>
-    <div class="presetrow gal-pager hidden" id="gal-pager">
-      <button id="gal-prev" class="audbtn" type="button" aria-label="Previous page">‹ Prev</button>
-      <span id="gal-page" class="gal-pagenum" aria-live="polite">1 / 1</span>
-      <button id="gal-next" class="audbtn" type="button" aria-label="Next page">Next ›</button>
+    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>♥</b> marks a favourite (signed in). Your own scene goes in with <b>Publish to gallery</b> in the Scene box.</p>
+    <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
+      <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true">Most loved</button>
+      <button type="button" role="tab" class="gal-tab" data-tab="new" aria-selected="false">Newest</button>
+      <button type="button" role="tab" class="gal-tab" data-tab="mine" aria-selected="false">My favourites</button>
+      <button type="button" role="tab" class="gal-tab" data-tab="people" aria-selected="false">Collections</button>
     </div>
-    <div class="presetrow">
-      <button id="gal-refresh" class="audbtn" type="button" title="Fetch the list again (at most once a day)">Refresh</button>
+    <input type="search" id="gal-filter" placeholder="Filter by name or author" aria-label="Filter by scene name or author" autocomplete="off">
+    <div id="gal-list"></div>
+    <p class="pal-hint" id="gal-hint" aria-live="polite"></p>
+    <div class="presetrow gal-morerow">
+      <button id="gal-more" class="audbtn" type="button" style="display:none">Load more</button>
     </div>
   </div>
 </div>

@@ -253,8 +253,15 @@
         // set under their name rather than merged into yours: your library is untouched,
         // their "Sunset" and your "Sunset" are not a collision, and loading the same
         // profile again replaces just their set instead of piling up duplicates.
-        lib = out.presets.filter(x => (x.collection || "") !== coll);
-        for (const q of p.valid) lib.push({ ...q, collection: coll });
+        // `keep` (one scene from the gallery, into "Shared with you") keeps the rest of that
+        // collection and replaces only a same-named scene in it: loading a second card must
+        // not throw away the first.
+        lib = p.keep ? out.presets.slice() : out.presets.filter(x => (x.collection || "") !== coll);
+        for (const q of p.valid) {
+          const item = { ...q, collection: coll };
+          const at = p.keep ? lib.findIndex(x => x.name === item.name && (x.collection || "") === coll) : -1;
+          if (at >= 0) lib[at] = item; else lib.push(item);
+        }
       } else if (el("rst-replace").checked) {
         lib = p.valid.slice();                 // Replace: only the backup's presets
       } else {                                 // Merge: overwrite same-named, keep the rest, append new
@@ -442,6 +449,26 @@
     el("rst-merge").checked = !replace;
     el("rst-replace").checked = !!replace;
     applyRestore();                                   // writes localStorage + reloads
+  }
+
+  // ONE published scene from the gallery (card 825, M3). It lands in "Shared with you" -- the
+  // home a one-off scene from someone else already has -- not in a collection named after its
+  // author: a collection is something you FOLLOW (cloudBlob uploads the follow instead of the
+  // scenes and re-fetches the author's whole profile on the next load), and one card is not a
+  // follow. "Shared with you" travels with your profile like your own scenes, and `origin`
+  // keeps the banner crediting the author. Same validation and write/reload as every other
+  // install, through applyRestore.
+  function applyGalleryScene(raw, author) {
+    const parsed = sharedLibrary(raw);
+    if (!parsed) return;
+    const by = originOk(author);
+    if (by) for (const q of parsed.valid) if (!originOk(q.origin)) q.origin = by;
+    pendingRestore = { parsed: parsed.parsed, valid: parsed.valid, hasSettings: false, hasRanges: false, hasBeat: false,
+      collection: SHARED_COLLECTION, keep: true };
+    el("rst-presets").checked = true;
+    el("rst-merge").checked = true;
+    el("rst-replace").checked = false;
+    applyRestore();
   }
 
   // Initial paint: setEffect loads the restored effect's per-effect extras (show-box,

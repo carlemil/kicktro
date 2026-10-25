@@ -261,6 +261,13 @@ async function main() {
   ok("gallery: built-in favourite counts ride along", r.json.builtin["builtin:neon-reef"] === 1, r.text);
   r = await call("GET", "/api/me/favs", { token: B.token });
   ok("fav: my favourites", r.json.ids.includes(a1) && r.json.ids.includes(a2), r.text);
+  r = await call("GET", "/api/gallery?mine=favs");
+  ok("gallery: mine=favs needs a session", r.status === 401, r.status);
+  r = await call("GET", "/api/gallery?mine=favs", { token: B.token });
+  ok("gallery: mine=favs lists only my favourites", r.status === 200 && r.json.total === 2
+    && r.json.items.map(x => x.id).sort().join() === [a1, a2].sort().join(), r.text);
+  r = await call("GET", "/api/gallery?mine=favs&q=storm", { token: B.token });
+  ok("gallery: ...and filters like the other tabs", r.json.total === 1 && r.json.items[0].id === a2, r.text);
   r = await call("GET", "/api/gallery/" + a1);
   ok("gallery: one scene with its payload", r.status === 200 && r.json.payload === PAY && r.json.favs === 1);
   r = await call("DELETE", "/api/gallery/" + a2, { token: B.token });

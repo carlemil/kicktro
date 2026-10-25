@@ -720,12 +720,29 @@ Stored against your account: the profile name you choose, your own scenes, and t
 the collections you follow. Nothing else — not your email, name or picture, and none of
 anyone else's scenes.
 
-**Publish to gallery** is opt-in and off by default. Tick it and your profile is listed
-publicly, with your chosen name and how many scenes it holds. **Public scenes** on the ☰
-menu opens that list — and it needs no account, so anyone can look. **Load scenes**
-adds someone's scenes to your list as **their own collection**, named after them, so your
-library is never touched and nothing of yours can be overwritten. Load the same person
-again and their set is simply refreshed.
+**Public scenes** on the ☰ menu is the gallery — and it needs no account, so anyone can
+look. Every published scene is a card: a still of the scene five seconds in, which turns into
+a short looping clip while you hover it (on a phone, the first tap plays the clip and the
+second loads the scene). Click a card to add that scene to your list, under **Shared with
+you**, credited to whoever made it. Three tabs order the cards — **Most loved**, **Newest**
+and **My favourites** — and the filter box narrows them by scene or author name; more cards
+load as you scroll. The twenty-five AI-Generated scenes that ship with Kicktro are cards too.
+
+**♥** on a card adds it to your favourites, and the number beside it is how many people
+love it — that count is what **Most loved** sorts by. Favourites belong to an account: one
+per person per scene, so sign in first.
+
+**Publish to gallery**, under the Delete and Share buttons in the Scene box, puts the
+selected scene in the gallery under your profile name (signed in, with a name set). Only
+your own scenes can be published — one you loaded from someone else is theirs; press **New**
+to make your own copy first. Its card shows a placeholder until its thumbnail is rendered,
+and **✕** on your own card takes it down again.
+
+The fourth tab, **Collections**, is the older list of whole profiles: tick **List my profile
+under Collections** in the cloud box to be on it, with your chosen name and how many scenes
+you have. **Load scenes** there adds someone's scenes to your list as **their own
+collection**, named after them, so your library is never touched and nothing of yours can be
+overwritten. Load the same person again and their set is simply refreshed.
 
 Links still work too, even though there are no longer buttons that make new ones: every
 share link and preset-bundle link ever generated still opens, and lands in the same

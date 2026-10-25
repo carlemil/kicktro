@@ -146,11 +146,9 @@
       // └──────────────────────────────────────────────────────────────────────────────────┘
       apiKey: "AIzaSyB_VfQ6W0ui79rMzHrYvbe8f_1OkSSymRM",
       projectId: "burntheweb-3cd05",
-      // ONE number, and it is both the cache lifetime and the reload limit -- see galOpen.
-      // Two separate intervals would let the Refresh button undercut the cache and make
-      // "reloads once a day" quietly untrue.
-      galleryTtlMs: 86400000,                     // cache the gallery listing, and reload at most, 24h
-      galleryPage: 20,                            // profiles per gallery page
+      // The gallery's answers are kept in memory this long (galJson); a favourite patches them.
+      galleryTtlMs: 600000,                       // 10 minutes
+      galleryPage: 24,                            // scene cards per request as the grid scrolls
       maxPayload: 300000,                         // must match CAP.profilePayload in server/routes.js
     },
 
