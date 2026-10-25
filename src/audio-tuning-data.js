@@ -371,10 +371,10 @@
       unzipFromB64(zp[1]).then(json => openSharedLibrary(parse(json)));
       return;
     }
-    // #c=<id> — a scene stored in Firestore (see cloudShareScene). Same payload as ?z=, just
+    // #c=<id> — a scene stored by the API (see cloudShareScene). Same payload as ?z=, just
     // fetched instead of carried, so it lands through installShared exactly like one.
     // DEFERRED for the same reason #sp= is: cloudFetchScene lives in a much later slice whose
-    // `CLOUD` const is still in the temporal dead zone while this slice is loading. The fetch
+    // `CLOUD`/`API` consts are still in the temporal dead zone while this slice is loading. The fetch
     // is anonymous — a share link has to open for someone with no account.
     const c = (location.hash.match(/[?&#]c=([A-Za-z0-9_-]+)/) || location.search.match(/[?&]c=([A-Za-z0-9_-]+)/));
     if (c) {

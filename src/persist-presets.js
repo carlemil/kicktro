@@ -827,7 +827,7 @@
     persist();
   });
   // Share the CURRENT scene as a link on the clipboard. cloudShareScene stores the scene
-  // in Firestore and returns a ~30-char #c= link; signed out (or on any cloud failure) it
+  // through the API and returns a ~30-char #c= link; signed out (or on any cloud failure) it
   // falls back to the self-contained ?z= link, so the button always yields something that
   // opens. The copy goes through ClipboardItem's PROMISE form where available — the write
   // must be claimed inside the click gesture, before the async link resolves — with

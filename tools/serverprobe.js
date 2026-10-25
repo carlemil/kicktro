@@ -168,6 +168,10 @@ async function main() {
   r = await call("GET", "/api/profile", { token: A.token });
   ok("profile: reads back what was saved, with an ETag", r.status === 200 && r.json.count === 4 && r.json.payload === PAY
     && r.headers.get("etag") === '"' + r.json.updated + '"', r.text);
+  const full = r.json;
+  r = await call("GET", "/api/profile?meta=1", { token: A.token });
+  ok("profile: ?meta=1 is the same answer without the payload", r.status === 200 && !("payload" in r.json)
+    && r.json.count === full.count && r.json.updated === full.updated && r.json.name === full.name, r.text);
   r = await call("PUT", "/api/profile", { token: A.token, body: { ...prof, name: "x".repeat(41) } });
   ok("profile: a 41-character name is 400", r.status === 400, r.status);
   r = await call("PUT", "/api/profile", { token: A.token, body: { ...prof, payload: "A".repeat(300000) } });
@@ -323,15 +327,28 @@ async function main() {
     && r.json.users.added === 1 && r.json.users.linked === 1 && r.json.profiles.added === 1
     && r.json.shares.added === 2 && r.json.errors.length === 2, r.text);
   r = await call("POST", "/api/admin/import", { token: ADMIN, body: imp });
-  ok("import: running it again adds nothing", r.json.users.added === 0 && r.json.profiles.added === 0 && r.json.shares.added === 0, r.text);
+  ok("import: running it again adds nothing", r.json.users.added === 0 && r.json.profiles.added === 0
+    && r.json.profiles.updated === 0 && r.json.shares.added === 0, r.text);
+  const older = { profiles: [{ ...imp.profiles[0], count: 3, updated: "2026-08-01T10:00:00Z" }] };
+  r = await call("POST", "/api/admin/import", { token: ADMIN, body: older });
+  ok("import: an OLDER copy of a profile is skipped", r.json.profiles.skipped === 1 && r.json.profiles.updated === 0, r.text);
+  r = await call("GET", "/api/profiles/" + FB);
+  ok("import: and the stored profile is untouched", r.json.count === 7, r.text);
+  const newer = { profiles: [{ ...imp.profiles[0], count: 8, updated: "2026-09-02T10:00:00Z" }] };
+  r = await call("POST", "/api/admin/import", { token: ADMIN, body: newer });
+  ok("import: a NEWER copy of a profile replaces it", r.json.profiles.updated === 1 && r.json.profiles.added === 0, r.text);
+  r = await call("GET", "/api/profiles/" + FB);
+  ok("import: and the newer library is what is served", r.json.count === 8, r.text);
+  r = await call("POST", "/api/admin/import", { token: ADMIN, body: { profiles: [imp.profiles[0]] } });
+  ok("import: re-sending the first copy does not roll it back", r.json.profiles.skipped === 1, r.text);
   r = await call("GET", "/api/scenes/" + FSID);
   ok("import: an old #c= link opens under its Firestore id", r.status === 200 && r.json.name === "Old link");
   r = await call("GET", "/api/profiles/" + FB);
-  ok("import: a published profile resolves by its old Firebase uid", r.status === 200 && r.json.count === 7, r.text);
+  ok("import: a published profile resolves by its old Firebase uid", r.status === 200 && r.json.count === 8, r.text);
   const OLD = await signIn("google-sub-old");
   ok("import: signing in with the migrated Google account lands on the imported user", OLD.created === false && OLD.hasProfile === true);
   r = await call("GET", "/api/profile", { token: OLD.token });
-  ok("import: and finds the imported library", r.status === 200 && r.json.count === 7 && r.json.name === "Oldtimer");
+  ok("import: and finds the imported library", r.status === 200 && r.json.count === 8 && r.json.name === "Oldtimer");
   r = await call("GET", "/api/me", { token: A.token });
   ok("import: the account that signed in first is marked migrated", r.json.migrated === true);
 

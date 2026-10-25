@@ -745,30 +745,37 @@ Backup/Restore buttons are gone from the menu; builders are kept, probe-pinned. 
 `#sharepreset`** in the Scene box: `cloudShareScene()` → `#c=` link, `?z=` fallback; copy via
 `ClipboardItem`'s promise form, then `writeText`, then `prompt()`.
 
-### Cloud profiles (Firebase Auth + Firestore, over REST)
-`src/cloud-profile.js` is the client; `firestore.rules` is the whole security boundary. No SDK —
-`fetch()` against identitytoolkit / securetoken / firestore; the one remote script is Google
-Identity Services. **`CONFIG.cloud.apiKey` is a kill switch** (empty ⇒ no request at all).
+### Cloud profiles (the Kicktro API, since M2 of card 825)
+`src/cloud-profile.js` is the client of `server/` (next section), which is the whole security
+boundary. Plain `fetch()` through `apiFetch` (bearer) / `apiGet` (public); the one remote script is
+Google Identity Services. **`CONFIG.cloud.apiBase` is the kill switch** (empty ⇒ no script, no
+request). `?api=<origin>` overrides it ONLY on `file://`/localhost (`cloudprobe` asserts a real
+host ignores it).
 
 The payload is one deflated string via `cloudBlob()` → `serializeBlob` + `zipToB64` — same codec
 and decode path as `#zp=` (content differs since 1.14.0: borrowed presets filtered, `collections`
-added). Rules carry the size caps and `hasOnly()` pins the shape; the header lists the nine
-Playground cases. Tokens refresh 60s early; a 401 retries exactly once; session tokens under their
-own key.
+added). `maxPayload` must equal the server's `CAP.profilePayload`. Session =
+`{uid, token, expires}` under `burnTheWeb.cloud.v2` (a v1 FIREBASE session is dropped: everyone
+signs in once more); `cloudFresh` renews inside the last 7 days through ONE in-flight
+`/api/auth/refresh`; a 401 signs out, never a retry loop.
 
-**Shared scenes live in `/scenes`**, world-readable, owner-stamped, immutable, owner-deletable,
-unlistable — the minted id is noted at share time in `burnTheWeb.sharelinks.v1`; "My shared links"
-is the one retraction path; `cloudDelete` sweeps them.
+**Shared scenes** (`POST /api/scenes`, server-minted id) are world-readable by id, immutable,
+owner-deletable, unlisted to others; "My shared links" is `GET /api/me/scenes` (every machine's,
+imported Firebase ones included); `cloudDelete` sweeps them first. **`cloudFetchScene` falls back to
+the old public Firestore document** (`CLOUD.apiKey`/`projectId`, read-only) — remove both keys and
+the fallback once the import is confirmed and the Firebase project is gone.
 
 **A first sign-in seeds the account from this machine**: `cloudFetchProfileMeta(seedIfMissing)`'s
-404 branch calls `cloudSave()`, whose precondition asserts `exists=false`, so it can only CREATE.
+404 branch calls `cloudSave()`, whose precondition is `If-Match: none`, so it can only CREATE.
+Startup reads `GET /api/profile?meta=1` (no payload).
 `seedIfMissing` is passed by the sign-in caller only (`cloudprobe` asserts startup passes nothing).
 
 `cloudApplyPayload(payload)` is the ONE place a stored payload becomes a library.
 
-**Only the current version is stored** (no history). The save carries a `currentDocument`
-precondition from `cloudSess.docTime` (`"none"` ⇒ `exists=false`; absent ⇒ unguarded); every path
-that learns the version calls `cloudNoteDocTime`; a stale save re-arms via `cloudRearmDocTime()`.
+**Only the current version is stored** (no history). The save carries `cloudIfMatch(docTime)`
+(`"none"` ⇒ `If-Match: none`; a version ⇒ `"<updated>"`; absent ⇒ unguarded; 412 = stale); every
+path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
+`cloudRearmDocTime()`.
 - `cloudBlob()` sends YOUR scenes only, except `"Shared with you"`; other borrowed presets are
   dropped and `collections` (`{key, uid}`) rides instead — a borrowed collection with no follow
   entry is noted uid-less; never clobber an entry with a uid. `curPreset` is remapped.
@@ -783,13 +790,13 @@ that learns the version calls `cloudNoteDocTime`; a stale save re-arms via `clou
 - `applyRestore`'s MERGE matches on `(name, collection)`. `sharedLibrary` carries `collections`;
   `applyRestore` writes it only when `__ownCloud` is set — an out-of-band `let` set only by
   `cloudApplyPayload`, never from the payload. Merge UNIONS follow-lists; Replace replaces.
-- `firestore.rules` keeps a read-and-delete-only `snapshots` block until nothing is left. A
-  subcollection does NOT inherit its parent match; Firestore does not cascade-delete.
+- `firestore.rules`/`firebase.json` stay only until the Firebase project is deleted (the
+  `snapshots` sweep went with the client; those documents go with the project).
 
 **The gallery applies a row straight away** (`applySharedLibrary(raw, replace)` stages
 `pendingRestore` and calls `applyRestore`; `sharedLibrary(raw)` is the decode+validate half).
-Browsable signed out (`galFetchJson`, plain keyed fetch). `cloudPublish` re-saves the whole profile.
-**The listing is ONE unordered query a day** (`galleryLimit` 200, cached under `GAL_KEY` for
+Browsable signed out (`GET /api/profiles`). `cloudPublish` re-saves the whole profile.
+**The listing is ONE request a day** (`{items:[{uid,name,count,updated}]}`, cached under `GAL_KEY` v2 for
 `galleryTtlMs`; `galBust()` on your own publish/save). Shuffle, filter and pager are client-side.
 `tools/gallery-check.js`. **`BUILTIN_GALLERY`** (`src/gallery-builtin.js`, GENERATED by
 `node tools/ai-scenes.js --emit`) ships rows in the app — listed first, never cached, uid
@@ -797,7 +804,11 @@ Browsable signed out (`galFetchJson`, plain keyed fetch). `cloudPublish` re-save
 
 ### Kicktro API (`server/`, replacing Firebase — card 825)
 A Node 24 server for `api.kicktro.com` on the TALEBINDERY VPS (`deploy@136.148.210.49`). The page
-does not use it yet (M2 switches the client); Firebase stays live until then.
+talks to it since M2.
+- **The Firebase move is `tools/firebase-export.js`** (service-account key OUTSIDE the repo; the
+  export file holds user data and is refused inside the repo): Firestore + Identity Toolkit →
+  `POST /api/admin/import` (ADMIN_TOKEN read over ssh, never printed), chunked ≤ 6 MB, then a
+  verify pass. The import is IDEMPOTENT and NEWER-WINS per profile, so it may be re-run.
 - **No npm packages, ever**: `node:http`, `node:sqlite` (built in, ≥22.5 — CI runs Node 24),
   `node:crypto`. No `package.json`. The Dockerfile copies `*.js` and nothing else.
 - `db.js` owns the schema: migrations are APPEND-ONLY, keyed on `pragma user_version`. Favourite
@@ -1009,8 +1020,8 @@ its own). What each pins:
   never shadow a control's `?` (no shared label under overlapping tags; no `"all"` row named
   like a filter param that a non-filter control also carries).
 - **`stackprobe`** — stack-item lifecycle invariants; `fullSnapshot`/`applyBlob` key symmetry.
-- **`shareprobe`** — share codec round trip. **`cloudprobe`** — cloud shares the codec; empty
-  apiKey ⇒ zero requests. **`wireprobe`** — every `postPass`/`glShaderDraw` hook's `u.uX` is in
+- **`shareprobe`** — share codec round trip. **`cloudprobe`** — the API client: kill switch and
+  the local-only `?api=`, session lifetime, If-Match, the `#c=` fallback, the shared codec. **`wireprobe`** — every `postPass`/`glShaderDraw` hook's `u.uX` is in
   its program's registration list AND declared `uniform` in the FS source; every `params` key
   has a CONTROLS row, every group a `CTL_GROUPS` caption, every `*Seed(dt)` clock a `PHASE_VARS`
   line, every CATS id a real id. **`noiseprobe`** — Contours/Smoke mirrors at a REAL-SIZED field

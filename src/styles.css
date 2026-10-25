@@ -423,7 +423,7 @@
     background: rgba(255, 122, 26, 0.3); opacity: 1;
   }
   [data-k="cardbtn"], #addlayer { background: transparent; opacity: .82; }   /* quieter, matching the Orbit editor button */
-  /* Cloud profile row. Hidden wholesale when CONFIG.cloud.apiKey is "" — an unconfigured
+  /* Cloud profile row. Hidden wholesale when CONFIG.cloud.apiBase is "" — an unconfigured
      build shows no trace of the feature rather than a dead button. */
   #panel #cloudrow.hidden { display: none; }
   #panel #cloudrow .cloud-who { color: #ffcf87; opacity: .7; font-weight: normal; }

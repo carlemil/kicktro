@@ -121,78 +121,37 @@
     sync: { delays: [30000, 300000, 3600000] },   // active-tab ms before each of the (max 3) nudges (SYNC_DELAYS)
     analyticsId: "G-7CMDJP72N7",                  // GA4 Measurement id; "" makes analytics completely inert
 
-    // --- cloud profiles (Firebase Auth + Firestore, over REST; no SDK) ---
-    // apiKey "" makes the WHOLE feature inert: no Google script is loaded, no request is
+    // --- cloud profiles (the Kicktro API, server/ in this repo; no SDK) ---
+    // apiBase "" makes the WHOLE feature inert: no Google script is loaded, no request is
     // made, and the Cloud row is hidden from the menu — the same kill switch analyticsId
-    // above has. Fill both in from the Firebase console (Project settings → Web app) to
-    // turn it on.
-    //
-    // ┌─ THE apiKey BELOW IS NOT A SECRET, AND SECRET SCANNERS WILL FLAG IT ANYWAY ─────┐
-    // A Firebase *web* API key is a project IDENTIFIER, not a credential: it selects which
-    // project a request is for, and grants nothing on its own. It has to reach the browser
-    // for the app to work, so it is in this file, in dev-index.html, and in index.html —
-    // there is nowhere to hide it and nothing is gained by trying. Rotating it changes the
-    // string and nothing else, since the replacement is equally public.
-    //
-    // What actually protects the data:
-    //   1. firestore.rules (repo root) — the authorization boundary. Verified live: an
-    //      unauthenticated read of a private profile, an unauthenticated write, and an
-    //      unfiltered listing are all denied.
-    //   2. Only Google sign-in is enabled, so the key cannot be used to mint accounts
-    //      (accounts:signUp returns ADMIN_ONLY_OPERATION). Do NOT enable Anonymous or
-    //      Email/Password sign-in without re-checking that — those turn this key into a
-    //      way for anyone to create users on the project.
-    //   3. The key is restricted in Google Cloud Console (Credentials → this key) by HTTP
-    //      referrer to the site's own origins, and to only the APIs used: Identity Toolkit,
-    //      Token Service, Cloud Firestore. That is what limits quota abuse from elsewhere.
-    // Dispositioned as intentional on exactly this basis by BOTH scanners watching this repo:
-    // GitHub secret-scanning alert #1, and a GitGuardian incident on 2026-08-26.
-    //
-    // EXPECT IT TO KEEP COMING BACK, and do not read a repeat as a new exposure. Every release
-    // rewrites dev-index.html and index.html, the key is in both, and a scanner re-reports the
-    // string it finds — the 2026-08-26 incident was five releases in one day, not a new leak.
-    // Before dismissing the next one, re-check the two things above that live in a console and
-    // can therefore drift silently: that ONLY Google sign-in is enabled (2), and that the key's
-    // referrer and API restrictions are still in place (3). Those are the claims worth
-    // re-verifying; the key being public is not.
-    // └────────────────────────────────────────────────────────────────────────────────┘
+    // above has. On a local page, ?api=http://localhost:8080 points it at a dev server.
     cloud: {
-      apiKey: "AIzaSyB_VfQ6W0ui79rMzHrYvbe8f_1OkSSymRM",   // public identifier, see above ⇒ "" = feature off
-      projectId: "burntheweb-3cd05",              // Firebase project id
-      // NOT renamed with the app, and it never can be: this is the real Firebase project id.
-      // Changing the string points the app at a project that does not exist and every cloud
-      // feature 404s. Same for apiKey and clientId above/below — they name the Google project,
-      // not the product.
-      //
-      // MOVING DOMAIN NEEDS THREE ALLOWLISTS UPDATED. Miss any one and the failure is an opaque
-      // console error with nothing on the page to explain it:
-      //
-      //   1. Firebase console -> Authentication -> Settings -> Authorized domains
-      //      add kicktro.com.  Gates sign-in; cloudSignIn sends requestUri: location.origin.
-      //   2. Google Cloud console -> APIs & Services -> Credentials -> the OAuth 2.0 client id
-      //      below -> Authorized JavaScript origins: add https://kicktro.com.  Google Identity
-      //      Services checks the PAGE ORIGIN before it will render the sign-in button at all.
-      //   3. Google Cloud console -> APIs & Services -> Credentials -> the API KEY above ->
-      //      Application restrictions -> HTTP referrers: add https://kicktro.com/*
-      //      THIS ONE IS THE EASY ONE TO MISS and it is the widest: the key is referrer-locked,
-      //      so from an un-listed host EVERY keyed call 403s with API_KEY_HTTP_REFERRER_BLOCKED
-      //      -- not just sign-in, but the gallery browse and every #c= share-link fetch too.
-      //
-      // Leave carlemil.github.io in all three while that host still serves the page.
-      //
-      // AND NOTE: all of this needs HTTPS anyway. Google Identity Services refuses to run in a
-      // non-secure context, the same rule that hides the audio buttons -- so none of it can be
-      // tested until the custom domain's certificate is issued.
+      apiBase: "https://api.kicktro.com",
+      // The Google OAuth client the sign-in button uses. The API checks every ID token's
+      // audience against its own GOOGLE_CLIENT_ID (server/.env), so the two must be the same
+      // string. Google Identity Services checks the PAGE ORIGIN before it renders the button:
+      // a new host needs adding under Google Cloud console -> APIs & Services -> Credentials
+      // -> this client -> Authorized JavaScript origins, and in the API's ALLOWED_ORIGINS. It
+      // needs HTTPS too (GIS refuses a non-secure context), so test on the real domain.
       clientId: "180474887753-jf22fn1kgkecamc2inr2eoomh0e1e0j4.apps.googleusercontent.com",
+      // ┌─ FIREBASE, READ-ONLY AND TEMPORARY (card 825, M2) ───────────────────────────────┐
+      // Used for ONE thing: a #c= link the API does not know is tried against its old public
+      // Firestore document (cloudFetchScene). Remove both keys, the fallback, firestore.rules
+      // and firebase.json together once the import counts are confirmed and the project is
+      // deleted. "" for either drops the fallback; neither turns the feature on.
+      // The apiKey is a public project IDENTIFIER, not a secret (secret scanners flag it
+      // anyway: GitHub alert #1 and a 2026-08-26 GitGuardian incident were both dispositioned
+      // as intentional). It is referrer-locked to the site's origins in Google Cloud console.
+      // projectId is the real Firebase project id and can never be renamed.
+      // └──────────────────────────────────────────────────────────────────────────────────┘
+      apiKey: "AIzaSyB_VfQ6W0ui79rMzHrYvbe8f_1OkSSymRM",
+      projectId: "burntheweb-3cd05",
       // ONE number, and it is both the cache lifetime and the reload limit -- see galOpen.
       // Two separate intervals would let the Refresh button undercut the cache and make
-      // "reloads once an hour" quietly untrue.
+      // "reloads once a day" quietly untrue.
       galleryTtlMs: 86400000,                     // cache the gallery listing, and reload at most, 24h
-      // ONE query brings the WHOLE listing (pages are cut client-side); a read is billed
-      // per document returned, so a day costs as many reads as there are published profiles.
-      galleryLimit: 200,
       galleryPage: 20,                            // profiles per gallery page
-      maxPayload: 300000,                         // must match the cap in firestore.rules
+      maxPayload: 300000,                         // must match CAP.profilePayload in server/routes.js
     },
 
     // --- effect / physics tuning (implementation constants; several are load-bearing) ---

@@ -143,7 +143,7 @@ ok("...and does retry after the backoff",
   ok("...and it signals AFTER the persistReady guard, so loading a scene is not an edit",
      guard > 0 && note > guard, "guard@" + guard + " note@" + note);
   ok("every successful cloud save is recorded, manual ones included",
-     /cloudNoteDocTime\(doc\.updateTime \|\| null\);\s*(\/\/[^\n]*\n\s*)*autoSaveNoteSaved\(\);/.test(src));
+     /cloudNoteDocTime\(res\.updated\);\s*(\/\/[^\n]*\n\s*)*autoSaveNoteSaved\(\);/.test(src));
   ok("the schedule is NOT in fullSnapshot()",
      !src.slice(src.indexOf("function fullSnapshot()"), src.indexOf("function fullSnapshot()") + 1200)
         .includes("autoSave"));

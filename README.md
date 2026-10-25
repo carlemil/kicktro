@@ -805,18 +805,16 @@ filter pass) runs on the GPU via **WebGL2**, with a Canvas2D fallback if WebGL2
 is unavailable. The deterministic chaos game stays on the CPU and is drawn as
 additive GL points. Hosted on GitHub Pages. Settings persist in `localStorage`.
 
-Cloud profiles are **Firebase Auth + Firestore over plain REST** — no SDK, so the page
-stays one self-contained file; the only remote script is Google's sign-in button. The
-security boundary is [`firestore.rules`](firestore.rules), checked in so it's reviewable
-in a diff rather than living only in a web console. The Firebase web API key in the
-source is public by design: it names the project and authorises nothing.
-
-Cloud profiles are moving to Kicktro's own API, **`api.kicktro.com`**: a small Node server in
+Cloud profiles live on Kicktro's own API, **`api.kicktro.com`**: a small Node server in
 [`server/`](server/) with no npm packages (built-in `node:http`, `node:sqlite` and
-`node:crypto`), run in Docker on a VPS behind Caddy. It keeps the same sign-in (Google) and the
-same scene format, and adds a published-scene gallery with favourites and pre-rendered
-thumbnails. Until the page switches over, Firebase stays the live backend.
-`node tools/serverprobe.js` starts the server locally and runs its checks.
+`node:crypto`), run in Docker on a VPS behind Caddy. The page talks to it with plain
+`fetch()`, so it stays one self-contained file; the only remote script is Google's sign-in
+button. `node tools/serverprobe.js` starts the server locally and runs its checks.
+
+They used to live in Firebase; [`tools/firebase-export.js`](tools/firebase-export.js) moves
+every profile and shared scene across, keeping each share's id so old `#c=` links still open.
+Until the Firebase project is deleted, a link the API does not know is tried against its old
+public Firestore document ([`firestore.rules`](firestore.rules) is kept until then).
 
 A first-run **"Sync with your music"** nudge explains the Capture/Mic audio
 buttons to visitors who haven't tried them yet — shown at three growing gaps of

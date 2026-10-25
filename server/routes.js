@@ -97,7 +97,13 @@ function makeRoutes(ctx) {
     profPut: q("insert into profiles (uid, name, payload, count, pub, updated) values (?, ?, ?, ?, ?, ?) "
       + "on conflict(uid) do update set name = excluded.name, payload = excluded.payload, "
       + "count = excluded.count, pub = excluded.pub, updated = excluded.updated"),
-    profIns: q("insert or ignore into profiles (uid, name, payload, count, pub, updated) values (?, ?, ?, ?, ?, ?)"),
+    // The import's write: a newer copy replaces an older one, never the other way round, so a
+    // second export (taken after the first) refreshes what changed and leaves a library the
+    // user has since saved through the API alone (its `updated` is later than any Firestore one).
+    profImp: q("insert into profiles (uid, name, payload, count, pub, updated) values (?, ?, ?, ?, ?, ?) "
+      + "on conflict(uid) do update set name = excluded.name, payload = excluded.payload, "
+      + "count = excluded.count, pub = excluded.pub, updated = excluded.updated "
+      + "where excluded.updated > profiles.updated"),
     profDel: q("delete from profiles where uid = ?"),
     profPubList: q("select uid, name, count, updated from profiles where pub = 1 order by updated desc limit 500"),
 
@@ -241,8 +247,11 @@ function makeRoutes(ctx) {
     const u = user(r);
     const p = S.profGet.get(u.uid);
     if (!p) throw new HttpError(404, "no profile yet");
-    sendJson(r.res, 200, { name: p.name, payload: p.payload, count: p.count, pub: !!p.pub, updated: p.updated },
-      { ETag: '"' + p.updated + '"' });
+    // ?meta=1 leaves the library out: the page reads name/count/pub/version at every startup
+    // and after a stale save, and neither needs up to 300 KB of payload.
+    const meta = r.url.searchParams.get("meta") === "1";
+    sendJson(r.res, 200, { name: p.name, ...(meta ? {} : { payload: p.payload }), count: p.count, pub: !!p.pub,
+      updated: p.updated }, { ETag: '"' + p.updated + '"' });
   });
   // If-Match: "none" = create only; "<updated>" = only over exactly that version; absent =
   // unguarded. This is Firestore's currentDocument precondition, which cloudSave relies on to
@@ -443,12 +452,13 @@ function makeRoutes(ctx) {
     removeThumbs(id, g.thumb_ver);
     sendJson(r.res, 200, { id, thumb_ver: ver, ...thumbUrls(id, ver) });
   });
-  // Idempotent: re-running the export adds only what is missing and never overwrites. Bad rows
-  // are reported, not fatal, so one odd document cannot block the whole migration.
+  // Idempotent: re-running the export adds what is missing and refreshes a profile only from a
+  // NEWER copy; users and shares are never overwritten. Bad rows are reported, not fatal, so
+  // one odd document cannot block the whole migration.
   on("POST", "/api/admin/import", async r => {
     admin(r);
     const body = await readJson(r.req, BODY.import);
-    const out = { users: { added: 0, linked: 0, skipped: 0 }, profiles: { added: 0, skipped: 0 },
+    const out = { users: { added: 0, linked: 0, skipped: 0 }, profiles: { added: 0, updated: 0, skipped: 0 },
       shares: { added: 0, skipped: 0 }, errors: [] };
     const bad = (kind, i, e) => out.errors.push(kind + "[" + i + "]: " + e.message);
     tx(db, () => {
@@ -477,11 +487,12 @@ function makeRoutes(ctx) {
           const name = vName(x.name == null ? "" : x.name, CAP.profileName, "name");
           const payload = vPayload(x.payload, CAP.profilePayload);
           const count = vInt(x.count, 0, CAP.profileCount, "count");
-          const res = S.profIns.run(owner.uid, name, payload, count, x.pub ? 1 : 0, vTime(x.updated));
-          if (res.changes) {
-            out.profiles.added++;
-            if (!owner.name && name) S.userName.run(name, owner.uid);
-          } else out.profiles.skipped++;
+          const had = !!S.profGet.get(owner.uid);
+          const res = S.profImp.run(owner.uid, name, payload, count, x.pub ? 1 : 0, vTime(x.updated));
+          if (!res.changes) out.profiles.skipped++;
+          else if (had) out.profiles.updated++;
+          else out.profiles.added++;
+          if (res.changes && !owner.name && name) S.userName.run(name, owner.uid);
         } catch (e) { bad("profiles", i, e); }
       });
       (Array.isArray(body.shares) ? body.shares : []).forEach((x, i) => {
