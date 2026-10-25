@@ -1,150 +1,41 @@
 rules_version = '2';
 
-// Kicktro — cloud profiles.
+// Kicktro — cloud profiles, FROZEN (card 825, M2).
 //
-// THIS FILE IS THE ENTIRE AUTHORIZATION BOUNDARY. The app is a static page on GitHub Pages
-// talking straight to Firestore over REST, with no backend of its own — so there is nowhere
-// else to check anything. The Firebase web API key shipped in the page is public by design
-// (it identifies the project; it does not authorise), which means anyone can aim requests at
-// this database and these rules are the only thing between them and the data.
+// Cloud profiles moved to the Kicktro API (api.kicktro.com, server/ in this repo). Everything
+// here was exported by tools/firebase-export.js and imported there; these rules stop the data
+// changing underneath that copy. NOTHING is writable — no create, update or delete anywhere.
 //
-// Deploy: paste into Firebase console → Firestore → Rules → Publish, or `firebase deploy
-// --only firestore:rules`. Keep this file in step with what is published — it is checked in
-// so the boundary is reviewable in a diff rather than living only in a web console.
+// Reads stay exactly as they were, because two things still read:
+//   - the production page until the release that switches it to the API ships (it lists the
+//     gallery with `where pub == true` and loads the signed-in user's own profile);
+//   - cloudFetchScene's fallback, which tries a #c= link the API does not know against its old
+//     public /scenes document (CONFIG.cloud.apiKey/projectId).
 //
-// Verified by hand in the console's Rules Playground (there is no npm in this repo, so the
-// emulator's test library is not available). The cases that must hold:
-//   1. unauthenticated GET of a profile with pub == true            → ALLOW
-//   2. unauthenticated GET of a profile with pub == false           → DENY
-//   3. authenticated GET of your OWN profile with pub == false      → ALLOW
-//   4. write to a document whose id is not your uid                 → DENY
-//   5. write with a payload over the size cap                       → DENY
-//   6. write with an extra/unknown field                            → DENY
-//   7. write with a name over 40 chars                              → DENY
-//   8. delete your own profile                                      → ALLOW
-//   9. delete someone else's profile                                → DENY
-//  10. unauthenticated GET of any /scenes document                  → ALLOW (that is the point)
-//  10b. unauthenticated LIST of the /scenes collection              → DENY (links stay unlisted)
-//  11. unauthenticated CREATE in /scenes                            → DENY
-//  12. authenticated create in /scenes with owner != your uid       → DENY
-//  13. UPDATE of an existing /scenes document                       → DENY (snapshots are immutable)
-//  14. delete a /scenes document you do not own                     → DENY
-//  15. CREATE under /profiles/{uid}/snapshots (the retired feature) → DENY
-//  16. owner DELETE of a leftover snapshot                          → ALLOW (cleanup only)
-//  17. profile write with `updated` more than a day in the future   → DENY (gallery sort integrity)
-//  18. profile write with a non-timestamp `updated`                 → DENY
-//  19. /scenes create with a non-timestamp `created`                → DENY
+// Deploy: paste into Firebase console → Firestore → Rules → Publish. When the Firebase project
+// is deleted, this file, firebase.json, firestore.indexes.json and the two config keys go with it.
+// The pre-freeze rules (size caps, field shapes, the nineteen Playground cases) are in git:
+// `git show 03ee03b:firestore.rules`.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // One document per signed-in user; the document id IS the Firebase uid, which is what
-    // makes ownership checkable without a lookup (request.auth.uid == uid).
+    // Readable by the owner always, and by anyone once published. The gallery query must
+    // filter `where pub == true` — rules are evaluated against the QUERY, not the results.
     match /profiles/{uid} {
-
-      // Readable by the owner always, and by anyone once the owner opts into the gallery.
-      // `pub` gates it, and it defaults to false — publishing is a deliberate act.
-      // NB for the gallery query: Firestore evaluates rules against the QUERY, not the
-      // result set, so the listing must filter `where pub == true` or it is rejected whole.
       allow read: if resource.data.pub == true || request.auth.uid == uid;
-
-      allow delete: if request.auth.uid == uid;
-
-      // The size caps are the abuse control that a server's body limit would otherwise
-      // provide. Without them this is a free 1 MiB-per-document file host that anyone with
-      // a Google account can write to. 300k chars of base64 is ~220 KB of deflated JSON —
-      // orders of magnitude above a real preset library (a few KB), and still well under
-      // Firestore's 1 MiB document ceiling.
-      //
-      // hasOnly() is what keeps the document to the shape the app knows: without it a
-      // client could attach arbitrary extra fields and use the doc as general storage.
-      allow create, update: if request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'payload', 'count', 'pub', 'updated'])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() <= 40
-        && request.resource.data.payload is string
-        && request.resource.data.payload.size() < 300000
-        && request.resource.data.count is int
-        && request.resource.data.count >= 0
-        && request.resource.data.count <= 500
-        && request.resource.data.pub is bool
-        // `updated` is what the gallery sorts by, and the client writes its own clock — so
-        // without a bound a forged far-future timestamp pins a profile to the top of the
-        // listing forever. A day of tolerance absorbs any real clock skew; a griefed value
-        // can now lead the gallery for at most a day before honest saves pass it.
-        && request.resource.data.updated is timestamp
-        && request.resource.data.updated < request.time + duration.value(1, 'd');
+      allow write: if false;
     }
 
-    // RETIRED: version history. The app kept a daily snapshot of the whole library here; it
-    // does not any more, and nothing writes this collection.
-    //
-    // The block SURVIVES, read-and-delete only, purely so an owner can still clear anything
-    // written while the feature existed. Dropping it outright would be the trap: these
-    // documents are owner-only and Firestore does not cascade, so with no rule permitting a
-    // delete they would be permanently unreachable AND undeletable — still stored, still
-    // counting against the quota, with no way for anyone to remove them.
-    //
-    // This block is LOAD-BEARING, not vestigial: `snapDeleteAll` in src/cloud-profile.js sweeps
-    // the subcollection on every "Delete profile", and the read+delete granted here is exactly
-    // what lets it. For one release neither existed — the client half was removed in 1.13.1 and
-    // the sweep was not restored until afterwards — so a profile deleted in between kept its
-    // snapshots, and the button said otherwise.
-    //
-    // The known profiles were swept by hand before this was published. Retire this block AND
-    // the sweep together, once the console is confirmed clean — either alone re-opens the trap
-    // above.
-    match /profiles/{uid}/snapshots/{sid} {
-      allow read, delete: if request.auth.uid == uid;
-      allow create, update: if false;
-    }
-
-    // THE ONE ABUSE CONTROL THAT CANNOT LIVE IN THIS FILE. /profiles is self-limiting: the
-    // document id IS the uid, so an account can hold exactly one. /scenes below uses auto-ids
-    // and has NO per-account cap — any signed-in Google account may create unlimited 200 KB
-    // documents, and rules cannot express a rate limit (there is no backend to hold a counter,
-    // and a rule cannot count documents). The client-side cap in cloud-profile.js is a local
-    // history list, and its own comment says it is "a cap, not a policy".
-    //
-    // So the ceiling is a BILLING one and it is set in the console, not here: Firebase budget
-    // alert + spending cap on the project. Noted in this file because this file is where the
-    // boundary is documented, and that is the one part of it living somewhere else.
-
-    // A shared SCENE: one immutable snapshot per "Share this scene", holding just the scene
-    // that was running. Separate from /profiles on purpose — pointing a share link at a
-    // profile would only work while that profile is published, so sharing one scene would
-    // force the sharer's whole library public. This keeps the two decisions independent.
+    // A share link opens by id for anyone (`get`), but the collection is not enumerable
+    // (`list` would turn links meant for one person into a public directory).
     match /scenes/{id} {
-      // `get`, NOT `read`. Fetching a scene BY ID has to work for someone with no account —
-      // that is what a share link is. But `read` also grants `list`, and that is a different
-      // thing entirely: it would let anyone enumerate every scene ever shared, turning links
-      // meant for one person into a public directory. Splitting them keeps share links
-      // unlisted, which is the property people actually expect of a link.
-      // (Caught by probing the live rules after the first deploy, not by reading them.)
       allow get: if true;
       allow list: if false;
-
-      // Signed-in users only, and the document must name its creator — so `delete` below has
-      // an owner to check, and abuse is attributable rather than anonymous.
-      allow create: if request.auth != null
-        && request.resource.data.keys().hasOnly(['owner', 'payload', 'name', 'created'])
-        && request.resource.data.owner == request.auth.uid
-        && request.resource.data.payload is string
-        && request.resource.data.payload.size() < 200000
-        && request.resource.data.name is string
-        && request.resource.data.name.size() <= 60
-        && request.resource.data.created is timestamp;
-
-      // Immutable: a share link is a SNAPSHOT. Allowing updates would let the content behind
-      // an already-circulated link be swapped for something else after the fact.
-      allow update: if false;
-
-      // The sharer can retract their own link.
-      allow delete: if request.auth != null && request.auth.uid == resource.data.owner;
+      allow write: if false;
     }
 
-    // Everything else is closed. Explicit, so adding a collection later is a deliberate act
-    // rather than something that inherits an accidental allow.
+    // Everything else, the retired /profiles/{uid}/snapshots included, is closed.
     match /{document=**} {
       allow read, write: if false;
     }

@@ -790,8 +790,9 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
 - `applyRestore`'s MERGE matches on `(name, collection)`. `sharedLibrary` carries `collections`;
   `applyRestore` writes it only when `__ownCloud` is set — an out-of-band `let` set only by
   `cloudApplyPayload`, never from the payload. Merge UNIONS follow-lists; Replace replaces.
-- `firestore.rules`/`firebase.json` stay only until the Firebase project is deleted (the
-  `snapshots` sweep went with the client; those documents go with the project).
+- `firestore.rules` is FROZEN (reads only, published 2026-10-25 after the import); it and
+  `firebase.json` stay only until the Firebase project is deleted (the `snapshots` sweep went with
+  the client; those documents go with the project).
 
 **The gallery applies a row straight away** (`applySharedLibrary(raw, replace)` stages
 `pendingRestore` and calls `applyRestore`; `sharedLibrary(raw)` is the decode+validate half).
