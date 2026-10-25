@@ -209,10 +209,10 @@
       { label: "Audio", sub: [{ adopt: "audiobox" }] },
       { label: "Resolution", sub: [{ adopt: "resbox" }] },
       { label: "Cloud profile", sub: [{ adopt: "cloudbox" }] },
-      // A ROOT item, not a row inside Cloud profile: the gallery is readable signed out (the
-      // rules allow an unauthenticated `pub == true` query), so filing it under a sign-in box
-      // implied an account was needed. Gated on cloudOn() for the same reason #cloudrow is —
-      // with no apiKey there is nothing to browse. Calls galOpen directly; the app is one
+      // A ROOT item, not a row inside Cloud profile: the gallery is readable signed out
+      // (GET /api/profiles needs no account), so filing it under a sign-in box implied an
+      // account was needed. Gated on cloudOn() for the same reason #cloudrow is — with no
+      // apiBase there is nothing to browse. Calls galOpen directly; the app is one
       // IIFE and this slice runs last, so the function is simply in scope.
       ...(cloudOn() ? [{ label: "Public scenes", title: "Browse the scenes other people have published, and load them",
         run: () => galOpen(true) }] : []),
