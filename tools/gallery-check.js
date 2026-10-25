@@ -7,6 +7,7 @@
 // case-out (signed out):
 //   the grid merges the server's rows with the BUILT-IN cards by favourites, pages on Load
 //   more, filters through the server and locally, switches to Newest and All (sort=name,
+//   leftmost and the tab it OPENS on, before every case switches to Most loved;
 //   A to Z, built-ins placed by name); posters are NOT fetched below the fold; hover swaps in a muted
 //   looping <video preload=none> and leaving pauses it -- with the NEGATIVE CONTROL that a
 //   card with no clip never gets one and a 'playing' after leaving shows nothing; the heart
@@ -22,6 +23,9 @@
 //   scene into "Shared with you", credited to its author, selected, after the reload -- the
 //   built-in with NO request, the published one through GET /api/gallery/srv-7.
 // case-link-gone (#g=srv-99, a 404): no install; the gallery opens and says why.
+// case-home (#gallery): the gallery's own link opens it on All; Copy link copies it; the ▦
+//   button beside ☰ toggles it and the address bar follows; #gallery pasted into the open tab
+//   opens it with no reload.
 // case-lazy (REAL TIME, no budget -- virtual time never delivers an IntersectionObserver
 //   callback): the poster in view is fetched, one below the fold is not (NEGATIVE) until its
 //   card is scrolled into view; the page closes itself.
@@ -175,9 +179,41 @@ const tail = [
   "      ok('...after asking for it', sessionStorage.getItem('galchk-fetch') === '/api/gallery/srv-99', sessionStorage.getItem('galchk-fetch'));",
   "      var blob = JSON.parse(localStorage.getItem('burnTheWeb.v1') || '{}');",
   "      ok('...and installs nothing', !(blob.presets || []).some(function (p) { return p.collection === 'Shared with you'; }));",
-  "      ok('...the link is gone from the address bar', location.hash === '', location.hash);",
+  "      ok('...the link is gone from the address bar, which names the gallery instead', location.hash === '#gallery', location.hash);",
   "      $('gal-close').click();",
   "      ok('closing the gallery clears the note', $('galdlg').classList.contains('hidden') && $('gal-hint').textContent.indexOf('could not be opened') < 0, $('gal-hint').textContent);",
+  "      ok('...and the address bar', location.hash === '', location.hash);",
+  "      done();",
+  "    });",
+  "    run(); return;",
+  "  }",
+  // ---- #gallery: the gallery's own link, and the button beside the menu ----
+  "  if (CASE === 'case-home') {",
+  "    then(1500, function () {",
+  "      ok('a #gallery link opens the gallery by itself', !$('galdlg').classList.contains('hidden'));",
+  "      ok('...on All', document.querySelector('.gal-tab[data-tab=all]').getAttribute('aria-selected') === 'true' && cards().length > 0, cards().length);",
+  "      ok('...and keeps #gallery in the address bar while open', location.hash === '#gallery', location.hash);",
+  "      $('gal-link').click();",
+  "    });",
+  "    then(300, function () {",
+  "      var dir = location.href.split('#')[0].replace(/[^/]*$/, '');",
+  "      ok('Copy link copies the gallery link', window.__copied[window.__copied.length - 1] === dir + '#gallery', window.__copied[window.__copied.length - 1]);",
+  "      ok('...and says so', $('gal-link').classList.contains('copied') && /Copied/.test($('gal-link').textContent), $('gal-link').textContent);",
+  "      var gb = $('galbtn'), menu = $('toggle'), fsb = $('fs');",
+  "      ok('a gallery button sits right of the menu button, before fullscreen', !!gb && getComputedStyle(gb).display !== 'none' && gb.getBoundingClientRect().left >= menu.getBoundingClientRect().right && gb.getBoundingClientRect().right <= fsb.getBoundingClientRect().left, gb && gb.getBoundingClientRect().left);",
+  "      ok('...in the same row', gb && Math.abs(gb.getBoundingClientRect().top - menu.getBoundingClientRect().top) < 1);",
+  "      ok('...and the row does not overlap the scene banner', fsb.getBoundingClientRect().right <= $('panelbtn').getBoundingClientRect().left && $('panelbtn').getBoundingClientRect().right <= parseFloat(getComputedStyle($('scenebanner')).left) + 0.5, getComputedStyle($('scenebanner')).left);",
+  "      gb.click();",
+  "      ok('the button closes an open gallery', $('galdlg').classList.contains('hidden'));",
+  "      ok('...and the address bar drops #gallery', location.hash === '', location.hash);",
+  "      gb.click();",
+  "      ok('...and opens it again', !$('galdlg').classList.contains('hidden') && location.hash === '#gallery', location.hash);",
+  "      $('gal-close').click();",
+  "      window.__noReload = 1;",
+  "      location.hash = 'gallery';",
+  "    });",
+  "    then(500, function () {",
+  "      ok('#gallery pasted into an open tab opens it without a reload', !$('galdlg').classList.contains('hidden') && window.__noReload === 1, location.hash);",
   "      done();",
   "    });",
   "    run(); return;",
@@ -202,6 +238,17 @@ const tail = [
   "    var item = Array.prototype.find.call(document.querySelectorAll('#menubar button, #menubar .mb-item, #menubar li'), function (b) { return b.textContent.trim() === 'Gallery'; });",
   "    ok('menubar has Gallery', !!item);",
   "    if (item) item.click();",
+  "  });",
+  // the dialog opens on All; every case below starts from Most loved, so switch to it
+  "  then(600, function () {",
+  "    var tabs = Array.prototype.map.call(document.querySelectorAll('#galdlg .gal-tab'), function (t) { return t.dataset.tab; });",
+  "    ok('All is the leftmost tab', tabs[0] === 'all', tabs.join(','));",
+  "    ok('...and the one the gallery opens on', document.querySelector('.gal-tab[data-tab=all]').getAttribute('aria-selected') === 'true' && document.querySelectorAll('#galdlg .gal-tab[aria-selected=true]').length === 1);",
+  "    ok('...asking for sort=name', reqs(/sort=name/).length === 1, reqs(/sort=name/).length);",
+  "    ok('...with #gallery in the address bar', location.hash === '#gallery', location.hash);",
+  "    var ns = cards().map(function (c) { return c.querySelector('.gal-cname').textContent.toLowerCase(); });",
+  "    ok('...listing A to Z', ns.length > 0 && ns.every(function (v, i) { return !i || ns[i - 1] <= v; }), ns.slice(0, 5).join(','));",
+  "    document.querySelector('.gal-tab[data-tab=favs]').click();",
   "  });",
   // ================= posters load as they scroll near (REAL TIME: virtual time never ==========
   // ================= delivers an IntersectionObserver callback)                     ==========
@@ -294,7 +341,7 @@ const tail = [
   "      document.querySelector('.gal-tab[data-tab=all]').click();",
   "    });",
   "    then(400, function () {",
-  "      ok('All asks for sort=name', reqs(/sort=name/).length === 1 && reqs(/sort=name/)[0].p.indexOf('offset=0') >= 0, reqs(/sort=name/).length);",
+  "      ok('All asks for sort=name', reqs(/sort=name/).length >= 1 && reqs(/sort=name/)[0].p.indexOf('offset=0') >= 0, reqs(/sort=name/).length);",
   "      ok('...and marks its tab', document.querySelector('.gal-tab[data-tab=all]').getAttribute('aria-selected') === 'true');",
   "      var ns = cards().map(function (c) { return c.querySelector('.gal-cname').textContent.toLowerCase(); });",
   "      ok('...one page, A to Z', cards().length < 30 + " + BUILTIN_N + " && ns.every(function (v, i) { return !i || ns[i - 1] <= v; }), ns.join(','));",
@@ -382,7 +429,7 @@ function build(c) {
   fs.writeFileSync(path.join(outDir, c + ".html"), html);
   console.log("wrote " + c + ".html");
 }
-const CASES = { "case-out": "", "case-in": "", "case-lazy": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99" };
+const CASES = { "case-out": "", "case-in": "", "case-lazy": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery" };
 for (const c in CASES) build(c);
 const abs = path.resolve(outDir).split(path.sep).join("/");
 console.log(NL + "run each with:");

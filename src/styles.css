@@ -255,7 +255,7 @@
   /* Under "Auto-cycle scenes": the cycler is gated on the panel being hidden, and this is the
      one line that says so. Indented to the checkbox's label text (15px box + 8px gap). */
   #panel.hidden { opacity: 0; transform: translateX(-12px); pointer-events: none; visibility: hidden; }
-  #toggle, #fs, #mute, #panelbtn {
+  #toggle, #galbtn, #fs, #mute, #panelbtn {
     position: fixed;
     top: 14px;
     left: 14px;
@@ -274,18 +274,20 @@
     -webkit-backdrop-filter: blur(6px);
     transition: background .15s;
   }
-  #fs { left: 54px; }                     /* fullscreen button, right of the panel toggle */
-  #mute { left: 94px; font-size: 18px; }  /* mute the music reaction, right of fullscreen */
-  #panelbtn { left: 134px; font-size: 17px; }  /* controls panel open/closed, right of mute */
+  #galbtn { left: 54px; font-size: 18px; }   /* the gallery, right of the menu */
+  #galbtn.hidden { display: none; }
+  #fs { left: 94px; }                     /* fullscreen button, right of the gallery */
+  #mute { left: 134px; font-size: 18px; } /* mute the music reaction, right of fullscreen */
+  #panelbtn { left: 174px; font-size: 17px; }  /* controls panel open/closed, right of mute */
   #panelbtn.on { background: rgba(255, 122, 26, 0.3); }
   /* The scene banner, continuing that row. It used to be drawn into the frame at ~1/26 of the
      viewport width; as chrome it can be small and quiet, because it no longer has to survive
      being composited under a bloom. Not a button — no border or background, so it reads as a
      caption on the row rather than a fourth control you could press. */
   #scenebanner {
-    position: fixed; top: 14px; left: 174px; z-index: 10;
+    position: fixed; top: 14px; left: 214px; z-index: 10;
     height: 34px; display: flex; align-items: center;
-    max-width: calc(100vw - 200px);
+    max-width: calc(100vw - 240px);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     color: #ffcf87; font: 12px/1 ui-monospace, Consolas, monospace; letter-spacing: .03em;
     text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
@@ -299,9 +301,9 @@
   /* No source running: nothing to mute, so the button is visibly inert (a click only
      surfaces the hint in the menu's audio line — see toggleMute). */
   #mute.off { opacity: .38; cursor: default; }
-  #toggle:hover, #fs:hover, #panelbtn:hover, #mute:not(.off):hover { background: rgba(255, 122, 26, 0.3); }
+  #toggle:hover, #galbtn:hover, #fs:hover, #panelbtn:hover, #mute:not(.off):hover { background: rgba(255, 122, 26, 0.3); }
   /* keyboard focus rings (a11y) */
-  #panel button:focus-visible, #menubar button:focus-visible, #toggle:focus-visible, #fs:focus-visible, #mute:focus-visible, #panelbtn:focus-visible,
+  #panel button:focus-visible, #menubar button:focus-visible, #toggle:focus-visible, #galbtn:focus-visible, #fs:focus-visible, #mute:focus-visible, #panelbtn:focus-visible,
   #panel select:focus-visible, #panel input:focus-visible, #menubar select:focus-visible, #menubar input:focus-visible { outline: 2px solid #ffb15a; outline-offset: 2px; }
   /* REDUCED MOTION covers the CHROME, not the visual. The old rule named seven elements and so
      reached only about half the UI's own movement — the two keyframe animations, the chevron
@@ -311,7 +313,7 @@
      would leave a black rectangle that reads as a broken app rather than a respected preference;
      the canvas already has a pause (click it) and Hide all UI for anyone who wants stillness. */
   @media (prefers-reduced-motion: reduce) {
-    #panel, #menubar, #breakout, #help, #syncpop, #toggle, #fs, #mute, #panelbtn, #uihint, #tutdlg,
+    #panel, #menubar, #breakout, #help, #syncpop, #toggle, #galbtn, #fs, #mute, #panelbtn, #uihint, #tutdlg,
     #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg,
     #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg * {
       transition: none !important;
@@ -343,7 +345,7 @@
      further down and #help and #restoredlg had none at all, so "hide all UI" left the help
      panel and the restore dialog sitting on the capture. One list, so there is one place to
      add the tenth dialog; tools/uiprobe.js asserts none is missing. */
-  body.ui-hidden #toggle, body.ui-hidden #fs, body.ui-hidden #mute, body.ui-hidden #panelbtn, body.ui-hidden #frames,
+  body.ui-hidden #toggle, body.ui-hidden #galbtn, body.ui-hidden #fs, body.ui-hidden #mute, body.ui-hidden #panelbtn, body.ui-hidden #frames,
   body.ui-hidden #scenebanner,
   body.ui-hidden #menubar,
   body.ui-hidden #panel, body.ui-hidden #breakout, body.ui-hidden #syncpop,
@@ -528,6 +530,15 @@
   }
   #galdlg .gal-tab[aria-selected="true"] { background: rgba(255, 140, 40, 0.28); border-color: rgba(255, 160, 60, 0.85); color: #fff3df; }
   #galdlg .gal-tab:focus-visible { outline: 1px solid #ffb15a; outline-offset: 2px; }
+  /* Copy a link to the gallery itself (#gallery): the end of the tab row, not a tab. */
+  #galdlg .gal-linkbtn {
+    margin-left: auto; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    background: transparent; border: 1px solid rgba(255, 140, 40, 0.35); color: #ffcf87;
+    font: 12px/1 ui-monospace, Consolas, monospace;
+  }
+  #galdlg .gal-linkbtn:hover { background: rgba(255, 122, 26, 0.18); }
+  #galdlg .gal-linkbtn.copied { border-color: rgba(120, 220, 140, 0.8); color: #bff5c9; }
+  #galdlg .gal-linkbtn:focus-visible { outline: 1px solid #ffb15a; outline-offset: 2px; }
   /* The scene grid: as many 200px+ columns as fit, each card a 16:9 thumbnail over two lines. */
   #galdlg .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
   #galdlg .gal-card {

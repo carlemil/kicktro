@@ -797,8 +797,8 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
   the client; those documents go with the project).
 
 **The gallery is ONE PUBLISHED SCENE PER CARD** (card 825, M3): a poster, the clip while
-hovered or focused, the author, a heart with its count. Tabs Most loved / Newest / All / My
-favourites (`GET /api/gallery?sort=favs|new|name[&mine=favs]&q=&offset=&limit=`, paged as you
+hovered or focused, the author, a heart with its count. Tabs All (leftmost, the DEFAULT) / Most loved /
+Newest / My favourites (`GET /api/gallery?sort=name|favs|new[&mine=favs]&q=&offset=&limit=`, paged as you
 scroll, `galleryPage` 24) plus Collections (the older per-profile listing, `galPeople`).
 Readable signed out. **Nothing loads up front**: a poster's `src` is set by `galLazy` (an
 IntersectionObserver rooted on `.gal-box`) — `loading=lazy` measures from the WINDOW and
@@ -822,6 +822,11 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   through `galSceneOf` + `applyGalleryScene` (author from the API ANSWER, not the link); a 404 opens
   the gallery with `gal.note` (cleared on close). Its `replaceState` keeps the QUERY (`?api=` is
   read by a later slice). The ☰ item and dialog are named **Gallery**.
+- **`#gallery` is the gallery's own link** (`GAL_HASH`): `galOpen` writes it into the address
+  bar on show and drops it on close (`galMarkUrl`, `replaceState`); `#gal-link` copies it;
+  startup and a `hashchange` open the dialog. It is deliberately NOT one of the reload-on-hashchange
+  fragments (`g|c|zp|sp=`) — it installs nothing. `#galbtn` (▦) sits right of ☰, hidden with no
+  API; the fixed row is ☰ 14 / ▦ 54 / fullscreen 94 / mute 134 / panel 174, banner at 214.
 - Hover/focus → muted looping `<video preload=none>`, shown on `playing`; **touch: first tap
   previews, second loads** — a tap FOCUSES before its click, so focus must not preview on touch.
 - **Favourites are optimistic** (`galFav`: flip, then the server's `{mine, favs}` settles it; a

@@ -614,7 +614,8 @@
   // ---- gallery ----
   // ONE PUBLISHED SCENE PER CARD (card 825, M3): a poster, the clip while hovered or focused,
   // the author, a heart with its count. Readable signed out. Five tabs:
-  //   Most loved / Newest / All   GET /api/gallery?sort=favs|new|name, paged as you scroll
+  //   All / Most loved / Newest   GET /api/gallery?sort=name|favs|new, paged as you scroll;
+  //                               All (A to Z) is the one the dialog opens on
   //   My favourites         the same with mine=favs (needs a session)
   //   Collections           the older per-profile listing (GET /api/profiles), which is also
   //                         what refollowCollections resolves a uid-less follow against
@@ -661,7 +662,7 @@
 
   // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
   // answer to a request a newer tab or filter has overtaken.
-  const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
+  const gal = { tab: "all", order: "name", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
     shown: new Set(), seq: 0, note: "" };
   const galSort = () => (gal.tab === "new" ? "new" : gal.tab === "all" ? "name" : "favs");
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
@@ -959,18 +960,29 @@
   // link -- nothing is minted, so copying is synchronous and works signed out. A FRAGMENT, like
   // #c=, so the page is served from cache and the id never reaches the static host.
   const galLinkOf = c => location.href.split(/[?#]/)[0].replace(/[^/]*$/, "") + "#g=" + c.id;
+  // #gallery opens the gallery itself: the address bar carries it while the dialog is open,
+  // and Copy link in the dialog copies it. Not one of the reload-on-hashchange fragments --
+  // it installs nothing, so an open tab just opens the dialog.
+  const GAL_HASH = "#gallery";
+  const galHome = () => location.href.split(/[?#]/)[0].replace(/[^/]*$/, "") + GAL_HASH;
+  function galMarkUrl(on) {
+    const want = on ? GAL_HASH : "";
+    if (on ? location.hash === GAL_HASH : location.hash !== GAL_HASH) return;
+    try { history.replaceState(null, "", location.pathname + location.search + want); } catch (e) {}
+  }
   function galCopyLink(c, btn) {
-    const url = galLinkOf(c);
+    const url = c ? galLinkOf(c) : galHome();
+    const idle = btn.textContent;
     const done = ok => {
       if (!ok) return;
-      btn.textContent = "✓"; btn.classList.add("copied");
-      setTimeout(() => { btn.textContent = "🔗"; btn.classList.remove("copied"); }, 1600);
+      btn.textContent = c ? "✓" : "✓ Copied"; btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = idle; btn.classList.remove("copied"); }, 1600);
     };
     const ask = () => { prompt("Copy this link:", url); done(false); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(() => done(true), ask);
     } else ask();
-    track("gallery_share", { builtin: c.at != null });
+    track("gallery_share", c ? { builtin: c.at != null } : { gallery: true });
   }
   // #g=<id> at startup (applyShared defers to here once every slice has run). Same install as
   // a click on the card; a link to a scene that is gone, or a built-in this build does not
@@ -1073,9 +1085,11 @@
       if (galObs) galObs.disconnect();
       if (galImgObs) galImgObs.disconnect();
       if (gal.note) { gal.note = ""; galHint(""); }
+      galMarkUrl(false);
       dlgRelease(box);
       return;
     }
+    galMarkUrl(true);
     dlgModal(box);
     if (box) box.scrollTop = 0;           // open at the top, header and help in view
     const fi = el("gal-filter");
@@ -1415,6 +1429,16 @@
   if (el("gal-close")) el("gal-close").addEventListener("click", () => galOpen(false));
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
   if (el("gal-more")) el("gal-more").addEventListener("click", galMore);
+  if (el("gal-link")) el("gal-link").addEventListener("click", e => galCopyLink(null, e.currentTarget));
+  if (el("galbtn")) {
+    el("galbtn").classList.toggle("hidden", !cloudOn());
+    el("galbtn").addEventListener("click", () => galOpen(el("galdlg").classList.contains("hidden")));
+  }
+  // A #gallery link: at startup, and pasted into a tab that is already open.
+  if (cloudOn() && location.hash === GAL_HASH) Promise.resolve().then(() => galOpen(true));
+  window.addEventListener("hashchange", () => {
+    if (cloudOn() && location.hash === GAL_HASH && el("galdlg").classList.contains("hidden")) galOpen(true);
+  });
   for (const t of document.querySelectorAll("#galdlg .gal-tab")) t.addEventListener("click", () => galSetTab(t.dataset.tab));
   if (el("publishpreset")) el("publishpreset").addEventListener("click", cloudPublishScene);
   if (el("galdlg")) el("galdlg").addEventListener("click", e => { if (e.target === el("galdlg")) galOpen(false); });

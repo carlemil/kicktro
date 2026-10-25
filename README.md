@@ -720,12 +720,12 @@ Stored against your account: the profile name you choose, your own scenes, and t
 the collections you follow. Nothing else — not your email, name or picture, and none of
 anyone else's scenes.
 
-**Gallery** on the ☰ menu needs no account, so anyone can
-look. Every published scene is a card: a still of the scene five seconds in, which turns into
+**Gallery** — on the ☰ menu, or the **▦** button right beside it — needs no account, so
+anyone can look. Every published scene is a card: a still of the scene five seconds in, which turns into
 a short looping clip while you hover it (on a phone, the first tap plays the clip and the
 second loads the scene). Click a card to add that scene to your list, under **Shared with
-you**, credited to whoever made it. Four tabs order the cards — **Most loved**, **Newest**,
-**All** (every scene, A to Z) and **My favourites** — and the filter box narrows them by
+you**, credited to whoever made it. Four tabs order the cards — **All** (every scene, A to
+Z, which is where it opens), **Most loved**, **Newest** and **My favourites** — and the filter box narrows them by
 scene or author name. Nothing is loaded up front: cards arrive a page at a time as you
 scroll, a card's still only once it scrolls near, and its clip only while you hover it. The twenty-five AI-Generated scenes that ship with Kicktro are cards too.
 
@@ -737,6 +737,10 @@ per person per scene, so sign in first.
 their list under **Shared with you**, credited to its author, just as if they had clicked
 the card. No account is needed on either end. A link to a scene its author has since taken
 out of the gallery opens the gallery instead and says so.
+
+The gallery has a link of its own: while it is open the address bar reads
+`https://kicktro.com/#gallery`, and **🔗 Copy link** at the end of the tab row copies it.
+Opening that link opens the page with the gallery already showing.
 
 **Publish to gallery**, under the Delete and Share buttons in the Scene box, puts the
 selected scene in the gallery under your profile name (signed in, with a name set). Only

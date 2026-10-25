@@ -357,6 +357,9 @@
      structure is built in JS (buildMenubar) and its leaf panels are filled by MOVING the
      #audiobox / #resbox / #cloudbox / #creditbox contents in, so nothing has to be re-wired. -->
 <div id="menubar" class="hidden" role="menu" aria-label="Main menu"></div>
+<!-- The gallery, one click from anywhere: the same galOpen the ☰ item calls. Hidden by
+     cloudInit when there is no API to browse (the ☰ item is gated the same way). -->
+<button id="galbtn" type="button" aria-label="Open the gallery" title="Gallery">▦</button>
 <button id="fs" type="button" aria-label="Toggle fullscreen">⛶</button>
 <!-- Mute the music reaction. It does NOT stop the stream (see setMuted) — a browser cannot
      silently re-grab tab/screen audio, so stopping would cost a fresh picker dialog to come
@@ -405,11 +408,12 @@
     <h2 id="gal-title">Gallery</h2>
     <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>♥</b> marks a favourite (signed in); <b>🔗</b> copies a link that opens the scene for anyone. Your own scene goes in with <b>Publish to gallery</b> in the Scene box.</p>
     <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
-      <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true">Most loved</button>
+      <button type="button" role="tab" class="gal-tab" data-tab="all" aria-selected="true" title="Every scene, A to Z">All</button>
+      <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="false">Most loved</button>
       <button type="button" role="tab" class="gal-tab" data-tab="new" aria-selected="false">Newest</button>
-      <button type="button" role="tab" class="gal-tab" data-tab="all" aria-selected="false" title="Every scene, A to Z">All</button>
       <button type="button" role="tab" class="gal-tab" data-tab="mine" aria-selected="false">My favourites</button>
       <button type="button" role="tab" class="gal-tab" data-tab="people" aria-selected="false">Collections</button>
+      <button type="button" class="gal-linkbtn" id="gal-link" title="Copy a link that opens this gallery">🔗 Copy link</button>
     </div>
     <input type="search" id="gal-filter" placeholder="Filter by name or author" aria-label="Filter by scene name or author" autocomplete="off">
     <div id="gal-list"></div>
