@@ -613,7 +613,7 @@
 
   // ---- gallery ----
   // ONE PUBLISHED SCENE PER CARD (card 825, M3): a poster, the clip while hovered or focused,
-  // the author, and the VOTE: a three-way switch, ♥ love / the score / 💔 dislike, one vote
+  // the author, and the VOTE: a three-way switch, ❤️ love / the score / 💔 dislike, one vote
   // per person (score = loves minus dislikes). Readable signed out. Five tabs:
   //   Most loved / All / Newest   GET /api/gallery?sort=favs|name|new, paged as you scroll;
   //                               Most loved (by score) is the one the dialog opens on
@@ -663,7 +663,7 @@
 
   // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
   // answer to a request a newer tab or filter has overtaken. `mine` / `hate`: the scenes you
-  // gave a ♥ / a 💔.
+  // gave a ❤️ / a 💔.
   const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
     hate: new Set(), shown: new Set(), seq: 0, note: "" };
   const galSort = () => (gal.tab === "new" ? "new" : gal.tab === "all" ? "name" : "favs");
@@ -699,7 +699,7 @@
     if (gal.tab === "people") { gal.done = true; galSyncMore(); galPeople(); return; }
     if (gal.tab === "mine" && !cloudSess) {
       gal.done = true; gal.pend = []; galSyncMore();
-      galHint("Favourites belong to an account — sign in under ☰ → Cloud profile, then press ♥ on any scene.");
+      galHint("Favourites belong to an account — sign in under ☰ → Cloud profile, then press ❤️ on any scene.");
       return;
     }
     gal.pend = galBuiltinCards().filter(c => galMatch(c) && (gal.tab !== "mine" || gal.mine.has(c.id)));
@@ -749,7 +749,7 @@
   function galEmpty() {
     if (el("gal-list").children.length) { galHint(""); return; }
     galHint(gal.q ? "Nothing matches “" + gal.q + "”."
-      : gal.tab === "mine" ? "No favourites yet — press ♥ on a scene you like."
+      : gal.tab === "mine" ? "No favourites yet — press ❤️ on a scene you like."
       : "No one has published a scene yet. Publish to gallery, in the Scene box, puts yours here.");
   }
   // Keep paging while the end of the list is in view: the grid scrolls inside .gal-box, so
@@ -819,7 +819,7 @@
     nm.className = "gal-cname"; nm.textContent = c.name; nm.title = c.name;
     const by = document.createElement("div");
     by.className = "gal-by"; by.textContent = c.author || "";
-    // THE VOTE, a three-way switch: ♥ love, the score in the middle (neutral -- click it to
+    // THE VOTE, a three-way switch: ❤️ love, the score in the middle (neutral -- click it to
     // take your vote back), 💔 dislike. Clicking the lit end again returns to neutral too.
     const vote = document.createElement("span");
     vote.className = "gal-vote"; vote.setAttribute("role", "radiogroup");
@@ -898,14 +898,16 @@
       b.classList.toggle("on", on);
       b.setAttribute("aria-checked", String(on));
     }
-    heart.textContent = v === 1 ? "♥" : "♡";
+    // ONE emoji pair (the platform's own ❤️ and 💔 are drawn as a set): the glyph never changes,
+    // the lit one is coloured and the others greyed by the CSS.
+    heart.textContent = "❤️";
     score.textContent = String(s);
     score.classList.toggle("neg", s < 0);
     hate.textContent = "💔";
     const counts = f + (f === 1 ? " love" : " loves") + " · " + h + (h === 1 ? " dislike" : " dislikes");
     if (!cloudSess) heart.title = score.title = hate.title = "Sign in to vote · " + counts;
     else {
-      heart.title = (v === 1 ? "Take back your ♥" : "Love it") + " · " + counts;
+      heart.title = (v === 1 ? "Take back your ❤️" : "Love it") + " · " + counts;
       score.title = (v ? "Take back your vote" : "You have not voted") + " · " + counts;
       hate.title = (v === -1 ? "Take back your 💔" : "Not for me — counts against it in Most loved") + " · " + counts;
     }
@@ -915,7 +917,7 @@
   }
   // OPTIMISTIC: the switch moves at once and the server's counts settle it; a failure moves it
   // back. Every cached listing is patched too, so switching tabs does not show the old count.
-  // ONE vote per person: ♥ and 💔 each clear the other, as the server does in one transaction.
+  // ONE vote per person: ❤️ and 💔 each clear the other, as the server does in one transaction.
   function galVote(c, want) {
     if (!cloudSess) { galHint("Votes belong to an account — sign in under ☰ → Cloud profile."); return; }
     const cur = galVoteOf(c);
@@ -932,7 +934,7 @@
     };
     set(want, Math.max(0, before.favs + (want === 1) - (cur === 1)),
       Math.max(0, before.hates + (want === -1) - (cur === -1)));
-    // Neutral takes back whichever vote there was; ♥ or 💔 sets one (the server clears the other).
+    // Neutral takes back whichever vote there was; ❤️ or 💔 sets one (the server clears the other).
     const kind = (want || cur) === 1 ? "fav" : "hate";
     apiFetch("/api/gallery/" + encodeURIComponent(c.id) + "/" + kind, { method: want ? "PUT" : "DELETE" })
       .then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))

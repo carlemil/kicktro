@@ -216,7 +216,7 @@
   }
   // Whether a scene is in the AUTO-CYCLE ROTATION — the tick beside it in the scene list.
   // Unticked scenes are still perfectly selectable by hand; they are just skipped when
-  // "Auto-cycle scenes" is running, so you can build a show out of a subset of your library.
+  // "Auto-cycle favourites" is running, so you can build a show out of a subset of your library.
   //
   // Stored as `rotate` beside `name`/`collection`, and ABSENT MEANS IN — so every scene saved,
   // shared, backed up or published before this existed keeps cycling exactly as it did, with
@@ -294,13 +294,23 @@
   // reads, asserting each is a field snapshotScene captures. `name` and `collection` are not
   // (a preset's label and its provenance are not what it renders), so reading them in there
   // would go red — correctly. Taking the INDEX keeps applyPreset's body clean.
+  // WHO a scene is credited to, as the banner shows it and the Show author hint names it:
+  // the original author, then whose collection it came in, else you. "Shared with you" is a
+  // FOLDER, not a person -- a scene in it (a link, a gallery card) is credited to its origin
+  // alone, and with none it has no author to show (never you: it is not yours).
+  // myProfileName(), NOT myCollectionLabel(): with no profile there is no account to name,
+  // and crediting a scene to "Kicktro" is noise.
+  function sceneCredit(p) {
+    if (!p) return "";
+    const c = collectionOf(p);
+    const via = c === SHARED_COLLECTION ? "" : (c || myProfileName() || "");
+    const origin = originOk(p.origin) || "";
+    return origin && via && origin !== via ? origin + "  ·  " + via : (origin || via);
+  }
   function sceneTitleFor(i) {
     const p = presets[i]; if (!p) return;
-    // myProfileName(), NOT myCollectionLabel(): with no profile there is no account to name,
-    // and crediting a scene to "Kicktro" is noise. The dash goes with the empty author.
-    const own = collectionOf(p) || myProfileName();
-    const origin = originOk(p.origin);
-    showSceneTitle(p.name, origin && origin !== own ? origin + "  ·  " + own : (origin || own));
+    showSceneTitle(p.name, sceneCredit(p));   // the dash goes with an empty author
+    syncAuthorHint();   // the hint names THIS scene's author (it used to keep the boot scene's)
   }
   // Groups in a stable order: yours always first (and always present, even while empty, so
   // there is somewhere obvious for New to land), then each collection by first appearance.
@@ -402,7 +412,7 @@
         cb.type = "checkbox";
         cb.className = "pl-cyc";
         cb.checked = inRotation(p);
-        cb.title = "Include “" + p.name + "” when Auto-cycle scenes is on";
+        cb.title = "Include “" + p.name + "” when Auto-cycle favourites is on";
         cb.setAttribute("aria-label", "Auto-cycle " + p.name);
         // Ticking must NOT select the scene — that is the whole point of it being a separate
         // hit target — so the click is stopped from reaching the row.

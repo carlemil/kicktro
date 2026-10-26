@@ -676,7 +676,7 @@ cycler idles.
 **`autosavePreset` must carry every field beside `name`** — adding one means editing
 `autosavePreset`, `validatePresetList`, and the setter. Third such field: `origin` (original author,
 kept across a copy; `createPreset` stamps `originOf(cur)`, never `"Shared with you"`;
-`sceneTitleFor` shows `name · origin · collection-or-you`). `tools/author-check.js`.
+`sceneTitleFor` shows `name · origin · collection-or-you` via `sceneCredit(p)`, which the Show author hint reads too; **`"Shared with you"` is a folder, never a credit** — a scene there is credited to its origin alone, or to nobody). `tools/author-check.js`.
 
 ### Presets & persistence
 User-facing word is "scene"; code word is "preset". `HELP.sliders[].n` must match the rendered

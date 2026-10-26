@@ -22,7 +22,7 @@ const app = fs.readFileSync(appFile, "utf8");
 
 const seed = ["<script>",
   "try{localStorage.clear();"
-  + "localStorage.setItem('burnTheWeb.v1',JSON.stringify({panelOpen:true,cycle:false,curPreset:0,presets:[{name:'Alpha',effect:'plasma',state:{},beat:{},extra:{}},{name:'Beta',collection:'Bob',origin:'Ann',effect:'plasma',state:{},beat:{},extra:{}},{name:'Gamma',collection:'Bob',origin:'Bob',effect:'plasma',state:{},beat:{},extra:{}}]}));"
+  + "localStorage.setItem('burnTheWeb.v1',JSON.stringify({panelOpen:true,cycle:false,curPreset:0,presets:[{name:'Alpha',effect:'plasma',state:{},beat:{},extra:{}},{name:'Beta',collection:'Bob',origin:'Ann',effect:'plasma',state:{},beat:{},extra:{}},{name:'Gamma',collection:'Bob',origin:'Bob',effect:'plasma',state:{},beat:{},extra:{}},{name:'Delta',collection:'Shared with you',origin:'Cleo',effect:'plasma',state:{},beat:{},extra:{}},{name:'Eps',collection:'Shared with you',effect:'plasma',state:{},beat:{},extra:{}}]}));"
   + "localStorage.setItem('burnTheWeb.tutorial.v1','1');"
   + "localStorage.setItem('burnTheWeb.credits.v1','off');"
   // A profile name, so there IS an author to show -- the whole question is whether the tick
@@ -78,6 +78,15 @@ const body = [
   "   JSON.stringify(last&&{name:last.name,origin:last.origin,collection:last.collection}));",
   "var b3=selScene(saved.presets.length-1);",
   "ok('...and the copy is credited to Ann AND you', /^Beta copy\\s*·\\s*Ann\\s*·\\s*Testy$/.test(b3), b3||'(empty)');",
+  // ---- Shared with you is a folder, not an author --------------------------------------
+  "var b4=selScene(3);",
+  "ok('a shared scene is credited to its author ALONE, never to the folder Shared with you', /^Delta\\s*·\\s*Cleo$/.test(b4), b4||'(empty)');",
+  "ok('...and the hint names that author', /^Credited to Cleo\\.$/.test(hint.textContent), hint.textContent);",
+  "var b5=selScene(4);",
+  "ok('a shared scene with no author is credited to NOBODY -- not the folder, not you', /^Eps$/.test(b5), b5||'(empty)');",
+  "ok('...and the hint says so', /without an author/.test(hint.textContent) && !/Shared with you|Testy/.test(hint.textContent), hint.textContent);",
+  "var b6=selScene(1);",
+  "ok('the hint reads a two-part credit as the author, via the collection', /^Credited to Ann, via Bob\\.$/.test(hint.textContent), hint.textContent);",
   "console.log('\"DONE fails='+fails+'\"');",
 ].join(NL);
 

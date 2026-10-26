@@ -306,18 +306,19 @@
   // Scene title ("Show author") — same deal, its own key (see sceneTitleEnabled). The
   // checkbox lives in the Scene box rather than beside this one; el() is location-independent,
   // so wiring it from here needs no change.
-  // The author comes from the scene's collection, or failing that your profile name. With
-  // neither there is nothing to append and the tick genuinely cannot show anything -- so say
-  // that, rather than leaving it looking broken.
+  // The author is the banner's own (sceneCredit). With nobody to credit the tick genuinely
+  // cannot show anything -- so say that, rather than leaving it looking broken.
   function syncAuthorHint() {
     const h = el("sceneAuthorHint");
     if (!h) return;
     const p = presets[curPreset];
-    const who = (p && collectionOf(p)) || myProfileName();
+    const who = sceneCredit(p);
     const on = !!el("sceneTitleOn") && el("sceneTitleOn").checked;
     h.textContent = who
-      ? (on ? "Credited to " + who + "." : "")
-      : "No author to show yet \u2014 name your cloud profile, or load someone's collection.";
+      ? (on ? "Credited to " + who.replace(/  ·  /g, ", via ") + "." : "")
+      : p && collectionOf(p) === SHARED_COLLECTION
+        ? "This scene was shared without an author's name."
+        : "No author to show yet \u2014 name your cloud profile, or load someone's collection.";
     h.style.display = h.textContent ? "" : "none";
   }
   const titleChk = el("sceneTitleOn");
