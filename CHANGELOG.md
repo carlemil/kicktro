@@ -15,6 +15,18 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.91.0] — 2026-10-26
+
+### Added
+- **Say when a scene is not for you**: every gallery card now has a three-way vote — **♥** (you love it), the **score** in the middle, and **💔** (you don't). The score is loves minus dislikes, so a scene more people dislike than love shows a negative number. Click the lit end again, or the score, to take your vote back; switching from ♥ to 💔 is one click. One vote per person per scene, so sign in first (signed out, the buttons tell you so).
+
+### Changed
+- The gallery now opens on **Most loved**, which is the leftmost tab and sorts by that score (then loves, then newest), built-in scenes included. **All** (A to Z) moves to second place.
+- Removing your scene from the gallery now says its votes go with it.
+
+### Internal
+- API: a `hates` table and `PUT`/`DELETE /api/gallery/:id/hate` beside `/fav`, one vote per person enforced in one transaction; love counts stay as they were so older pages keep working. serverprobe gains 12 dislike cases; gallery-check pins the score order (with a negative control), negative scores and every vote transition.
+
 ## [1.90.0] — 2026-10-26
 
 ### Added
