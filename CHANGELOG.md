@@ -15,6 +15,21 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.92.0] — 2026-10-26
+
+### Added
+- **My scenes** in the gallery: a new tab, right of **My favourites**, showing every scene you have published as a card, newest first. **✕** on a card takes it out of the gallery (after a confirm); the scene itself stays in your own list. Signed out, the tab tells you to sign in; with nothing published yet, it points you at **Publish to gallery** in the Scene box.
+
+### Changed
+- The gallery vote's two ends are now a matching emoji pair, **❤️** and **💔**, the same size; until you vote both are greyed, and the one you pick takes its colour.
+- "Auto-cycle scenes" is now called **Auto-cycle favourites**.
+
+### Fixed
+- The scene banner and the Show author hint no longer say a scene is by **"Shared with you"** — that is the folder a link or gallery card lands in, not an author. Such a scene is credited to the person who made it, or to nobody when the link carried no name. The hint also follows the scene on screen (it used to keep the first scene's author).
+
+### Internal
+- API: `GET /api/gallery?mine=own` lists the caller's own published scenes (needs a session, never cached publicly); the page also keeps only your own rows, so an older API cannot put someone else's scene in the tab. serverprobe gains 6 cases; gallery-check pins the tab, its order and removal, plus the heart pair's size; author-check gains 5 credit asserts. Each new assert was seen to fail on a deliberately broken build.
+
 ## [1.91.0] — 2026-10-26
 
 ### Added
