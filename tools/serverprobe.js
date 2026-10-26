@@ -12,7 +12,9 @@
 //   public profiles: private stays 404, published readable signed out, by legacy uid too
 //   shares: owner-only create/delete, anonymous get, no listing, per-user rate limit
 //   gallery: publish, sort by favourites vs newest vs name, filter, idempotent favs, built-in favs,
-//            delete takes its favourites with it
+//            delete takes its favourites with it; dislikes: one vote per person (a 💔 clears
+//            the ♥ and back), Most loved sorts by loves minus dislikes, built-in dislikes ride
+//            along as builtinHates, a removed scene takes its dislikes
 //   admin: token required, thumbnail upload checks magic bytes, versioned immutable files,
 //          Range replies, old version removed; Firebase import is idempotent and maps accounts
 //   cors, body limit, account deletion, data surviving a restart (migrations re-run cleanly)
@@ -273,6 +275,37 @@ async function main() {
   ok("gallery: ...and filters like the other tabs", r.json.total === 1 && r.json.items[0].id === a2, r.text);
   r = await call("GET", "/api/gallery/" + a1);
   ok("gallery: one scene with its payload", r.status === 200 && r.json.payload === PAY && r.json.favs === 1);
+  // ---- dislikes ---------------------------------------------------------------------------
+  // a1 has B's ♥ (1), a2 has B's ♥ (1), b1 nothing. Two 💔 on a2 put it below b1.
+  r = await call("PUT", "/api/gallery/" + a2 + "/hate");
+  ok("hate: signed out is 401", r.status === 401);
+  await call("PUT", "/api/gallery/" + a2 + "/hate", { token: A.token });
+  await call("PUT", "/api/gallery/" + a2 + "/hate", { token: C.token });
+  r = await call("PUT", "/api/gallery/" + a2 + "/hate", { token: C.token });
+  ok("hate: disliking twice counts once", r.status === 200 && r.json.hates === 2 && r.json.hate === true
+    && r.json.mine === false && r.json.favs === 1, r.text);
+  r = await call("GET", "/api/gallery");
+  ok("gallery: Most loved sorts by loves minus dislikes", r.json.items.map(x => x.id).join() === [a1, b1, a2].join()
+    && r.json.items[2].hates === 2 && r.json.items[2].favs === 1, r.text);
+  r = await call("PUT", "/api/gallery/" + a2 + "/hate", { token: B.token });
+  ok("hate: a 💔 takes back your ♥", r.json.hate === true && r.json.mine === false && r.json.favs === 0 && r.json.hates === 3, r.text);
+  r = await call("PUT", "/api/gallery/" + a2 + "/fav", { token: B.token });
+  ok("fav: a ♥ takes back your 💔", r.json.mine === true && r.json.hate === false && r.json.favs === 1 && r.json.hates === 2, r.text);
+  r = await call("DELETE", "/api/gallery/" + a2 + "/hate", { token: C.token });
+  ok("hate: taking it back drops the count", r.json.hate === false && r.json.hates === 1, r.text);
+  r = await call("GET", "/api/me/favs", { token: A.token });
+  ok("hate: my dislikes ride beside my favourites", Array.isArray(r.json.hates) && r.json.hates.includes(a2)
+    && !r.json.ids.includes(a2), r.text);
+  r = await call("PUT", "/api/gallery/NoSuchScene1234567890/hate", { token: A.token });
+  ok("hate: an unknown scene is 404", r.status === 404);
+  r = await call("PUT", "/api/gallery/builtin:neon-reef/hate", { token: C.token });
+  ok("hate: a built-in scene can be disliked", r.status === 200 && r.json.hates === 1 && r.json.favs === 1, r.text);
+  r = await call("GET", "/api/gallery");
+  ok("gallery: built-in dislikes ride along apart from the loves", r.json.builtinHates["builtin:neon-reef"] === 1
+    && r.json.builtin["builtin:neon-reef"] === 1, r.text);
+  r = await call("GET", "/api/gallery/" + a2);
+  ok("gallery: one scene carries its dislikes", r.json.hates === 1 && r.json.favs === 1, r.text);
+  await call("PUT", "/api/gallery/" + a1 + "/hate", { token: C.token });
   r = await call("DELETE", "/api/gallery/" + a2, { token: B.token });
   ok("gallery: someone else cannot remove it", r.status === 403, r.status);
 
@@ -315,6 +348,8 @@ async function main() {
   ok("gallery: the owner removes a scene", r.status === 200);
   r = await call("GET", "/api/me/favs", { token: B.token });
   ok("gallery: removing a scene removes its favourites", !r.json.ids.includes(a1) && r.json.ids.includes(a2), r.text);
+  r = await call("GET", "/api/me/favs", { token: C.token });
+  ok("gallery: ...and its dislikes", !r.json.hates.includes(a1) && r.json.hates.includes("builtin:neon-reef"), r.text);
   await new Promise(res => setTimeout(res, 100));
   ok("gallery: removing a scene removes its thumbnail", (await call("GET", "/thumbs/" + a1 + "-2.webp")).status === 404);
 

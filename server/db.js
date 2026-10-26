@@ -71,6 +71,20 @@ const MIGRATIONS = [
   );
   create index favs_scene on favs(scene_id);
   `,
+
+  // 2 -- dislikes, the gallery's broken heart. Their own table rather than a sign on favs, so
+  // favs keeps meaning "loves" for every reader that already counts it (an older client's
+  // heart, My favourites). One vote per person per scene: a route writing one deletes the
+  // other in the same transaction. Most loved orders by loves minus dislikes.
+  `
+  create table hates (
+    uid      text not null references users(uid) on delete cascade,
+    scene_id text not null,
+    created  integer not null,
+    primary key (uid, scene_id)
+  );
+  create index hates_scene on hates(scene_id);
+  `,
 ];
 
 function openDb(file) {

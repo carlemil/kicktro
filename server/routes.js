@@ -17,6 +17,7 @@ const CAP = {
   sharesPerUser: 1000,
   galleryPerUser: 200,
   favsPerUser: 5000,
+  hatesPerUser: 5000,
   poster: 1 << 20,          // 1 MB
   clip: 6 << 20,            // 6 MB
 };
@@ -115,7 +116,8 @@ function makeRoutes(ctx) {
     shareMine: q("select id, name, created from shares where owner = ? order by created desc"),
 
     galIns: q("insert into gallery (id, owner, name, payload, created) values (?, ?, ?, ?, ?)"),
-    galGet: q("select g.*, u.name author, (select count(*) from favs f where f.scene_id = g.id) favs "
+    galGet: q("select g.*, u.name author, (select count(*) from favs f where f.scene_id = g.id) favs, "
+      + "(select count(*) from hates h where h.scene_id = g.id) hates "
       + "from gallery g join users u on u.uid = g.owner where g.id = ?"),
     galRow: q("select id, owner, thumb_ver from gallery where id = ?"),
     galDel: q("delete from gallery where id = ?"),
@@ -125,6 +127,7 @@ function makeRoutes(ctx) {
     galAll: q("select id, name, payload, thumb_ver from gallery order by created"),
     galThumb: q("update gallery set thumb_ver = ? where id = ?"),
     galBuiltinFavs: q("select scene_id, count(*) n from favs where scene_id like 'builtin:%' group by scene_id"),
+    galBuiltinHates: q("select scene_id, count(*) n from hates where scene_id like 'builtin:%' group by scene_id"),
 
     favIns: q("insert or ignore into favs (uid, scene_id, created) values (?, ?, ?)"),
     favDel: q("delete from favs where uid = ? and scene_id = ?"),
@@ -133,6 +136,16 @@ function makeRoutes(ctx) {
     favMineCount: q("select count(*) n from favs where uid = ?"),
     favDelScene: q("delete from favs where scene_id = ?"),
     favDelOwnedScenes: q("delete from favs where scene_id in (select id from gallery where owner = ?)"),
+
+    favHas: q("select 1 from favs where uid = ? and scene_id = ?"),
+    hateHas: q("select 1 from hates where uid = ? and scene_id = ?"),
+    hateIns: q("insert or ignore into hates (uid, scene_id, created) values (?, ?, ?)"),
+    hateDel: q("delete from hates where uid = ? and scene_id = ?"),
+    hateCount: q("select count(*) n from hates where scene_id = ?"),
+    hateMine: q("select scene_id from hates where uid = ? order by created desc"),
+    hateMineCount: q("select count(*) n from hates where uid = ?"),
+    hateDelScene: q("delete from hates where scene_id = ?"),
+    hateDelOwnedScenes: q("delete from hates where scene_id in (select id from gallery where owner = ?)"),
   };
 
   // ---- helpers -------------------------------------------------------------------------
@@ -228,6 +241,7 @@ function makeRoutes(ctx) {
     const owned = S.galOwnedIds.all(u.uid);
     tx(db, () => {
       S.favDelOwnedScenes.run(u.uid);
+      S.hateDelOwnedScenes.run(u.uid);
       S.userDel.run(u.uid);
     });
     for (const g of owned) removeThumbs(g.id, g.thumb_ver);
@@ -239,7 +253,8 @@ function makeRoutes(ctx) {
   });
   on("GET", "/api/me/favs", r => {
     const u = user(r);
-    sendJson(r.res, 200, { ids: S.favMine.all(u.uid).map(x => x.scene_id) });
+    sendJson(r.res, 200, { ids: S.favMine.all(u.uid).map(x => x.scene_id),
+      hates: S.hateMine.all(u.uid).map(x => x.scene_id) });
   });
 
   // -- own profile
@@ -353,19 +368,23 @@ function makeRoutes(ctx) {
       + "and (? = '' or g.id in (select scene_id from favs where uid = ?))";
     const order = sort === "new" ? "order by g.created desc, g.id"
       : sort === "name" ? "order by g.name collate nocase, g.id"
-      : "order by favs desc, g.created desc, g.id";
+      : "order by favs - hates desc, favs desc, g.created desc, g.id";   // Most loved: the SCORE
     const rows = q("select g.id, g.name, g.owner, g.created, g.thumb_ver, u.name author, "
-      + "(select count(*) from favs f where f.scene_id = g.id) favs "
+      + "(select count(*) from favs f where f.scene_id = g.id) favs, "
+      + "(select count(*) from hates h where h.scene_id = g.id) hates "
       + "from gallery g join users u on u.uid = g.owner " + where + " " + order + " limit ? offset ?")
       .all(needle, like, like, favOf, favOf, lim, off);
     const total = q("select count(*) n from gallery g join users u on u.uid = g.owner " + where)
       .get(needle, like, like, favOf, favOf).n;
     const builtin = {};
     for (const b of S.galBuiltinFavs.all()) builtin[b.scene_id] = b.n;
+    // builtin stays LOVES ONLY (an older client reads it as its heart count); dislikes ride beside.
+    const builtinHates = {};
+    for (const b of S.galBuiltinHates.all()) builtinHates[b.scene_id] = b.n;
     sendJson(r.res, 200, {
-      total, offset: off, sort, builtin,
+      total, offset: off, sort, builtin, builtinHates,
       items: rows.map(g => ({ id: g.id, name: g.name, author: g.author, owner: g.owner, created: g.created,
-        favs: g.favs, ...thumbUrls(g.id, g.thumb_ver) })),
+        favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver) })),
     }, { "Cache-Control": favOf ? "private, no-store" : "public, max-age=30" });
   });
   on("GET", "/api/gallery/([^/]+)", r => {
@@ -373,7 +392,7 @@ function makeRoutes(ctx) {
     const g = ID_RE.test(id) && S.galGet.get(id);
     if (!g) throw new HttpError(404, "no such scene");
     sendJson(r.res, 200, { id: g.id, name: g.name, author: g.author, owner: g.owner, payload: g.payload,
-      created: g.created, favs: g.favs, ...thumbUrls(g.id, g.thumb_ver) });
+      created: g.created, favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver) });
   });
   on("POST", "/api/gallery", async r => {
     const u = user(r);
@@ -399,11 +418,14 @@ function makeRoutes(ctx) {
     const g = ID_RE.test(id) && S.galRow.get(id);
     if (!g) throw new HttpError(404, "no such scene");
     if (g.owner !== u.uid) throw new HttpError(403, "not your scene");
-    tx(db, () => { S.favDelScene.run(id); S.galDel.run(id); });
+    tx(db, () => { S.favDelScene.run(id); S.hateDelScene.run(id); S.galDel.run(id); });
     removeThumbs(id, g.thumb_ver);
     sendJson(r.res, 200, { ok: true });
   });
-  // Favourite / un-favourite. Idempotent both ways; the reply carries the fresh count.
+  // Favourite / un-favourite, and the same for a dislike (the broken heart). Idempotent both
+  // ways; ONE vote per person, so setting either clears the other in the same transaction.
+  // The reply carries both fresh counts and both of the caller's flags; mine/favs keep the
+  // shape an older client reads.
   function favTarget(raw) {
     const id = decodeURIComponent(raw);
     if (BUILTIN_RE.test(id)) return id;
@@ -416,17 +438,41 @@ function makeRoutes(ctx) {
     const id = favTarget(r.m[1]);
     tx(db, () => {
       if (S.favMineCount.get(u.uid).n >= CAP.favsPerUser) throw new HttpError(409, "too many favourites");
+      S.hateDel.run(u.uid, id);
       S.favIns.run(u.uid, id, Date.now());
     });
-    sendJson(r.res, 200, { id, mine: true, favs: S.favCount.get(id).n });
+    sendJson(r.res, 200, voteReply(u.uid, id));
   });
   on("DELETE", "/api/gallery/([^/]+)/fav", r => {
     const u = user(r);
     limit(u.uid, "fav");
     const id = favTarget(r.m[1]);
     S.favDel.run(u.uid, id);
-    sendJson(r.res, 200, { id, mine: false, favs: S.favCount.get(id).n });
+    sendJson(r.res, 200, voteReply(u.uid, id));
   });
+  on("PUT", "/api/gallery/([^/]+)/hate", r => {
+    const u = user(r);
+    limit(u.uid, "fav");
+    const id = favTarget(r.m[1]);
+    tx(db, () => {
+      if (S.hateMineCount.get(u.uid).n >= CAP.hatesPerUser) throw new HttpError(409, "too many dislikes");
+      S.favDel.run(u.uid, id);
+      S.hateIns.run(u.uid, id, Date.now());
+    });
+    sendJson(r.res, 200, voteReply(u.uid, id));
+  });
+  on("DELETE", "/api/gallery/([^/]+)/hate", r => {
+    const u = user(r);
+    limit(u.uid, "fav");
+    const id = favTarget(r.m[1]);
+    S.hateDel.run(u.uid, id);
+    sendJson(r.res, 200, voteReply(u.uid, id));
+  });
+  function voteReply(uid, id) {
+    const mine = !!S.favHas.get(uid, id);
+    const hate = !!S.hateHas.get(uid, id);
+    return { id, mine, hate, favs: S.favCount.get(id).n, hates: S.hateCount.get(id).n };
+  }
 
   // -- admin: thumbnails (tools/thumbs.js) and the one-time Firebase import
   on("GET", "/api/admin/thumbs/todo", r => {

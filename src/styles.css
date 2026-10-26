@@ -565,17 +565,36 @@
   }
   #galdlg .gal-cname { grid-column: 1; grid-row: 1; color: #ffcf87; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #galdlg .gal-by { grid-column: 1; grid-row: 2; color: #ffb15a; opacity: .65; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #galdlg .gal-share, #galdlg .gal-heart, #galdlg .gal-rm {
+  #galdlg .gal-share, #galdlg .gal-rm {
     grid-row: 1 / span 2; padding: 4px 8px; border-radius: 999px; cursor: pointer; white-space: nowrap;
     background: transparent; border: 1px solid rgba(255, 140, 40, 0.3); color: #ffcf87;
     font: 11px/1.2 ui-monospace, Consolas, monospace;
   }
   #galdlg .gal-share { grid-column: 2; }
-  #galdlg .gal-heart { grid-column: 3; }
+  /* The vote: ONE pill of three segments -- ♥ love, the score (neutral), 💔 dislike -- with
+     the one that is yours lit. */
+  #galdlg .gal-vote {
+    grid-column: 3; grid-row: 1 / span 2; display: inline-flex; overflow: hidden;
+    border: 1px solid rgba(255, 140, 40, 0.3); border-radius: 999px;
+  }
+  #galdlg .gal-vote:hover { border-color: rgba(255, 160, 60, 0.85); }
+  #galdlg .gal-vote button {
+    padding: 4px 6px; border: 0; background: transparent; color: #ffcf87; cursor: pointer; white-space: nowrap;
+    font: 11px/1.2 ui-monospace, Consolas, monospace;
+  }
+  #galdlg .gal-vote button:hover { background: rgba(255, 160, 60, 0.12); }
+  #galdlg .gal-vote button:focus-visible { outline: 1px solid #ffb15a; outline-offset: -2px; }
+  #galdlg .gal-vote .gal-score {
+    min-width: 2.4em; padding: 4px 3px; text-align: center;
+    border-left: 1px solid rgba(255, 140, 40, 0.2); border-right: 1px solid rgba(255, 140, 40, 0.2);
+  }
+  #galdlg .gal-vote .gal-score.neg { color: #b9a8ff; }
+  #galdlg .gal-vote .gal-hate { filter: grayscale(1); opacity: 0.5; }
+  #galdlg .gal-vote .gal-heart.on { color: #ff6f61; background: rgba(255, 111, 97, 0.16); }
+  #galdlg .gal-vote .gal-hate.on { filter: none; opacity: 1; background: rgba(150, 125, 255, 0.2); }
   #galdlg .gal-rm { grid-column: 4; }
   #galdlg .gal-share.copied { color: #9be37a; border-color: rgba(155, 227, 122, 0.7); }
-  #galdlg .gal-heart.on { color: #ff6f61; border-color: rgba(255, 111, 97, 0.7); background: rgba(255, 111, 97, 0.12); }
-  #galdlg .gal-share:hover, #galdlg .gal-heart:hover, #galdlg .gal-rm:hover { border-color: rgba(255, 160, 60, 0.85); }
+  #galdlg .gal-share:hover, #galdlg .gal-rm:hover { border-color: rgba(255, 160, 60, 0.85); }
   #galdlg .gal-morerow { display: flex; justify-content: center; margin-top: 12px; }
   #galdlg h2 { margin: 0 30px 14px 0; color: #ffb15a; font-size: 15px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.6); }
   /* ONE line: name, then the scene count / date centred between, then Load at the end.

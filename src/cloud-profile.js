@@ -613,21 +613,22 @@
 
   // ---- gallery ----
   // ONE PUBLISHED SCENE PER CARD (card 825, M3): a poster, the clip while hovered or focused,
-  // the author, a heart with its count. Readable signed out. Five tabs:
-  //   All / Most loved / Newest   GET /api/gallery?sort=name|favs|new, paged as you scroll;
-  //                               All (A to Z) is the one the dialog opens on
+  // the author, and the VOTE: a three-way switch, ♥ love / the score / 💔 dislike, one vote
+  // per person (score = loves minus dislikes). Readable signed out. Five tabs:
+  //   Most loved / All / Newest   GET /api/gallery?sort=favs|name|new, paged as you scroll;
+  //                               Most loved (by score) is the one the dialog opens on
   //   My favourites         the same with mine=favs (needs a session)
   //   Collections           the older per-profile listing (GET /api/profiles), which is also
   //                         what refollowCollections resolves a uid-less follow against
   // The built-in AI-Generated scenes are cards too (BUILTIN_SCENES, 'builtin:<slug>'): they
   // ship with the app, thumbnails included, and are MERGED into the server's order by the
-  // same key, so a loved built-in sits where its count puts it. Their counts ride on every
-  // listing response (`builtin`).
+  // same key, so a loved built-in sits where its score puts it. Their counts ride on every
+  // listing response (`builtin` loves, `builtinHates` dislikes).
   // NOTHING LOADS UP FRONT: a tab asks for one page (galleryPage) and the next only when the
   // end of the grid scrolls near; a poster is fetched only when its card scrolls near
   // (galLazy); a clip only while hovered (preload none).
   // The listing is not billed per read any more, so the old once-a-day limit is gone: answers
-  // are kept in memory for galleryTtlMs (10 minutes) and a favourite patches them in place.
+  // are kept in memory for galleryTtlMs (10 minutes) and a vote patches them in place.
   try {                                 // the Firestore-era caches, a day long each
     localStorage.removeItem("burnTheWeb.gallery.v1");
     localStorage.removeItem("burnTheWeb.gallery.v2");
@@ -656,26 +657,31 @@
   const galBuiltinCards = () => BUILTIN_SCENES.map(b => {
     const slug = b.id.slice(8), v = b.thumb ? "?" + b.thumb : "";
     return { id: b.id, name: b.name, author: BUILTIN_GALLERY[0].name, owner: "",
-      created: Date.parse(BUILTIN_GALLERY[0].updated) || 0, favs: 0, at: b.at,
+      created: Date.parse(BUILTIN_GALLERY[0].updated) || 0, favs: 0, hates: 0, at: b.at,
       poster: b.thumb ? "thumbs/" + slug + ".webp" + v : null, clip: b.thumb ? "thumbs/" + slug + ".mp4" + v : null };
   });
 
   // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
-  // answer to a request a newer tab or filter has overtaken.
-  const gal = { tab: "all", order: "name", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
-    shown: new Set(), seq: 0, note: "" };
+  // answer to a request a newer tab or filter has overtaken. `mine` / `hate`: the scenes you
+  // gave a ♥ / a 💔.
+  const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
+    hate: new Set(), shown: new Set(), seq: 0, note: "" };
   const galSort = () => (gal.tab === "new" ? "new" : gal.tab === "all" ? "name" : "favs");
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
   // dialog closes, so the listing's own "Loading…" passes through and then gives way to it.
   const galHint = t => { const h = el("gal-hint"); if (h) h.textContent = t || gal.note; };
   const galMatch = c => !gal.q || (c.name + "\n" + c.author).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0;
-  // The order both lists are already in: favourites then newest, newest alone, or by name
-  // (SQLite's NOCASE: ASCII folded, then code order). `order` is the one the SERVER answered
-  // with, so an API that does not know sort=name yet still gets its built-ins placed right.
+  // The order both lists are already in: score (loves minus dislikes), then loves, then
+  // newest; newest alone; or by name (SQLite's NOCASE: ASCII folded, then code order).
+  // `order` is the one the SERVER answered with, so an API that does not know sort=name yet
+  // still gets its built-ins placed right -- and one from before dislikes sends no `hates`,
+  // so every score is its loves and the two orders still agree.
   const galKey = c => c.name.toLowerCase();
+  const galScore = c => (c.favs || 0) - (c.hates || 0);
   const galBefore = (a, b) => (gal.order === "new" ? a.created > b.created
     : gal.order === "name" ? galKey(a) < galKey(b) || (galKey(a) === galKey(b) && a.id < b.id)
-    : a.favs > b.favs || (a.favs === b.favs && a.created > b.created));
+    : galScore(a) > galScore(b) || (galScore(a) === galScore(b)
+      && (a.favs > b.favs || (a.favs === b.favs && a.created > b.created))));
   function galSyncMore() {
     const b = el("gal-more");
     if (b) b.style.display = gal.done || gal.tab === "people" ? "none" : "";
@@ -713,7 +719,10 @@
       const rows = (j && Array.isArray(j.items)) ? j.items : [];
       if (gal.offset === 0 && j && j.builtin) {
         if (j.sort === "new" || j.sort === "name" || j.sort === "favs") gal.order = j.sort;
-        for (const c of gal.pend) c.favs = +j.builtin[c.id] || 0;
+        for (const c of gal.pend) {
+          c.favs = +j.builtin[c.id] || 0;
+          c.hates = +(j.builtinHates || {})[c.id] || 0;
+        }
         gal.pend.sort((a, b) => (galBefore(a, b) ? -1 : galBefore(b, a) ? 1 : 0));
       }
       gal.offset += rows.length;
@@ -810,16 +819,24 @@
     nm.className = "gal-cname"; nm.textContent = c.name; nm.title = c.name;
     const by = document.createElement("div");
     by.className = "gal-by"; by.textContent = c.author || "";
-    const heart = document.createElement("button");
-    heart.type = "button"; heart.className = "gal-heart";
-    galPaintHeart(heart, c);
-    heart.addEventListener("click", e => { e.stopPropagation(); galFav(c, heart); });
+    // THE VOTE, a three-way switch: ♥ love, the score in the middle (neutral -- click it to
+    // take your vote back), 💔 dislike. Clicking the lit end again returns to neutral too.
+    const vote = document.createElement("span");
+    vote.className = "gal-vote"; vote.setAttribute("role", "radiogroup");
+    vote.setAttribute("aria-label", "Your vote on " + c.name);
+    for (const [cls, v] of [["gal-heart", 1], ["gal-score", 0], ["gal-hate", -1]]) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = cls; b.setAttribute("role", "radio");
+      b.addEventListener("click", e => { e.stopPropagation(); galVote(c, v && galVoteOf(c) === v ? 0 : v); });
+      vote.appendChild(b);
+    }
+    galPaintVote(vote, c);
     const share = document.createElement("button");
     share.type = "button"; share.className = "gal-share"; share.textContent = "🔗";
     share.title = "Copy a link to this scene";
     share.setAttribute("aria-label", "Copy a link to " + c.name);
     share.addEventListener("click", e => { e.stopPropagation(); galCopyLink(c, share); });
-    cap.append(nm, share, heart, by);
+    cap.append(nm, share, vote, by);
     if (cloudSess && c.owner && c.owner === cloudSess.uid) {
       const rm = document.createElement("button");
       rm.type = "button"; rm.className = "gal-rm"; rm.textContent = "✕";
@@ -873,52 +890,85 @@
       if (v) { v.pause(); try { v.currentTime = 0; } catch (e) { /* not loaded yet */ } }
     }
   }
-  function galPaintHeart(heart, c) {
-    const on = gal.mine.has(c.id);
-    heart.classList.toggle("on", on);
-    heart.setAttribute("aria-pressed", String(on));
-    heart.textContent = (on ? "♥ " : "♡ ") + (c.favs || 0);
-    heart.title = cloudSess ? (on ? "Remove from your favourites" : "Add to your favourites")
-      : "Sign in to keep favourites";
-    heart.setAttribute("aria-label", (on ? "Unfavourite " : "Favourite ") + c.name + ", " + (c.favs || 0) + " favourites");
+  const galVoteOf = c => (gal.mine.has(c.id) ? 1 : gal.hate.has(c.id) ? -1 : 0);
+  function galPaintVote(vote, c) {
+    const v = galVoteOf(c), s = galScore(c), f = c.favs || 0, h = c.hates || 0;
+    const [heart, score, hate] = vote.children;
+    for (const [b, on] of [[heart, v === 1], [score, v === 0], [hate, v === -1]]) {
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-checked", String(on));
+    }
+    heart.textContent = v === 1 ? "♥" : "♡";
+    score.textContent = String(s);
+    score.classList.toggle("neg", s < 0);
+    hate.textContent = "💔";
+    const counts = f + (f === 1 ? " love" : " loves") + " · " + h + (h === 1 ? " dislike" : " dislikes");
+    if (!cloudSess) heart.title = score.title = hate.title = "Sign in to vote · " + counts;
+    else {
+      heart.title = (v === 1 ? "Take back your ♥" : "Love it") + " · " + counts;
+      score.title = (v ? "Take back your vote" : "You have not voted") + " · " + counts;
+      hate.title = (v === -1 ? "Take back your 💔" : "Not for me — counts against it in Most loved") + " · " + counts;
+    }
+    heart.setAttribute("aria-label", "Love " + c.name + ", " + counts);
+    score.setAttribute("aria-label", "No vote, score " + s);
+    hate.setAttribute("aria-label", "Dislike " + c.name);
   }
-  // OPTIMISTIC: the heart flips at once and the server's count settles it; a failure flips it
+  // OPTIMISTIC: the switch moves at once and the server's counts settle it; a failure moves it
   // back. Every cached listing is patched too, so switching tabs does not show the old count.
-  function galFav(c, heart) {
-    if (!cloudSess) { galHint("Favourites belong to an account — sign in under ☰ → Cloud profile."); return; }
-    const want = !gal.mine.has(c.id), before = c.favs || 0;
-    const set = (mine, favs) => {
-      if (mine) gal.mine.add(c.id); else gal.mine.delete(c.id);
-      c.favs = favs;
-      galPatchFavs(c.id, favs);
-      for (const h of document.querySelectorAll("#gal-list .gal-card")) {
-        if (h.dataset.id === c.id) galPaintHeart(h.querySelector(".gal-heart"), h.__card);
+  // ONE vote per person: ♥ and 💔 each clear the other, as the server does in one transaction.
+  function galVote(c, want) {
+    if (!cloudSess) { galHint("Votes belong to an account — sign in under ☰ → Cloud profile."); return; }
+    const cur = galVoteOf(c);
+    if (want === cur) return;
+    const before = { v: cur, favs: c.favs || 0, hates: c.hates || 0 };
+    const set = (v, favs, hates) => {
+      gal.mine.delete(c.id); gal.hate.delete(c.id);
+      if (v === 1) gal.mine.add(c.id); else if (v === -1) gal.hate.add(c.id);
+      c.favs = favs; c.hates = hates;
+      galPatchFavs(c.id, favs, hates);
+      for (const n of document.querySelectorAll("#gal-list .gal-card")) {
+        if (n.dataset.id === c.id) galPaintVote(n.querySelector(".gal-vote"), n.__card);
       }
     };
-    set(want, Math.max(0, before + (want ? 1 : -1)));
-    apiFetch("/api/gallery/" + encodeURIComponent(c.id) + "/fav", { method: want ? "PUT" : "DELETE" })
+    set(want, Math.max(0, before.favs + (want === 1) - (cur === 1)),
+      Math.max(0, before.hates + (want === -1) - (cur === -1)));
+    // Neutral takes back whichever vote there was; ♥ or 💔 sets one (the server clears the other).
+    const kind = (want || cur) === 1 ? "fav" : "hate";
+    apiFetch("/api/gallery/" + encodeURIComponent(c.id) + "/" + kind, { method: want ? "PUT" : "DELETE" })
       .then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
-      .then(j => { set(!!j.mine, +j.favs || 0); track("gallery_fav", { on: !!j.mine }); })
-      .catch(e => { set(!want, before); galHint("Could not save that favourite: " + e.message); });
+      .then(j => {
+        // An API from before dislikes answers mine/favs only: keep the dislike count we have.
+        const v = j.mine ? 1 : j.hate ? -1 : 0;
+        set(v, +j.favs || 0, j.hates === undefined ? c.hates || 0 : +j.hates || 0);
+        track("gallery_vote", { vote: v });
+      })
+      .catch(e => { set(before.v, before.favs, before.hates); galHint("Could not save that vote: " + e.message); });
   }
-  function galPatchFavs(id, favs) {
+  function galPatchFavs(id, favs, hates) {
     for (const k in galMem) {
       const j = galMem[k].j;
       if (!j) continue;
-      if (j.builtin && id.indexOf("builtin:") === 0) j.builtin[id] = favs;
-      for (const r of (j.items || [])) if (r.id === id) r.favs = favs;
+      if (j.builtin && id.indexOf("builtin:") === 0) {
+        j.builtin[id] = favs;
+        (j.builtinHates = j.builtinHates || {})[id] = hates;
+      }
+      for (const r of (j.items || [])) if (r.id === id) { r.favs = favs; r.hates = hates; }
     }
-    for (const c of gal.pend) if (c.id === id) c.favs = favs;
+    for (const c of gal.pend) if (c.id === id) { c.favs = favs; c.hates = hates; }
   }
   function galMineFetch() {
-    if (!cloudSess) { gal.mine = new Set(); return Promise.resolve(); }
+    if (!cloudSess) { gal.mine = new Set(); gal.hate = new Set(); return Promise.resolve(); }
     return apiFetch("/api/me/favs", { method: "GET" })
       .then(r => (r.ok ? r.json() : null))
-      .then(j => { if (j && Array.isArray(j.ids)) gal.mine = new Set(j.ids); })
-      .catch(() => { /* offline: hearts just show unmarked */ });
+      .then(j => {
+        if (!j || !Array.isArray(j.ids)) return;
+        gal.mine = new Set(j.ids);
+        gal.hate = new Set(Array.isArray(j.hates) ? j.hates : []);
+      })
+      .catch(() => { /* offline: votes just show unmarked */ });
   }
   function galRemove(c, card) {
-    if (!confirm("Remove “" + c.name + "” from the public gallery? Its favourites go with it. The scene stays in your own list.")) return;
+    if (!confirm("Remove “" + c.name + "” from the public gallery? Its votes go with it. The scene stays in your own list.")) return;
     apiFetch("/api/gallery/" + encodeURIComponent(c.id), { method: "DELETE" })
       .then(r => {
         if (!r.ok && r.status !== 404) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));

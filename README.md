@@ -727,14 +727,16 @@ anyone else's scenes.
 anyone can look. Every published scene is a card: a still of the scene five seconds in, which turns into
 a short looping clip while you hover it (on a phone, the first tap plays the clip and the
 second loads the scene). Click a card to add that scene to your list, under **Shared with
-you**, credited to whoever made it. Four tabs order the cards — **All** (every scene, A to
-Z, which is where it opens), **Most loved**, **Newest** and **My favourites** — and the filter box narrows them by
+you**, credited to whoever made it. Four tabs order the cards — **Most loved** (where it
+opens), **All** (every scene, A to Z), **Newest** and **My favourites** — and the filter box narrows them by
 scene or author name. Nothing is loaded up front: cards arrive a page at a time as you
 scroll, a card's still only once it scrolls near, and its clip only while you hover it. The twenty-five AI-Generated scenes that ship with Kicktro are cards too.
 
-**♥** on a card adds it to your favourites, and the number beside it is how many people
-love it — that count is what **Most loved** sorts by. Favourites belong to an account: one
-per person per scene, so sign in first.
+Every card has a three-way vote: **♥** (you love it), the **score** in the middle, and
+**💔** (not for you). The score is loves minus dislikes, so it can go below zero, and it is what
+**Most loved** sorts by. Click the lit end again, or the score, to take your vote back.
+A ♥ also puts the scene under **My favourites**. Votes belong to an account: one per person
+per scene, so sign in first.
 
 **🔗** on a card copies a link to that one scene. Whoever opens it gets the scene added to
 their list under **Shared with you**, credited to its author, just as if they had clicked

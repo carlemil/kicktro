@@ -797,8 +797,8 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
   the client; those documents go with the project).
 
 **The gallery is ONE PUBLISHED SCENE PER CARD** (card 825, M3): a poster, the clip while
-hovered or focused, the author, a heart with its count. Tabs All (leftmost, the DEFAULT) / Most loved /
-Newest / My favourites (`GET /api/gallery?sort=name|favs|new[&mine=favs]&q=&offset=&limit=`, paged as you
+hovered or focused, the author, the VOTE. Tabs Most loved (leftmost, the DEFAULT) / All /
+Newest / My favourites (`GET /api/gallery?sort=favs|name|new[&mine=favs]&q=&offset=&limit=`, paged as you
 scroll, `galleryPage` 24) plus Collections (the older per-profile listing, `galPeople`).
 Readable signed out. **Nothing loads up front**: a poster's `src` is set by `galLazy` (an
 IntersectionObserver rooted on `.gal-box`) — `loading=lazy` measures from the WINDOW and
@@ -834,8 +834,15 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   The tutorial waits on `frontModalUp()` (gallery/restore/help/tutorial visible, looked up by id).
 - Hover/focus → muted looping `<video preload=none>`, shown on `playing`; **touch: first tap
   previews, second loads** — a tap FOCUSES before its click, so focus must not preview on touch.
-- **Favourites are optimistic** (`galFav`: flip, then the server's `{mine, favs}` settles it; a
-  failure flips back), patch every cached answer (`galPatchFavs`). Signed out the heart only hints.
+- **The vote is a three-way switch** (`.gal-vote`, radiogroup): ♥ / the SCORE (neutral) / 💔.
+  Score = loves − dislikes; Most loved sorts by it (`galScore`, server `favs - hates`), then
+  loves, then newest. ONE vote per person: PUT `/fav` clears the hate and PUT `/hate` clears the
+  fav, inside one transaction; neutral is DELETE of whichever was set. **Dislikes are their own
+  table (`hates`) and `builtin` stays LOVES** (`builtinHates` beside it): a v1.90 client reads
+  `favs`/`builtin` as its counts and must keep working. Optimistic (`galVote`: move, then
+  `{mine, hate, favs, hates}` settles it; a failure moves back; an answer without `hates` — an
+  older API — keeps the local count), patches every cached answer (`galPatchFavs`). Signed out
+  it only hints. Deploy the API BEFORE the site, or 💔 404s and moves back.
 - Answers are cached in MEMORY for `galleryTtlMs` (10 min, public answers only); `galBust()` on
   your own publish/remove/save. The once-a-day localStorage caches are deleted on load.
 - **Thumbnails: `tools/thumbs.js`** (abshot's harness, real GPU, real time; poster = frame 300,
@@ -855,8 +862,8 @@ talks to it since M2.
   verify pass. The import is IDEMPOTENT and NEWER-WINS per profile, so it may be re-run.
 - **No npm packages, ever**: `node:http`, `node:sqlite` (built in, ≥22.5 — CI runs Node 24),
   `node:crypto`. No `package.json`. The Dockerfile copies `*.js` and nothing else.
-- `db.js` owns the schema: migrations are APPEND-ONLY, keyed on `pragma user_version`. Favourite
-  counts are COUNTED from `favs`, never stored. Ids: `newId` (rejection-sampled base62). A migrated
+- `db.js` owns the schema: migrations are APPEND-ONLY, keyed on `pragma user_version`. Vote
+  counts are COUNTED from `favs` and `hates`, never stored. Ids: `newId` (rejection-sampled base62). A migrated
   share keeps its Firestore id verbatim — `#c=` links decode forever.
 - `auth.js`: Google ID token verified against the JWKS (RS256 pinned, `iss`/`aud`/`exp`/`iat`),
   then our own HMAC session `kt1.<payload>.<mac>`; `token_ver` revokes (signout-all). A Firebase

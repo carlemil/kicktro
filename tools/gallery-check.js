@@ -5,19 +5,22 @@
 //   node tools/gallery-check.js <outdir> [dev-index.html]     then run the printed lines.
 //
 // case-out (signed out):
-//   the grid merges the server's rows with the BUILT-IN cards by favourites, pages on Load
-//   more, filters through the server and locally, switches to Newest and All (sort=name,
-//   leftmost and the tab it OPENS on, before every case switches to Most loved;
-//   A to Z, built-ins placed by name); posters are NOT fetched below the fold; hover swaps in a muted
+//   the gallery OPENS on Most loved, the leftmost tab; the grid merges the server's rows with
+//   the BUILT-IN cards by SCORE (loves minus dislikes -- srv-10's 30 dislikes put it below a
+//   built-in it out-loves, which a sort by loves alone would not), pages on Load more, shows a
+//   negative score as such, filters through the server and locally, switches to Newest and All
+//   (sort=name, A to Z, built-ins placed by name); posters are NOT fetched below the fold; hover swaps in a muted
 //   looping <video preload=none> and leaving pauses it -- with the NEGATIVE CONTROL that a
-//   card with no clip never gets one and a 'playing' after leaving shows nothing; the heart
-//   asks you to sign in and sends nothing; My favourites says sign in. Then a built-in card
+//   card with no clip never gets one and a 'playing' after leaving shows nothing; ♥ and 💔
+//   ask you to sign in and send nothing; My favourites says sign in. Then a built-in card
 //   on TOUCH: the first tap previews, the second loads it -- into "Shared with you", credited
 //   to its author, with NO gallery request (verdict printed after the reload).
 // case-in (signed in):
-//   your favourites are marked; ✕ only on your own card; the heart flips at once and the
-//   server's count settles it (PUT, bearer token); a failed favourite flips back; un-hearting
-//   sends DELETE; My favourites asks the server with mine=favs and adds your built-ins. 🔗
+//   your ♥ and 💔 are marked, the rest sit on the neutral score; ✕ only on your own card; the
+//   switch moves at once and the server's counts settle it (PUT, bearer token); a failed vote
+//   moves back; the lit ♥ again sends DELETE; a 💔 on a scene you love takes the ♥ back (score
+//   down two, ONE request); the lit 💔 again, or the score, take a dislike back (DELETE);
+//   My favourites asks the server with mine=favs and adds your built-ins. 🔗
 //   copies a #g= link (server card and built-in) without loading the card or asking the API.
 // case-link-b / case-link-s (#g=builtin:neon-reef, #g=srv-7): the link alone installs the
 //   scene into "Shared with you", credited to its author, selected, after the reload -- the
@@ -27,7 +30,7 @@
 //   bare address opens on the gallery with no mic armed; closing it asks for an audio source and
 //   holds the dialog until one starts or every source is refused; the reload after a pick
 //   (kt.picked) skips the gallery and asks; a source chosen before is an answer.
-// case-home (#gallery): the gallery's own link opens it on All; Copy link copies it; the ▦
+// case-home (#gallery): the gallery's own link opens it on Most loved; Copy link copies it; the ▦
 //   button beside ☰ toggles it and the address bar follows; #gallery pasted into the open tab
 //   opens it with no reload.
 // case-lazy (REAL TIME, no budget -- virtual time never delivers an IntersectionObserver
@@ -112,14 +115,14 @@ const head = [
   "  }",
   "  if (CASE === 'case-in') localStorage.setItem('burnTheWeb.cloud.v2', JSON.stringify({ uid: 'me-uid', token: 'tok-1', expires: Date.now() + 3600000 }));",
   "  else localStorage.removeItem('burnTheWeb.cloud.v2');",
-  // ---- the stub API: 30 published scenes, favourites counted, mine=favs honoured ----
+  // ---- the stub API: 30 published scenes, loves and dislikes counted, mine=favs honoured ----
   "  var T0 = Date.UTC(2026, 9, 1);",
   "  var rows = [];",
   "  for (var i = 0; i < 30; i++) rows.push({ id: 'srv-' + i, name: i === 7 ? 'Coral Reef Dawn' : 'Scene ' + i, author: 'Author ' + (i % 4),",
-  "    owner: i === 2 ? 'me-uid' : 'other-' + i, created: T0 + i * 3600000, favs: 40 - i,",
+  "    owner: i === 2 ? 'me-uid' : 'other-' + i, created: T0 + i * 3600000, favs: 40 - i, hates: i === 10 ? 30 : i === 29 ? 20 : i === 8 ? 1 : 0,",
   "    poster: i === 1 ? null : '/thumbs/srv-' + i + '-1.webp', clip: i === 1 ? null : '/thumbs/srv-' + i + '-1.mp4' });",
-  "  var builtin = { 'builtin:neon-reef': 25, 'builtin:storm-front': 3 };",
-  "  var mine = { 'srv-3': true };",
+  "  var builtin = { 'builtin:neon-reef': 25, 'builtin:storm-front': 3 }, builtinHates = { 'builtin:storm-front': 5 };",
+  "  var mine = { 'srv-3': true, 'srv-9': true }, hated = { 'srv-8': true };",
   "  window.__req = [];",
   "  window.__failFav = {};",
   "  function answer(status, body, delay) {",
@@ -136,17 +139,21 @@ const head = [
   "    var auth = opts.headers && (opts.headers.Authorization || opts.headers.authorization) || '';",
   "    var p = u.slice(u.indexOf('/api/')), path = p.split('?')[0], sp = new URLSearchParams(p.split('?')[1] || '');",
   "    window.__req.push({ m: method, p: p, auth: auth });",
-  "    var m = /^\\/api\\/gallery\\/([^/]+)\\/fav$/.exec(path);",
+  "    var m = /^\\/api\\/gallery\\/([^/]+)\\/(fav|hate)$/.exec(path);",
   "    if (m) {",
-  "      var id = decodeURIComponent(m[1]);",
+  "      var id = decodeURIComponent(m[1]), love = m[2] === 'fav';",
   "      if (window.__failFav[id]) return answer(500, { error: 'boom' }, 300);",
   "      var on = method === 'PUT';",
-  "      if (on) mine[id] = true; else delete mine[id];",
   "      var r0 = rows.filter(function (r) { return r.id === id; })[0];",
-  "      var n = r0 ? (r0.favs = id === 'srv-5' && on ? 50 : r0.favs + (on ? 1 : -1)) : (builtin[id] = (builtin[id] || 0) + (on ? 1 : -1));",
-  "      return answer(200, { id: id, mine: on, favs: n }, 300);",
+  "      if (!r0) return answer(200, { id: id, mine: false, hate: false, favs: builtin[id] || 0, hates: builtinHates[id] || 0 }, 300);",
+  "      var mineSet = love ? mine : hated, other = love ? hated : mine;",
+  "      if (on && other[id]) { delete other[id]; if (love) r0.hates--; else r0.favs--; }",
+  "      if (on && !mineSet[id]) { mineSet[id] = true; if (love) r0.favs++; else r0.hates++; }",
+  "      if (!on && mineSet[id]) { delete mineSet[id]; if (love) r0.favs--; else r0.hates--; }",
+  "      if (id === 'srv-5' && on && love) r0.favs = 50;",
+  "      return answer(200, { id: id, mine: !!mine[id], hate: !!hated[id], favs: r0.favs, hates: r0.hates }, 300);",
   "    }",
-  "    if (path === '/api/me/favs') return answer(auth ? 200 : 401, { ids: Object.keys(mine).concat(['builtin:storm-front']) });",
+  "    if (path === '/api/me/favs') return answer(auth ? 200 : 401, { ids: Object.keys(mine).concat(['builtin:storm-front']), hates: Object.keys(hated) });",
   "    if (path === '/api/profiles') return answer(200, { items: [] });",
   "    if (path === '/api/gallery') {",
   "      var q = (sp.get('q') || '').toLowerCase(), favOnly = sp.get('mine') === 'favs';",
@@ -154,9 +161,9 @@ const head = [
   "      var list = rows.filter(function (r) { return (!q || (r.name + ' ' + r.author).toLowerCase().indexOf(q) >= 0) && (!favOnly || mine[r.id]); });",
   "      list.sort(sp.get('sort') === 'new' ? function (a, b) { return b.created - a.created; }",
   "        : sp.get('sort') === 'name' ? function (a, b) { var x = a.name.toLowerCase(), y = b.name.toLowerCase(); return x < y ? -1 : x > y ? 1 : a.id < b.id ? -1 : 1; }",
-  "        : function (a, b) { return b.favs - a.favs || b.created - a.created; });",
+  "        : function (a, b) { return (b.favs - b.hates) - (a.favs - a.hates) || b.favs - a.favs || b.created - a.created; });",
   "      var off = +sp.get('offset') || 0, lim = +sp.get('limit') || 48;",
-  "      return answer(200, { total: list.length, offset: off, sort: sp.get('sort'), builtin: builtin,",
+  "      return answer(200, { total: list.length, offset: off, sort: sp.get('sort'), builtin: builtin, builtinHates: builtinHates,",
   "        items: list.slice(off, off + lim).map(function (r) { return Object.assign({}, r); }) }, 30);",
   "    }",
   "    if (path.indexOf('/api/gallery/') === 0) {",
@@ -179,8 +186,12 @@ const tail = [
   "  if (window.__done) return;",
   "  var cards = function () { return Array.prototype.slice.call(document.querySelectorAll('#gal-list .gal-card')); };",
   "  var card = function (id) { return document.querySelector('#gal-list .gal-card[data-id=\"' + id + '\"]'); };",
-  "  var heart = function (id) { var c = card(id); return c && c.querySelector('.gal-heart'); };",
-  "  var count = function (h) { return +String(h.textContent).replace(/[^0-9]/g, ''); };",
+  "  var seg = function (id, k) { var c = card(id); return c && c.querySelector('.gal-' + k); };",
+  "  var heart = function (id) { return seg(id, 'heart'); };",
+  "  var score = function (id) { return Number(seg(id, 'score').textContent); };",
+  "  var scores = function () { return cards().map(function (c) { return Number(c.querySelector('.gal-score').textContent); }); };",
+  "  var lit = function (id) { var c = card(id), on = c.querySelectorAll('.gal-vote .on');",
+  "    return on.length === 1 && on[0].getAttribute('aria-checked') === 'true' && c.querySelectorAll('.gal-vote [aria-checked=true]').length === 1 ? on[0].classList[0].slice(4) : 'BAD'; };",
   "  var reqs = function (re) { return window.__req.filter(function (r) { return re.test(r.m + ' ' + r.p); }); };",
   "  var done = function () { console.log('DONE ' + CASE + ' fails=' + window.__fails()); if (CASE === 'case-lazy') setTimeout(function () { try { window.close(); } catch (e) {} }, 200); };",
   "  var steps = [], at = 0;",
@@ -206,7 +217,7 @@ const tail = [
   "  if (CASE === 'case-door') {",
   "    then(1500, function () {",
   "      ok('the bare address opens on the gallery', !$('galdlg').classList.contains('hidden'));",
-  "      ok('...on All', document.querySelector('.gal-tab[data-tab=all]').getAttribute('aria-selected') === 'true');",
+  "      ok('...on Most loved', document.querySelector('.gal-tab[data-tab=favs]').getAttribute('aria-selected') === 'true');",
   "      ok('...naming it in the address bar', location.hash === '#gallery', location.hash);",
   "      ok('no audio question over the gallery', $('syncpop').classList.contains('hidden'));",
   "      pe(document.body, 'pointerdown', 'mouse');",
@@ -260,7 +271,7 @@ const tail = [
   "  if (CASE === 'case-home') {",
   "    then(1500, function () {",
   "      ok('a #gallery link opens the gallery by itself', !$('galdlg').classList.contains('hidden'));",
-  "      ok('...on All', document.querySelector('.gal-tab[data-tab=all]').getAttribute('aria-selected') === 'true' && cards().length > 0, cards().length);",
+  "      ok('...on Most loved', document.querySelector('.gal-tab[data-tab=favs]').getAttribute('aria-selected') === 'true' && cards().length > 0, cards().length);",
   "      ok('...and keeps #gallery in the address bar while open', location.hash === '#gallery', location.hash);",
   "      $('gal-link').click();",
   "    });",
@@ -309,16 +320,16 @@ const tail = [
   "    ok('menubar has Gallery', !!item);",
   "    if (item) item.click();",
   "  });",
-  // the dialog opens on All; every case below starts from Most loved, so switch to it
+  // the dialog opens on Most loved, which every case below starts from
   "  then(600, function () {",
   "    var tabs = Array.prototype.map.call(document.querySelectorAll('#galdlg .gal-tab'), function (t) { return t.dataset.tab; });",
-  "    ok('All is the leftmost tab', tabs[0] === 'all', tabs.join(','));",
-  "    ok('...and the one the gallery opens on', document.querySelector('.gal-tab[data-tab=all]').getAttribute('aria-selected') === 'true' && document.querySelectorAll('#galdlg .gal-tab[aria-selected=true]').length === 1);",
-  "    ok('...asking for sort=name', reqs(/sort=name/).length === 1, reqs(/sort=name/).length);",
+  "    ok('Most loved is the leftmost tab, All beside it', tabs[0] === 'favs' && tabs[1] === 'all', tabs.join(','));",
+  "    ok('...and the one the gallery opens on', document.querySelector('.gal-tab[data-tab=favs]').getAttribute('aria-selected') === 'true' && document.querySelectorAll('#galdlg .gal-tab[aria-selected=true]').length === 1);",
+  "    ok('...asking for sort=favs', reqs(/sort=favs/).length === 1 && reqs(/sort=name/).length === 0, reqs(/sort=favs/).length);",
   "    ok('...with #gallery in the address bar', location.hash === '#gallery', location.hash);",
-  "    var ns = cards().map(function (c) { return c.querySelector('.gal-cname').textContent.toLowerCase(); });",
-  "    ok('...listing A to Z', ns.length > 0 && ns.every(function (v, i) { return !i || ns[i - 1] <= v; }), ns.slice(0, 5).join(','));",
-  "    document.querySelector('.gal-tab[data-tab=favs]').click();",
+  "    var hs = scores();",
+  "    ok('...highest score first', hs.length > 0 && hs.every(function (v, i) { return !i || hs[i - 1] >= v; }), hs.slice(0, 5).join(','));",
+  "    ok('every card has the three-way vote', cards().every(function (c) { var v = c.querySelector('.gal-vote'); return v && v.getAttribute('role') === 'radiogroup' && v.querySelectorAll('[role=radio]').length === 3; }));",
   "  });",
   // ================= posters load as they scroll near (REAL TIME: virtual time never ==========
   // ================= delivers an IntersectionObserver callback)                     ==========
@@ -343,10 +354,12 @@ const tail = [
   "      ok('dialog open on Most loved', !$('galdlg').classList.contains('hidden') && document.querySelector('.gal-tab[data-tab=favs]').getAttribute('aria-selected') === 'true');",
   "      ok('the list is a GRID of cards', $('gal-list').classList.contains('gal-grid') && cards().length > 0);",
   "      ok('first page: 24 server rows + the one built-in that out-loves the rest', cards().length === 25, cards().length);",
-  "      var hs = cards().map(function (c) { return count(c.querySelector('.gal-heart')); });",
-  "      ok('ordered by favourites', hs.every(function (v, i) { return !i || hs[i - 1] >= v; }), hs.join(','));",
-  "      var nr = cards().map(function (c) { return c.dataset.id; }).indexOf('builtin:neon-reef');",
-  "      ok('the loved built-in sits where its count puts it', nr === 15, nr);",
+  "      var hs = scores();",
+  "      ok('ordered by score', hs.every(function (v, i) { return !i || hs[i - 1] >= v; }), hs.join(','));",
+  "      var ids0 = cards().map(function (c) { return c.dataset.id; }), nr = ids0.indexOf('builtin:neon-reef');",
+  "      ok('the loved built-in sits where its SCORE puts it', nr === 14, nr);",
+  "      ok('...and srv-10, which out-loves it but has 30 dislikes, is not on the first page', ids0.indexOf('srv-10') < 0, ids0.indexOf('srv-10'));",
+  "      ok('nothing voted signed out: every card sits on the score', cards().every(function (c) { return lit(c.dataset.id) === 'score'; }));",
   "      ok('a rendered scene shows its poster, from the API', !!card('srv-0').querySelector('img') && card('srv-0').querySelector('img').dataset.src === 'https://api.kicktro.com/thumbs/srv-0-1.webp', card('srv-0').querySelector('img') && card('srv-0').querySelector('img').dataset.src);",
   "      ok('an unrendered one shows the placeholder', card('srv-1').querySelector('.gal-thumb').classList.contains('gal-ph') && !card('srv-1').querySelector('img'));",
   "      ok('a built-in poster comes from beside the page', /^thumbs\\/neon-reef\\.webp\\?[0-9a-f]+$/.test(card('builtin:neon-reef').querySelector('img').dataset.src), card('builtin:neon-reef').querySelector('img').dataset.src);",
@@ -371,12 +384,15 @@ const tail = [
   "      pe(card('srv-1'), 'pointerenter', 'mouse');",
   "      ok('NEGATIVE: a card with no clip never gets a video', !card('srv-1').querySelector('video'));",
   "      pe(card('srv-1'), 'pointerleave', 'mouse');",
-  "      // ---- the signed-out heart ----",
-  "      var h3 = heart('srv-3'), n3 = count(h3), before = window.__req.length;",
+  "      // ---- the signed-out vote ----",
+  "      var h3 = heart('srv-3'), n3 = score('srv-3'), before = window.__req.length;",
   "      h3.click();",
   "      ok('signed out, the heart says to sign in', /sign in/i.test($('gal-hint').textContent), $('gal-hint').textContent);",
-  "      ok('...and changes nothing', count(h3) === n3 && !h3.classList.contains('on'));",
-  "      ok('...and sends nothing', reqs(/\\/fav$|\\/me\\/favs/).length === 0 && window.__req.length === before, window.__req.slice(before).map(function (r) { return r.m + ' ' + r.p; }).join(' | '));",
+  "      $('gal-hint').textContent = '';",
+  "      seg('srv-3', 'hate').click();",
+  "      ok('...and so does the broken heart', /sign in/i.test($('gal-hint').textContent), $('gal-hint').textContent);",
+  "      ok('...and changes nothing', score('srv-3') === n3 && lit('srv-3') === 'score');",
+  "      ok('...and sends nothing', reqs(/\\/fav$|\\/hate$|\\/me\\/favs/).length === 0 && window.__req.length === before, window.__req.slice(before).map(function (r) { return r.m + ' ' + r.p; }).join(' | '));",
   "      // ---- Load more: the rest of the server rows, then every remaining built-in ----",
   "      $('gal-more').click();",
   "    });",
@@ -385,8 +401,11 @@ const tail = [
   "      ok('Load more brings the rest: 30 scenes + every built-in', ids.length === 30 + " + BUILTIN_N + ", ids.length);",
   "      ok('...each once', new Set(ids).size === ids.length);",
   "      ok('...asked for offset 24', reqs(/offset=24/).length === 1, reqs(/offset=24/).length);",
-  "      var hs = cards().map(function (c) { return count(c.querySelector('.gal-heart')); });",
-  "      ok('...still ordered by favourites', hs.every(function (v, i) { return !i || hs[i - 1] >= v; }));",
+  "      var hs = scores();",
+  "      ok('...still ordered by score', hs.every(function (v, i) { return !i || hs[i - 1] >= v; }), hs.join(','));",
+  "      ok('srv-10 lands where its score puts it', ids.indexOf('srv-10') > ids.indexOf('builtin:neon-reef') && score('srv-10') === 0, ids.indexOf('srv-10') + ' ' + score('srv-10'));",
+  "      ok('a scene disliked more than loved shows a NEGATIVE score', score('srv-29') === -9 && seg('srv-29', 'score').classList.contains('neg') && !seg('srv-0', 'score').classList.contains('neg'), seg('srv-29', 'score').textContent);",
+  "      ok('...a built-in too (builtinHates)', score('builtin:storm-front') === -2, score('builtin:storm-front'));",
   "      ok('...and the Load more button is gone', $('gal-more').style.display === 'none');",
   "      var fi = $('gal-filter'); fi.value = 'reef'; fi.dispatchEvent(new Event('input', { bubbles: true }));",
   "    });",
@@ -442,8 +461,9 @@ const tail = [
   "  if (CASE === 'case-in') {",
   "    then(600, function () {",
   "      ok('your favourites were fetched with your token', reqs(/GET \\/api\\/me\\/favs/).length === 1 && reqs(/GET \\/api\\/me\\/favs/)[0].auth === 'Bearer tok-1');",
-  "      ok('...and are marked', heart('srv-3').classList.contains('on') && /♥/.test(heart('srv-3').textContent) && heart('srv-3').getAttribute('aria-pressed') === 'true');",
-  "      ok('...and others are not', !heart('srv-4').classList.contains('on') && /♡/.test(heart('srv-4').textContent));",
+  "      ok('...your loves are marked', lit('srv-3') === 'heart' && lit('srv-9') === 'heart' && /♥/.test(heart('srv-3').textContent), lit('srv-3') + ' ' + lit('srv-9'));",
+  "      ok('...and your dislikes', lit('srv-8') === 'hate', lit('srv-8'));",
+  "      ok('...and the rest sit on the neutral score', lit('srv-4') === 'score' && /♡/.test(heart('srv-4').textContent), lit('srv-4'));",
   "      var rm = document.querySelectorAll('#gal-list .gal-rm');",
   "      ok('✕ on your own card only', rm.length === 1 && rm[0].closest('.gal-card').dataset.id === 'srv-2', rm.length);",
   "      // ---- 🔗 copies the card's #g= link and does nothing else ----",
@@ -457,27 +477,45 @@ const tail = [
   "      ok('...without loading the card', !/Fetching/.test($('gal-hint').textContent) && !$('galdlg').classList.contains('hidden'), $('gal-hint').textContent);",
   "      ok('...or asking the API', window.__req.length === n0, window.__req.slice(n0).map(function (r) { return r.m + ' ' + r.p; }).join(' | '));",
   "      window.__sh = sh;",
-  "      var h5 = heart('srv-5'), n5 = count(h5);",
-  "      h5.click();",
-  "      ok('the heart flips AT ONCE (optimistic)', h5.classList.contains('on') && count(h5) === n5 + 1, h5.textContent);",
-  "      var h6 = heart('srv-6'); window.__n6 = count(h6); window.__failFav['srv-6'] = true;",
-  "      h6.click();",
-  "      ok('a second heart flips too', h6.classList.contains('on') && count(h6) === window.__n6 + 1);",
+  "      var n5 = score('srv-5');",
+  "      heart('srv-5').click();",
+  "      ok('the heart lights AT ONCE (optimistic)', lit('srv-5') === 'heart' && score('srv-5') === n5 + 1, score('srv-5'));",
+  "      window.__n6 = score('srv-6'); window.__failFav['srv-6'] = true;",
+  "      heart('srv-6').click();",
+  "      ok('a second heart lights too', lit('srv-6') === 'heart' && score('srv-6') === window.__n6 + 1);",
   "    });",
   "    then(700, function () {",
   // apiFetch awaits the session before fetch(), so the request is only on the wire a tick later
   "      var put = reqs(/PUT \\/api\\/gallery\\/srv-5\\/fav/);",
   "      ok('...sending PUT with your token', put.length === 1 && put[0].auth === 'Bearer tok-1', put.length);",
   "      ok('🔗 confirmed the copy', window.__sh.classList.contains('copied') && window.__sh.textContent === '✓', window.__sh.textContent);",
-  "      ok('the server count settles the first', count(heart('srv-5')) === 50 && heart('srv-5').classList.contains('on'), heart('srv-5').textContent);",
-  "      ok('a failed favourite flips back', !heart('srv-6').classList.contains('on') && count(heart('srv-6')) === window.__n6, heart('srv-6').textContent);",
-  "      ok('...and says so', /Could not save/.test($('gal-hint').textContent), $('gal-hint').textContent);",
-  "      var h3 = heart('srv-3'); window.__n3 = count(h3);",
-  "      h3.click();",
-  "      ok('un-hearting flips at once', !h3.classList.contains('on') && count(h3) === window.__n3 - 1);",
+  "      ok('the server count settles the first', score('srv-5') === 50 && lit('srv-5') === 'heart', score('srv-5'));",
+  "      ok('a failed vote moves back', lit('srv-6') === 'score' && score('srv-6') === window.__n6, score('srv-6'));",
+  "      ok('...and says so', /Could not save that vote/.test($('gal-hint').textContent), $('gal-hint').textContent);",
+  "      window.__n3 = score('srv-3'); window.__n9 = score('srv-9'); window.__n4 = score('srv-4'); window.__r0 = window.__req.length;",
+  "      heart('srv-3').click();",
+  "      ok('the lit heart again goes neutral at once', lit('srv-3') === 'score' && score('srv-3') === window.__n3 - 1, score('srv-3'));",
+  "      seg('srv-9', 'hate').click();",
+  "      ok('a 💔 on a scene you love takes the ♥ back: score down TWO, at once', lit('srv-9') === 'hate' && score('srv-9') === window.__n9 - 2, score('srv-9'));",
+  "      seg('srv-4', 'hate').click();",
+  "      ok('a 💔 on a scene you had not voted on: down one', lit('srv-4') === 'hate' && score('srv-4') === window.__n4 - 1 && seg('srv-4', 'score').title.indexOf('1 dislike') >= 0, score('srv-4'));",
   "    });",
   "    then(700, function () {",
-  "      ok('...sending DELETE', reqs(/DELETE \\/api\\/gallery\\/srv-3\\/fav/).length === 1);",
+  "      var sent = window.__req.slice(window.__r0).map(function (r) { return r.m + ' ' + r.p.split('?')[0]; }).filter(function (s) { return / \\/api\\/gallery\\//.test(s); });",
+  "      ok('...sending DELETE for the heart, PUT for each 💔, and nothing else', sent.sort().join('|') === 'DELETE /api/gallery/srv-3/fav|PUT /api/gallery/srv-4/hate|PUT /api/gallery/srv-9/hate', sent.join('|'));",
+  "      ok('...which the server settles where they stand', lit('srv-9') === 'hate' && score('srv-9') === window.__n9 - 2 && lit('srv-4') === 'hate' && lit('srv-3') === 'score', score('srv-9'));",
+  "      window.__r0 = window.__req.length; window.__n8 = score('srv-8');",
+  "      seg('srv-9', 'hate').click();",
+  "      ok('the lit 💔 again goes neutral', lit('srv-9') === 'score' && score('srv-9') === window.__n9 - 1, score('srv-9'));",
+  "      seg('srv-8', 'score').click();",
+  "      ok('...and so does clicking the score', lit('srv-8') === 'score' && score('srv-8') === window.__n8 + 1, score('srv-8'));",
+  "    });",
+  "    then(700, function () {",
+  "      var sent = window.__req.slice(window.__r0).map(function (r) { return r.m + ' ' + r.p.split('?')[0]; });",
+  "      ok('...each sending DELETE of the dislike', sent.filter(function (s) { return /srv-[89]/.test(s); }).sort().join('|') === 'DELETE /api/gallery/srv-8/hate|DELETE /api/gallery/srv-9/hate', sent.join('|'));",
+  "      ok('...and clicking the score with no vote sends nothing', reqs(/srv-6\\/(fav|hate)/).length === 1, reqs(/srv-6/).length);",
+  "      seg('srv-6', 'score').click();",
+  "      ok('NEGATIVE: the score with no vote of yours does nothing', lit('srv-6') === 'score' && reqs(/srv-6\\/(fav|hate)/).length === 1);",
   "      document.querySelector('.gal-tab[data-tab=mine]').click();",
   "    });",
   "    then(500, function () {",
