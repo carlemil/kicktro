@@ -82,6 +82,7 @@
     // configured here beside them. Shorter than the credits on purpose: it fires on every
     // scene change, including each auto-cycle tick, so it has to read and get out of the way.
     credits: { hold: 5, fade: 3, on: true,          // seconds at full / fade seconds / shown on first visit
+               every: 7,                            // ...then again only after this many DAYS (kt.credits.seen)
                titleHold: 2.5, titleFade: 1.5, titleOn: true },   // ...same three for the scene title
 
     // --- palette ---

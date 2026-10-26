@@ -2749,6 +2749,7 @@
     // configured here beside them. Shorter than the credits on purpose: it fires on every
     // scene change, including each auto-cycle tick, so it has to read and get out of the way.
     credits: { hold: 5, fade: 3, on: true,          // seconds at full / fade seconds / shown on first visit
+               every: 7,                            // ...then again only after this many DAYS (kt.credits.seen)
                titleHold: 2.5, titleFade: 1.5, titleOn: true },   // ...same three for the scene title
 
     // --- palette ---
@@ -19813,12 +19814,29 @@
     try { const v = localStorage.getItem(CREDIT_KEY); return v === null ? CONFIG.credits.on : v !== "off"; }
     catch (e) { return CONFIG.credits.on; }
   }
+  // When the credits last ran (epoch ms). They open the FIRST visit and then once every
+  // CONFIG.credits.every days, not every page load: a reload replayed the same eight seconds
+  // of names every time, which is an intro the first time and a wait after that.
+  const CREDIT_SEEN_KEY = "kt.credits.seen";
+  function creditsDue(now) {
+    let last = 0;
+    try { last = +localStorage.getItem(CREDIT_SEEN_KEY) || 0; } catch (e) {}
+    // A stamp in the FUTURE (a clock set back) counts as never seen rather than as a gag
+    // that lasts until the clock catches up.
+    return !(last > 0 && last <= now && now - last < CONFIG.credits.every * 864e5);
+  }
   function startCredits() {
     if (!creditsEnabled()) return;
     // ?credits=<seconds> overrides the **hold**; the fade is always added on top, so
     // ?credits=600 parks them on screen and still fades out the same way. Same spirit
     // as ?debug=1 / ?beat=1 — mostly for looking at the burn-in without racing it.
     const m = location.search.match(/[?&]credits=([\d.]+)/);
+    // The dev hook always shows them and stamps nothing; otherwise only when they are due.
+    if (!m) {
+      const now = Date.now();
+      if (!creditsDue(now)) return;
+      try { localStorage.setItem(CREDIT_SEEN_KEY, String(now)); } catch (e) {}
+    }
     const secs = m ? +m[1] : CREDIT_HOLD;
     creditLeft = (isFinite(secs) && secs > 0 ? secs : CREDIT_HOLD) + CREDIT_FADE;
   }
@@ -25464,8 +25482,12 @@
     // follow-list along with the scenes. applyRestore acts on it only when __ownCloud is set,
     // i.e. only for your own profile: a stranger's bundle saying "you follow these" is not
     // their call to make, and __ownCloud comes from the flag above, never from the payload.
+    // `palettes` (the blob's own custom ramps) rides OUTSIDE `parsed`, for applyGalleryScene
+    // alone: inside it, applyRestore's Replace branch would swap your whole custom library for
+    // the sender's on every #zp= bundle.
     return { parsed: { presets: arr, curPreset: parts.curPreset, cycle: parts.cycle,
-                       collections: parts.collections, __ownCloud: own, __link: true }, valid };
+                       collections: parts.collections, __ownCloud: own, __link: true }, valid,
+             palettes: parts.palettes };
   }
   // Apply a shared library with NO dialog, for the gallery — whose per-row "Load and merge" /
   // "Load and replace" buttons have already asked the only question the dialog asks, so
@@ -25501,19 +25523,43 @@
   // author: a collection is something you FOLLOW (cloudBlob uploads the follow instead of the
   // scenes and re-fetches the author's whole profile on the next load), and one card is not a
   // follow. "Shared with you" travels with your profile like your own scenes, and `origin`
-  // keeps the banner crediting the author. Same validation and write/reload as every other
-  // install, through applyRestore.
+  // keeps the banner crediting the author. Same validation as every other install
+  // (sharedLibrary), but IN PLACE, not through applyRestore's write-and-reload: a reload per
+  // card recompiled every shader behind the boot veil and replayed the credits, for a change
+  // that is one scene added to the library -- which is all adoptSharedScene does for a #c=
+  // link. applyPreset then blends to it with a transition like any other scene change.
+  // Merge semantics are applyRestore's `keep` branch: replace a same-named scene IN
+  // "Shared with you", keep the rest (loading a second card must not drop the first).
   function applyGalleryScene(raw, author) {
     const parsed = sharedLibrary(raw);
     if (!parsed) return;
     const by = originOk(author);
     if (by) for (const q of parsed.valid) if (!originOk(q.origin)) q.origin = by;
-    pendingRestore = { parsed: parsed.parsed, valid: parsed.valid, hasSettings: false, hasRanges: false, hasBeat: false,
-      collection: SHARED_COLLECTION, keep: true };
-    el("rst-presets").checked = true;
-    el("rst-merge").checked = true;
-    el("rst-replace").checked = false;
-    applyRestore();
+    autosavePreset();                          // fold pending live edits into the scene you leave
+    // The card's custom ramps join yours (yours keep their places) and its scenes are remapped
+    // onto where they landed -- applyRestore's merge, done on the live PALETTES.
+    if (Array.isArray(parsed.palettes) && parsed.palettes.length) {
+      const m = palMergeCustoms(customPalettes(), parsed.palettes);
+      installCustomPalettes(m.list);
+      palRemapIncoming(parsed.valid, m.map);
+      buildPalSwatches();
+    }
+    const at = [];
+    for (const q of parsed.valid) {
+      const item = { ...q, collection: SHARED_COLLECTION };
+      const i = presets.findIndex(x => x.name === item.name && collectionOf(x) === SHARED_COLLECTION);
+      if (i >= 0) presets[i] = item; else presets.push(item);
+      at.push(i >= 0 ? i : presets.length - 1);
+    }
+    // Land on the scene the blob had selected (a card carries one), else its first.
+    const src = parsed.parsed.presets, sel = src && src[parsed.parsed.curPreset];
+    const hit = sel ? at.find(i => presets[i].name === sel.name) : undefined;
+    curPreset = hit !== undefined ? hit : at[0];
+    openCollections.add(SHARED_COLLECTION);    // opened, or the scene you just picked is hidden
+    stopCycling();                             // ...and it stays on screen
+    applyPreset(curPreset);
+    rebuildPresetOptions();
+    persist();
   }
 
   // Initial paint: setEffect loads the restored effect's per-effect extras (show-box,

@@ -218,12 +218,29 @@
     try { const v = localStorage.getItem(CREDIT_KEY); return v === null ? CONFIG.credits.on : v !== "off"; }
     catch (e) { return CONFIG.credits.on; }
   }
+  // When the credits last ran (epoch ms). They open the FIRST visit and then once every
+  // CONFIG.credits.every days, not every page load: a reload replayed the same eight seconds
+  // of names every time, which is an intro the first time and a wait after that.
+  const CREDIT_SEEN_KEY = "kt.credits.seen";
+  function creditsDue(now) {
+    let last = 0;
+    try { last = +localStorage.getItem(CREDIT_SEEN_KEY) || 0; } catch (e) {}
+    // A stamp in the FUTURE (a clock set back) counts as never seen rather than as a gag
+    // that lasts until the clock catches up.
+    return !(last > 0 && last <= now && now - last < CONFIG.credits.every * 864e5);
+  }
   function startCredits() {
     if (!creditsEnabled()) return;
     // ?credits=<seconds> overrides the **hold**; the fade is always added on top, so
     // ?credits=600 parks them on screen and still fades out the same way. Same spirit
     // as ?debug=1 / ?beat=1 — mostly for looking at the burn-in without racing it.
     const m = location.search.match(/[?&]credits=([\d.]+)/);
+    // The dev hook always shows them and stamps nothing; otherwise only when they are due.
+    if (!m) {
+      const now = Date.now();
+      if (!creditsDue(now)) return;
+      try { localStorage.setItem(CREDIT_SEEN_KEY, String(now)); } catch (e) {}
+    }
     const secs = m ? +m[1] : CREDIT_HOLD;
     creditLeft = (isFinite(secs) && secs > 0 ? secs : CREDIT_HOLD) + CREDIT_FADE;
   }

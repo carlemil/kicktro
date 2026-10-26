@@ -14,7 +14,8 @@
 //   card with no clip never gets one and a 'playing' after leaving shows nothing; ♥ and 💔
 //   ask you to sign in and send nothing; My favourites says sign in. Then a built-in card
 //   on TOUCH: the first tap previews, the second loads it -- into "Shared with you", credited
-//   to its author, with NO gallery request (verdict printed after the reload).
+//   to its author, with NO gallery request, IN PLACE: no reload, no boot veil (a reload is
+//   caught by a sessionStorage marker the in-page verdict clears, and FAILS).
 // case-in (signed in):
 //   your ♥ and 💔 are marked, the rest sit on the neutral score; ✕ only on your own card; the
 //   switch moves at once and the server's counts settle it (PUT, bearer token); a failed vote
@@ -23,8 +24,12 @@
 //   My favourites asks the server with mine=favs and adds your built-ins. 🔗
 //   copies a #g= link (server card and built-in) without loading the card or asking the API.
 // case-link-b / case-link-s (#g=builtin:neon-reef, #g=srv-7): the link alone installs the
-//   scene into "Shared with you", credited to its author, selected, after the reload -- the
+//   scene into "Shared with you", credited to its author, selected, with no second load -- the
 //   built-in with NO request, the published one through GET /api/gallery/srv-7.
+// case-cred-new / -recent / -old / -hook (REAL frames, credits on): the opening credits run on
+//   a first visit and stamp kt.credits.seen; a stamp a day old SKIPS them and is left alone (the
+//   NEGATIVE); one eight days old runs them again; ?credits= shows them over a fresh stamp and
+//   stamps nothing.
 // case-link-gone (#g=srv-99, a 404): no install; the gallery opens and says why.
 // case-door / case-picked / case-armed (?frontdoor, the dev hook for what http(s) does): the
 //   bare address opens on the gallery with no mic armed; closing it asks for an audio source and
@@ -56,12 +61,17 @@ if (BUILTIN_N < 3 || !/id: "builtin:neon-reef"/.test(app) || !/id: "builtin:stor
 }
 
 // GET /api/gallery/srv-* answers with a REAL one-scene payload: the shipped collection's first
-// scene renamed, deflated the way zipToB64 does it (deflate-raw, base64url).
+// scene renamed, deflated the way zipToB64 does it (deflate-raw, base64url). Its first layer
+// wears a CUSTOM ramp the blob carries, so case-link-s proves the card's palette comes with it.
 const shipped = /BUILTIN_GALLERY = \[\s*\{[^}]*?payload: "([A-Za-z0-9_-]+)"/.exec(app);
 if (!shipped) { console.error("BUILTIN_GALLERY payload not found in " + appFile); process.exit(2); }
 const lib = JSON.parse(zlib.inflateRawSync(Buffer.from(shipped[1], "base64url")).toString("utf8"));
-const one = Object.assign({}, lib.presets[0], { name: "Coral Reef Dawn" });
-const PAYLOAD = zlib.deflateRawSync(Buffer.from(JSON.stringify({ presets: [one], curPreset: 0, cycle: false, palettes: lib.palettes })))
+const one = JSON.parse(JSON.stringify(Object.assign({}, lib.presets[0], { name: "Coral Reef Dawn" })));
+if (!Array.isArray(one.layers) || !one.layers[0]) { console.error("the shipped scene has no layers"); process.exit(2); }
+one.layers[0].palette = "ucheckramp";
+const RAMP = { name: "Check ramp", stops: [[0, [0, 0, 0]], [0.5, [1, 0.2, 0.6]], [1, [1, 1, 0.8]]], id: "ucheckramp" };
+const PAYLOAD = zlib.deflateRawSync(Buffer.from(JSON.stringify({ presets: [one], curPreset: 0, cycle: false,
+  palettes: (lib.palettes || []).concat([RAMP]) })))
   .toString("base64url");
 
 const head = [
@@ -75,14 +85,22 @@ const head = [
   "    console.log((cond ? 'PASS ' : 'FAIL ') + ' ' + CASE + ' :: ' + name + (extra ? '  [' + extra + ']' : ''));",
   "  }",
   "  window.__ok = ok; window.__fails = function () { return fails; };",
-  "  requestAnimationFrame = function () { return 0; };",
-  // After the built-in load (case-out) the page RELOADS: applyRestore writes localStorage and
-  // reloads. The verdict is read here, before the seed below overwrites the blob.
+  "  var CRED = /^case-cred-/.test(CASE);",
+  "  if (!CRED) requestAnimationFrame = function () { return 0; };",
+  // A pick installs IN PLACE: 'galchk' is set just before it (and on a #g= link's boot), and the
+  // in-page verdict clears it. A page that BOOTS with it set has reloaded -- a FAIL, carrying
+  // the first page's count.
   "  var EXP = { 'case-out': ['Neon Reef', 'AI-Generated', ''], 'case-link-b': ['Neon Reef', 'AI-Generated', ''],",
   "    'case-link-s': ['Coral Reef Dawn', 'Author 3', '/api/gallery/srv-7'] }[CASE];",
   "  var after = sessionStorage.getItem('galchk');",
   "  if (after) {",
   "    sessionStorage.removeItem('galchk'); window.__done = true; fails = (+after || 1) - 1;",
+  "    ok('the pick installs in place: the page did NOT reload', false);",
+  "    console.log('DONE ' + CASE + ' fails=' + window.__fails());",
+  "  }",
+  "  window.__verdict = function () {",
+  "    sessionStorage.removeItem('galchk');",
+  "    ok('...in place: no reload and no Compiling shaders veil', !document.getElementById('boot'));",
   "    var blob = JSON.parse(localStorage.getItem('burnTheWeb.v1') || '{}');",
   "    var got = (blob.presets || []).filter(function (p) { return p.name === EXP[0]; });",
   "    ok('the scene was loaded: ' + EXP[0], got.length === 1, got.length);",
@@ -92,15 +110,22 @@ const head = [
   "    ok('...and is the selected scene', blob.presets && blob.presets[blob.curPreset] && blob.presets[blob.curPreset].name === EXP[0], blob.curPreset);",
   "    ok('...the link is gone from the address bar', location.hash === '', location.hash);",
   "    ok(EXP[2] ? '...fetched by its id' : '...with NO gallery request for it', (sessionStorage.getItem('galchk-fetch') || '') === EXP[2], sessionStorage.getItem('galchk-fetch'));",
+  "    if (CASE === 'case-link-s') {",
+  "      ok('...wearing the custom ramp it came with', got[0] && got[0].layers[0] && got[0].layers[0].palette === 'ucheckramp', got[0] && got[0].layers[0] && got[0].layers[0].palette);",
+  "      ok('...which joined your palettes', (blob.palettes || []).some(function (d) { return d.id === 'ucheckramp'; }), JSON.stringify(blob.palettes || []).slice(0, 80));",
+  "    }",
   "    sessionStorage.removeItem('galchk-fetch');",
-  "    console.log('DONE ' + CASE + ' fails=' + window.__fails());",
-  "  }",
-  "  else if (/g=/.test(location.hash) && EXP) sessionStorage.setItem('galchk', '1');",
+  "  };",
+  "  if (!after && /g=/.test(location.hash) && EXP) sessionStorage.setItem('galchk', '1');",
   "  if (!after) sessionStorage.removeItem('galchk-fetch');",
   "  window.__copied = [];",
   "  try { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: function (t) { window.__copied.push(t); return Promise.resolve(); } } }); } catch (e) {}",
   "  localStorage.setItem('burnTheWeb.tutorial.v1', '1');",
-  "  localStorage.setItem('burnTheWeb.credits.v1', 'off');",
+  "  if (!CRED) localStorage.setItem('burnTheWeb.credits.v1', 'off');",
+  "  else localStorage.removeItem('burnTheWeb.credits.v1');",
+  "  window.__seen0 = { 'case-cred-new': null, 'case-cred-recent': String(Date.now() - 86400000),",
+  "    'case-cred-old': String(Date.now() - 8 * 86400000), 'case-cred-hook': String(Date.now() - 86400000) }[CASE];",
+  "  if (CRED) { if (window.__seen0) localStorage.setItem('kt.credits.seen', window.__seen0); else localStorage.removeItem('kt.credits.seen'); }",
   // the FRONT DOOR cases (?frontdoor): no audio answer stored (case-armed: the mic, from an
   // earlier visit), and every source REFUSED -- a stub that records what was asked for.
   "  var DOOR = /^case-(door|picked|armed)$/.test(CASE);",
@@ -213,6 +238,24 @@ const tail = [
   "    });",
   "    run(); return;",
   "  }",
+  // ---- the opening credits: first visit, then once a week ----
+  "  if (/^case-cred-/.test(CASE)) {",
+  "    then(1500, function () {",
+  "      var up = getComputedStyle($('creditcv')).display === 'block', s = localStorage.getItem('kt.credits.seen');",
+  "      if (CASE === 'case-cred-recent') {",
+  "        ok('NEGATIVE: credits seen a day ago are skipped', !up, getComputedStyle($('creditcv')).display);",
+  "        ok('...and the stamp is left alone', s === window.__seen0, s);",
+  "      } else if (CASE === 'case-cred-hook') {",
+  "        ok('?credits= shows them even when they are not due', up);",
+  "        ok('...and stamps nothing', s === window.__seen0, s);",
+  "      } else {",
+  "        ok(CASE === 'case-cred-new' ? 'a first visit runs the credits' : 'credits last seen eight days ago run again', up, getComputedStyle($('creditcv')).display);",
+  "        ok('...and stamp when they ran', +s > Date.now() - 600000 && s !== window.__seen0, s);",
+  "      }",
+  "      done();",
+  "    });",
+  "    run(); return;",
+  "  }",
   // ---- the front door: the bare address opens on the gallery, then asks for audio ----
   "  if (CASE === 'case-door') {",
   "    then(1500, function () {",
@@ -299,7 +342,7 @@ const tail = [
   "    run(); return;",
   "  }",
   "  if (CASE === 'case-link-b' || CASE === 'case-link-s') {",
-  "    then(5000, function () { ok('the link loaded (the page reloads)', false, 'no reload in 5s'); done(); });",
+  "    then(2000, function () { window.__verdict(); done(); });",
   "    run(); return;",
   "  }",
   "  then(800, function () {",
@@ -455,10 +498,14 @@ const tail = [
   "      pe(nr, 'pointerdown', 'touch'); nr.focus(); nr.click();",
   "      ok('the first tap previews', nr.classList.contains('previewing') && !!nr.querySelector('video'));",
   "      ok('...and does not load', !/Fetching/.test($('gal-hint').textContent), $('gal-hint').textContent);",
-  "      sessionStorage.setItem('galchk', String(window.__fails() + 1));  // carries this page's FAILs past the reload (+1: never falsy)",
+  "      sessionStorage.setItem('galchk', String(window.__fails() + 1));  // a reload carries this page's FAILs (+1: never falsy)",
   "      pe(nr, 'pointerdown', 'touch'); nr.click();",
   "    });",
-  "    then(4000, function () { ok('the second tap loaded (the page reloads)', false, 'no reload in 4s'); done(); });",
+  "    then(1500, function () {",
+  "      ok('the second tap loaded it and closed the gallery', $('galdlg').classList.contains('hidden'));",
+  "      window.__verdict();",
+  "      done();",
+  "    });",
   "  }",
   // ================= signed in =================
   "  if (CASE === 'case-in') {",
@@ -565,7 +612,8 @@ function build(c) {
   fs.writeFileSync(path.join(outDir, c + ".html"), html);
   console.log("wrote " + c + ".html");
 }
-const CASES = { "case-out": "", "case-in": "", "case-lazy": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor" };
+const CASES = { "case-out": "", "case-in": "", "case-lazy": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
+  "case-cred-new": "", "case-cred-recent": "", "case-cred-old": "", "case-cred-hook": "?credits=4" };
 for (const c in CASES) build(c);
 const abs = path.resolve(outDir).split(path.sep).join("/");
 console.log(NL + "run each with:");

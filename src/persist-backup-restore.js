@@ -420,8 +420,12 @@
     // follow-list along with the scenes. applyRestore acts on it only when __ownCloud is set,
     // i.e. only for your own profile: a stranger's bundle saying "you follow these" is not
     // their call to make, and __ownCloud comes from the flag above, never from the payload.
+    // `palettes` (the blob's own custom ramps) rides OUTSIDE `parsed`, for applyGalleryScene
+    // alone: inside it, applyRestore's Replace branch would swap your whole custom library for
+    // the sender's on every #zp= bundle.
     return { parsed: { presets: arr, curPreset: parts.curPreset, cycle: parts.cycle,
-                       collections: parts.collections, __ownCloud: own, __link: true }, valid };
+                       collections: parts.collections, __ownCloud: own, __link: true }, valid,
+             palettes: parts.palettes };
   }
   // Apply a shared library with NO dialog, for the gallery — whose per-row "Load and merge" /
   // "Load and replace" buttons have already asked the only question the dialog asks, so
@@ -457,19 +461,43 @@
   // author: a collection is something you FOLLOW (cloudBlob uploads the follow instead of the
   // scenes and re-fetches the author's whole profile on the next load), and one card is not a
   // follow. "Shared with you" travels with your profile like your own scenes, and `origin`
-  // keeps the banner crediting the author. Same validation and write/reload as every other
-  // install, through applyRestore.
+  // keeps the banner crediting the author. Same validation as every other install
+  // (sharedLibrary), but IN PLACE, not through applyRestore's write-and-reload: a reload per
+  // card recompiled every shader behind the boot veil and replayed the credits, for a change
+  // that is one scene added to the library -- which is all adoptSharedScene does for a #c=
+  // link. applyPreset then blends to it with a transition like any other scene change.
+  // Merge semantics are applyRestore's `keep` branch: replace a same-named scene IN
+  // "Shared with you", keep the rest (loading a second card must not drop the first).
   function applyGalleryScene(raw, author) {
     const parsed = sharedLibrary(raw);
     if (!parsed) return;
     const by = originOk(author);
     if (by) for (const q of parsed.valid) if (!originOk(q.origin)) q.origin = by;
-    pendingRestore = { parsed: parsed.parsed, valid: parsed.valid, hasSettings: false, hasRanges: false, hasBeat: false,
-      collection: SHARED_COLLECTION, keep: true };
-    el("rst-presets").checked = true;
-    el("rst-merge").checked = true;
-    el("rst-replace").checked = false;
-    applyRestore();
+    autosavePreset();                          // fold pending live edits into the scene you leave
+    // The card's custom ramps join yours (yours keep their places) and its scenes are remapped
+    // onto where they landed -- applyRestore's merge, done on the live PALETTES.
+    if (Array.isArray(parsed.palettes) && parsed.palettes.length) {
+      const m = palMergeCustoms(customPalettes(), parsed.palettes);
+      installCustomPalettes(m.list);
+      palRemapIncoming(parsed.valid, m.map);
+      buildPalSwatches();
+    }
+    const at = [];
+    for (const q of parsed.valid) {
+      const item = { ...q, collection: SHARED_COLLECTION };
+      const i = presets.findIndex(x => x.name === item.name && collectionOf(x) === SHARED_COLLECTION);
+      if (i >= 0) presets[i] = item; else presets.push(item);
+      at.push(i >= 0 ? i : presets.length - 1);
+    }
+    // Land on the scene the blob had selected (a card carries one), else its first.
+    const src = parsed.parsed.presets, sel = src && src[parsed.parsed.curPreset];
+    const hit = sel ? at.find(i => presets[i].name === sel.name) : undefined;
+    curPreset = hit !== undefined ? hit : at[0];
+    openCollections.add(SHARED_COLLECTION);    // opened, or the scene you just picked is hidden
+    stopCycling();                             // ...and it stays on screen
+    applyPreset(curPreset);
+    rebuildPresetOptions();
+    persist();
   }
 
   // Initial paint: setEffect loads the restored effect's per-effect extras (show-box,

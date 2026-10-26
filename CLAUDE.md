@@ -255,7 +255,9 @@ Triangle list per band with the app's **only depth buffer**.
 Credits draw on their own canvas (`#creditcv`, `z-index: 4`, `pointer-events: none`) via
 `creditDraw()` from `frame()` after the render. **Never stamp them into heat.** `CREDIT_HOLD` 5s +
 `CREDIT_FADE` 3s; `creditLeft` counts rendered time; `?credits=<s>` overrides the hold. `CREDITS`
-drives overlay and panel list; the on/off preference has its own `localStorage` key.
+drives overlay and panel list; the on/off preference has its own `localStorage` key. **They run
+the first visit, then once per `CONFIG.credits.every` (7) days** (`creditsDue`, stamp
+`kt.credits.seen`); `?credits=` always shows them and stamps nothing.
 
 **`#scenebanner` is DOM chrome**: `showSceneTitle(name, author)` arms `titleLeft`
 (`CONFIG.credits.titleHold`/`titleFade`); `sceneBannerTick()` runs unconditionally and gates on
@@ -810,9 +812,11 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   `cloudInit`) → `cloudPublishScene()`: own scenes only (no `collection`), `PATCH /api/me {name}`
   first, then a one-scene `serializeBlob` + `zipToB64` blob to `POST /api/gallery`. The
   profile-wide `pub` tick (`cloudPublish`) still feeds the Collections tab.
-- **A card installs into `"Shared with you"`, credited by `origin`** (`applyGalleryScene(raw,
-  author)` → `pendingRestore` with `keep: true`, merge by name WITHIN that collection). One card
-  is NOT a follow — never route it through `applySharedLibrary`'s collection branch.
+- **A card installs into `"Shared with you"`, credited by `origin`, IN PLACE** (`applyGalleryScene(raw,
+  author)`: merge by name WITHIN that collection, custom ramps merged into the live `PALETTES`
+  via `sharedLibrary`'s out-of-`parsed` `palettes`, then `applyPreset` + `persist`). **Never
+  route it back through `applyRestore`** — its reload recompiled every shader and replayed the
+  credits per card. One card is NOT a follow — never through `applySharedLibrary` either.
 - **Built-ins are cards too**: `BUILTIN_SCENES` (`builtin:<slug>`, `at` = index in
   `BUILTIN_GALLERY`'s blob, `thumb` = hash of `thumbs/<slug>.*`, `""` = placeholder) are MERGED
   into the server's order (`galBefore`, counts from the response's `builtin` map); loading one
