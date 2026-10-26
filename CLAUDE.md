@@ -798,7 +798,8 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
 
 **The gallery is ONE PUBLISHED SCENE PER CARD** (card 825, M3): a poster, the clip while
 hovered or focused, the author, the VOTE. Tabs Most loved (leftmost, the DEFAULT) / All /
-Newest / My favourites (`GET /api/gallery?sort=favs|name|new[&mine=favs]&q=&offset=&limit=`, paged as you
+Newest / My favourites / My scenes (`GET /api/gallery?sort=favs|name|new[&mine=favs|own]&q=&offset=&limit=`,
+paged as you
 scroll, `galleryPage` 24) plus Collections (the older per-profile listing, `galPeople`).
 Readable signed out. **Nothing loads up front**: a poster's `src` is set by `galLazy` (an
 IntersectionObserver rooted on `.gal-box`) — `loading=lazy` measures from the WINDOW and

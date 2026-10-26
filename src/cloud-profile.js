@@ -614,10 +614,12 @@
   // ---- gallery ----
   // ONE PUBLISHED SCENE PER CARD (card 825, M3): a poster, the clip while hovered or focused,
   // the author, and the VOTE: a three-way switch, ❤️ love / the score / 💔 dislike, one vote
-  // per person (score = loves minus dislikes). Readable signed out. Five tabs:
+  // per person (score = loves minus dislikes). Readable signed out. Six tabs:
   //   Most loved / All / Newest   GET /api/gallery?sort=favs|name|new, paged as you scroll;
   //                               Most loved (by score) is the one the dialog opens on
   //   My favourites         the same with mine=favs (needs a session)
+  //   My scenes             mine=own, newest first: what you published, each with its ✕
+  //                         (needs a session; built-ins are nobody's, so none of them)
   //   Collections           the older per-profile listing (GET /api/profiles), which is also
   //                         what refollowCollections resolves a uid-less follow against
   // The built-in AI-Generated scenes are cards too (BUILTIN_SCENES, 'builtin:<slug>'): they
@@ -666,7 +668,8 @@
   // gave a ❤️ / a 💔.
   const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
     hate: new Set(), shown: new Set(), seq: 0, note: "" };
-  const galSort = () => (gal.tab === "new" ? "new" : gal.tab === "all" ? "name" : "favs");
+  const galSort = () => (gal.tab === "new" || gal.tab === "own" ? "new" : gal.tab === "all" ? "name" : "favs");
+  const galAuthed = () => gal.tab === "mine" || gal.tab === "own";   // the tabs that need a session
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
   // dialog closes, so the listing's own "Loading…" passes through and then gives way to it.
   const galHint = t => { const h = el("gal-hint"); if (h) h.textContent = t || gal.note; };
@@ -697,12 +700,15 @@
       t.setAttribute("aria-selected", String(t.dataset.tab === gal.tab));
     }
     if (gal.tab === "people") { gal.done = true; galSyncMore(); galPeople(); return; }
-    if (gal.tab === "mine" && !cloudSess) {
+    if (galAuthed() && !cloudSess) {
       gal.done = true; gal.pend = []; galSyncMore();
-      galHint("Favourites belong to an account — sign in under ☰ → Cloud profile, then press ❤️ on any scene.");
+      galHint(gal.tab === "own"
+        ? "Your published scenes belong to an account — sign in under ☰ → Cloud profile to see them here."
+        : "Favourites belong to an account — sign in under ☰ → Cloud profile, then press ❤️ on any scene.");
       return;
     }
-    gal.pend = galBuiltinCards().filter(c => galMatch(c) && (gal.tab !== "mine" || gal.mine.has(c.id)));
+    gal.pend = gal.tab === "own" ? []
+      : galBuiltinCards().filter(c => galMatch(c) && (gal.tab !== "mine" || gal.mine.has(c.id)));
     gal.done = false;
     galHint("Loading…");
     galMore();
@@ -714,9 +720,13 @@
     const sp = new URLSearchParams({ sort: galSort(), limit: String(n), offset: String(gal.offset) });
     if (gal.q) sp.set("q", gal.q);
     if (gal.tab === "mine") sp.set("mine", "favs");
-    galJson("/api/gallery?" + sp, gal.tab === "mine").then(j => {
+    if (gal.tab === "own") sp.set("mine", "own");
+    galJson("/api/gallery?" + sp, galAuthed()).then(j => {
       if (seq !== gal.seq) return;
-      const rows = (j && Array.isArray(j.items)) ? j.items : [];
+      let rows = (j && Array.isArray(j.items)) ? j.items : [];
+      // An API from before mine=own ignores it and lists EVERYONE's: keep only yours, so the
+      // tab can never show you someone else's scene with a ✕ you cannot use.
+      if (gal.tab === "own") rows = rows.filter(r => cloudSess && r.owner === cloudSess.uid);
       if (gal.offset === 0 && j && j.builtin) {
         if (j.sort === "new" || j.sort === "name" || j.sort === "favs") gal.order = j.sort;
         for (const c of gal.pend) {
@@ -750,6 +760,7 @@
     if (el("gal-list").children.length) { galHint(""); return; }
     galHint(gal.q ? "Nothing matches “" + gal.q + "”."
       : gal.tab === "mine" ? "No favourites yet — press ❤️ on a scene you like."
+      : gal.tab === "own" ? "You have not published a scene yet — Publish to gallery, in the Scene box, puts the one on screen here."
       : "No one has published a scene yet. Publish to gallery, in the Scene box, puts yours here.");
   }
   // Keep paging while the end of the list is in view: the grid scrolls inside .gal-box, so

@@ -361,11 +361,15 @@ function makeRoutes(ctx) {
     const off = Math.max(0, parseInt(sp.get("offset"), 10) || 0);
     const needle = (sp.get("q") || "").slice(0, 60).trim();
     const like = "%" + needle.replace(/[\\%_]/g, c => "\\" + c) + "%";
-    // ?mine=favs narrows to the caller's own favourites (the gallery's My favourites tab), so
-    // that list pages and filters exactly like the others. It needs a session; the rest does not.
-    const favOf = sp.get("mine") === "favs" ? user(r).uid : "";
+    // ?mine=favs narrows to the caller's own favourites (the gallery's My favourites tab) and
+    // ?mine=own to the scenes the caller published (My scenes), so those lists page and filter
+    // exactly like the others. Both need a session; the rest does not.
+    const mine = sp.get("mine");
+    const favOf = mine === "favs" ? user(r).uid : "";
+    const ownOf = mine === "own" ? user(r).uid : "";
     const where = "where (? = '' or g.name like ? escape '\\' or u.name like ? escape '\\') "
-      + "and (? = '' or g.id in (select scene_id from favs where uid = ?))";
+      + "and (? = '' or g.id in (select scene_id from favs where uid = ?)) "
+      + "and (? = '' or g.owner = ?)";
     const order = sort === "new" ? "order by g.created desc, g.id"
       : sort === "name" ? "order by g.name collate nocase, g.id"
       : "order by favs - hates desc, favs desc, g.created desc, g.id";   // Most loved: the SCORE
@@ -373,9 +377,9 @@ function makeRoutes(ctx) {
       + "(select count(*) from favs f where f.scene_id = g.id) favs, "
       + "(select count(*) from hates h where h.scene_id = g.id) hates "
       + "from gallery g join users u on u.uid = g.owner " + where + " " + order + " limit ? offset ?")
-      .all(needle, like, like, favOf, favOf, lim, off);
+      .all(needle, like, like, favOf, favOf, ownOf, ownOf, lim, off);
     const total = q("select count(*) n from gallery g join users u on u.uid = g.owner " + where)
-      .get(needle, like, like, favOf, favOf).n;
+      .get(needle, like, like, favOf, favOf, ownOf, ownOf).n;
     const builtin = {};
     for (const b of S.galBuiltinFavs.all()) builtin[b.scene_id] = b.n;
     // builtin stays LOVES ONLY (an older client reads it as its heart count); dislikes ride beside.
@@ -385,7 +389,7 @@ function makeRoutes(ctx) {
       total, offset: off, sort, builtin, builtinHates,
       items: rows.map(g => ({ id: g.id, name: g.name, author: g.author, owner: g.owner, created: g.created,
         favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver) })),
-    }, { "Cache-Control": favOf ? "private, no-store" : "public, max-age=30" });
+    }, { "Cache-Control": favOf || ownOf ? "private, no-store" : "public, max-age=30" });
   });
   on("GET", "/api/gallery/([^/]+)", r => {
     const id = decodeURIComponent(r.m[1]);

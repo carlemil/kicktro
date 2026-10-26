@@ -273,6 +273,18 @@ async function main() {
     && r.json.items.map(x => x.id).sort().join() === [a1, a2].sort().join(), r.text);
   r = await call("GET", "/api/gallery?mine=favs&q=storm", { token: B.token });
   ok("gallery: ...and filters like the other tabs", r.json.total === 1 && r.json.items[0].id === a2, r.text);
+  r = await call("GET", "/api/gallery?mine=own");
+  ok("gallery: mine=own needs a session", r.status === 401, r.status);
+  r = await call("GET", "/api/gallery?mine=own&sort=new", { token: A.token });
+  ok("gallery: mine=own lists only the scenes I published, newest first", r.status === 200 && r.json.total === 2
+    && r.json.items.map(x => x.id).join() === [a2, a1].join(), r.text);
+  ok("gallery: ...privately", /no-store/.test(r.headers.get("cache-control") || ""), r.headers.get("cache-control"));
+  r = await call("GET", "/api/gallery?mine=own", { token: B.token });
+  ok("gallery: ...someone else's are not mine", r.json.total === 1 && r.json.items[0].id === b1, r.text);
+  r = await call("GET", "/api/gallery?mine=own&q=storm", { token: A.token });
+  ok("gallery: ...and filters like the other tabs", r.json.total === 1 && r.json.items[0].id === a2, r.text);
+  r = await call("GET", "/api/gallery?mine=own", { token: C.token });
+  ok("gallery: ...none published, none listed", r.status === 200 && r.json.total === 0 && r.json.items.length === 0, r.text);
   r = await call("GET", "/api/gallery/" + a1);
   ok("gallery: one scene with its payload", r.status === 200 && r.json.payload === PAY && r.json.favs === 1);
   // ---- dislikes ---------------------------------------------------------------------------

@@ -727,9 +727,10 @@ anyone else's scenes.
 anyone can look. Every published scene is a card: a still of the scene five seconds in, which turns into
 a short looping clip while you hover it (on a phone, the first tap plays the clip and the
 second loads the scene). Click a card to add that scene to your list, under **Shared with
-you**, credited to whoever made it. Four tabs order the cards — **Most loved** (where it
-opens), **All** (every scene, A to Z), **Newest** and **My favourites** — and the filter box narrows them by
-scene or author name. Nothing is loaded up front: cards arrive a page at a time as you
+you**, credited to whoever made it. Five tabs order the cards — **Most loved** (where it
+opens), **All** (every scene, A to Z), **Newest**, **My favourites** and **My scenes** (the ones you
+have published, newest first; **✕** on a card takes it out of the gallery, and the scene stays in
+your own list) — and the filter box narrows them by scene or author name. Nothing is loaded up front: cards arrive a page at a time as you
 scroll, a card's still only once it scrolls near, and its clip only while you hover it. The twenty-five AI-Generated scenes that ship with Kicktro are cards too.
 
 Every card has a three-way vote: **♥** (you love it), the **score** in the middle, and
