@@ -272,6 +272,39 @@
     node.disabled = !!off;                 // a no-op on <b>/<span>, hence aria-disabled too
     node.setAttribute("aria-disabled", off ? "true" : "false");
   }
+  // ---- the front door --------------------------------------------------------------------
+  // A visit to the site opens on the GALLERY, and once a scene is on screen with no audio
+  // source chosen, the Capture / Mic question is asked and held open until it is answered.
+  // Only on the real site (http/https, so the python http.server preview too): every headless
+  // check and render tool loads file:// pages and would have a modal over the very thing it
+  // measures. `?frontdoor` turns it on anywhere -- the dev hook gallery-check uses.
+  // Function declarations: restore() (audio-tuning-data) and later slices both ask.
+  function frontDoorOn() {
+    return /^https?:$/.test(location.protocol) || /[?&]frontdoor\b/.test(location.search);
+  }
+  // The BASE address: nothing in the fragment, nothing in the query but the two dev hooks.
+  // A share link, #g=, #gallery and ?z= are all somewhere else.
+  function frontDoorUrl() {
+    if (location.hash) return false;
+    const q = new URLSearchParams(location.search);
+    q.delete("frontdoor"); q.delete("api");
+    return !q.toString();
+  }
+  // THIS load is applyRestore's reload: a scene was just picked (a gallery card, a #g= link,
+  // a cloud load, a restore), so it lands on that scene, not back on the gallery. A one-shot,
+  // read and cleared here -- a plain reload of the base address opens the gallery again.
+  const scenePicked = (() => {
+    try { const v = sessionStorage.getItem("kt.picked"); sessionStorage.removeItem("kt.picked"); return v === "1"; }
+    catch (e) { return false; }
+  })();
+  // Whether a dialog that owns the screen is up. Looked up, not closed over, so any slice may ask.
+  function frontModalUp() {
+    return ["galdlg", "restoredlg", "help", "tutdlg"].some(id => {
+      const d = document.getElementById(id);
+      return !!d && !d.classList.contains("hidden");
+    });
+  }
+
   // ---- modal dialog focus -------------------------------------------------------------
   // For the FOUR dialogs that darken the page behind them: #help, #restoredlg, #galdlg and
   // #syncpop. They already trap the mouse (a full-screen backdrop that closes on click); this

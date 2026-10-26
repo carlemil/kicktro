@@ -23,6 +23,10 @@
 //   scene into "Shared with you", credited to its author, selected, after the reload -- the
 //   built-in with NO request, the published one through GET /api/gallery/srv-7.
 // case-link-gone (#g=srv-99, a 404): no install; the gallery opens and says why.
+// case-door / case-picked / case-armed (?frontdoor, the dev hook for what http(s) does): the
+//   bare address opens on the gallery with no mic armed; closing it asks for an audio source and
+//   holds the dialog until one starts or every source is refused; the reload after a pick
+//   (kt.picked) skips the gallery and asks; a source chosen before is an answer.
 // case-home (#gallery): the gallery's own link opens it on All; Copy link copies it; the ▦
 //   button beside ☰ toggles it and the address bar follows; #gallery pasted into the open tab
 //   opens it with no reload.
@@ -94,7 +98,18 @@ const head = [
   "  try { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: function (t) { window.__copied.push(t); return Promise.resolve(); } } }); } catch (e) {}",
   "  localStorage.setItem('burnTheWeb.tutorial.v1', '1');",
   "  localStorage.setItem('burnTheWeb.credits.v1', 'off');",
-  "  localStorage.setItem('burnTheWeb.v1', JSON.stringify({ panelOpen: false, cycle: false, audio: 'off' }));",
+  // the FRONT DOOR cases (?frontdoor): no audio answer stored (case-armed: the mic, from an
+  // earlier visit), and every source REFUSED -- a stub that records what was asked for.
+  "  var DOOR = /^case-(door|picked|armed)$/.test(CASE);",
+  "  localStorage.setItem('burnTheWeb.v1', JSON.stringify(!DOOR ? { panelOpen: false, cycle: false, audio: 'off' }",
+  "    : CASE === 'case-armed' ? { panelOpen: false, cycle: false, audio: 'mic' } : { panelOpen: false, cycle: false }));",
+  "  if (CASE === 'case-picked') sessionStorage.setItem('kt.picked', '1');",
+  "  window.__media = [];",
+  "  if (DOOR) {",
+  "    var refuse = function (k) { return function () { window.__media.push(k); var e = new Error('no'); e.name = 'NotAllowedError'; return Promise.reject(e); }; };",
+  "    try { Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: refuse('mic'), getDisplayMedia: refuse('capture') } }); } catch (e) {}",
+  "    window.AudioContext = function () { return { resume: function () { return Promise.resolve(); } }; };",
+  "  }",
   "  if (CASE === 'case-in') localStorage.setItem('burnTheWeb.cloud.v2', JSON.stringify({ uid: 'me-uid', token: 'tok-1', expires: Date.now() + 3600000 }));",
   "  else localStorage.removeItem('burnTheWeb.cloud.v2');",
   // ---- the stub API: 30 published scenes, favourites counted, mine=favs honoured ----
@@ -187,6 +202,60 @@ const tail = [
   "    });",
   "    run(); return;",
   "  }",
+  // ---- the front door: the bare address opens on the gallery, then asks for audio ----
+  "  if (CASE === 'case-door') {",
+  "    then(1500, function () {",
+  "      ok('the bare address opens on the gallery', !$('galdlg').classList.contains('hidden'));",
+  "      ok('...on All', document.querySelector('.gal-tab[data-tab=all]').getAttribute('aria-selected') === 'true');",
+  "      ok('...naming it in the address bar', location.hash === '#gallery', location.hash);",
+  "      ok('no audio question over the gallery', $('syncpop').classList.contains('hidden'));",
+  "      pe(document.body, 'pointerdown', 'mouse');",
+  "      ok('NO mic armed by default: a click asks for nothing', window.__media.length === 0, window.__media.join(','));",
+  "      $('gal-close').click();",
+  "    });",
+  "    then(1500, function () {",
+  "      var sp = $('syncpop');",
+  "      ok('closing the gallery asks for an audio source', !sp.classList.contains('hidden'));",
+  "      ok('...with no way out but a source', $('sync-close').hidden && $('sync-later').hidden && !$('sync-mic').hidden && !$('sync-capture').hidden);",
+  "      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));",
+  "      sp.dispatchEvent(new MouseEvent('click', { bubbles: true }));",
+  "      ok('...Escape and the backdrop leave it up', !sp.classList.contains('hidden'));",
+  "      $('sync-mic').click();",
+  "    });",
+  "    then(500, function () {",
+  "      ok('Use microphone asks for the mic', window.__media.join(',') === 'mic', window.__media.join(','));",
+  "      ok('...a refusal says so in the dialog', /Permission denied/.test($('sync-why').textContent), $('sync-why').textContent);",
+  "      ok('...and holds it: Capture is still on offer', !$('syncpop').classList.contains('hidden') && $('sync-later').hidden);",
+  "      $('sync-capture').click();",
+  "    });",
+  "    then(500, function () {",
+  "      ok('refusing every source lets go', !$('sync-later').hidden && !$('sync-close').hidden, window.__media.join(','));",
+  "      $('sync-later').click();",
+  "      ok('...and Maybe later closes it', $('syncpop').classList.contains('hidden'));",
+  "      done();",
+  "    });",
+  "    run(); return;",
+  "  }",
+  "  if (CASE === 'case-picked') {",
+  "    then(1500, function () {",
+  "      ok('the reload that lands a picked scene does not reopen the gallery', $('galdlg').classList.contains('hidden') && location.hash === '', location.hash);",
+  "      ok('...it asks for an audio source instead, held open', !$('syncpop').classList.contains('hidden') && $('sync-later').hidden);",
+  "      ok('...and the one-shot is spent', sessionStorage.getItem('kt.picked') === null);",
+  "      done();",
+  "    });",
+  "    run(); return;",
+  "  }",
+  "  if (CASE === 'case-armed') {",
+  "    then(1500, function () {",
+  "      ok('a returning visitor lands on the gallery too', !$('galdlg').classList.contains('hidden'));",
+  "      $('gal-close').click();",
+  "    });",
+  "    then(1500, function () {",
+  "      ok('...but a source chosen on an earlier visit is an answer: no question', $('syncpop').classList.contains('hidden'));",
+  "      done();",
+  "    });",
+  "    run(); return;",
+  "  }",
   // ---- #gallery: the gallery's own link, and the button beside the menu ----
   "  if (CASE === 'case-home') {",
   "    then(1500, function () {",
@@ -233,6 +302,7 @@ const tail = [
   "      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', bubbles: true }));",
   "      ok('M closes it and the button follows', panel.classList.contains('hidden') && pb.getAttribute('aria-pressed') === 'false');",
   "    }",
+  "    ok('NEGATIVE: file:// without ?frontdoor opens no gallery and asks nothing', $('galdlg').classList.contains('hidden') && $('syncpop').classList.contains('hidden'));",
   "    // ---- open the gallery through the real opener ----",
   "    $('toggle').click();",
   "    var item = Array.prototype.find.call(document.querySelectorAll('#menubar button, #menubar .mb-item, #menubar li'), function (b) { return b.textContent.trim() === 'Gallery'; });",
@@ -429,7 +499,7 @@ function build(c) {
   fs.writeFileSync(path.join(outDir, c + ".html"), html);
   console.log("wrote " + c + ".html");
 }
-const CASES = { "case-out": "", "case-in": "", "case-lazy": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery" };
+const CASES = { "case-out": "", "case-in": "", "case-lazy": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor" };
 for (const c in CASES) build(c);
 const abs = path.resolve(outDir).split(path.sep).join("/");
 console.log(NL + "run each with:");

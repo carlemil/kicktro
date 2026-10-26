@@ -3159,6 +3159,39 @@
     node.disabled = !!off;                 // a no-op on <b>/<span>, hence aria-disabled too
     node.setAttribute("aria-disabled", off ? "true" : "false");
   }
+  // ---- the front door --------------------------------------------------------------------
+  // A visit to the site opens on the GALLERY, and once a scene is on screen with no audio
+  // source chosen, the Capture / Mic question is asked and held open until it is answered.
+  // Only on the real site (http/https, so the python http.server preview too): every headless
+  // check and render tool loads file:// pages and would have a modal over the very thing it
+  // measures. `?frontdoor` turns it on anywhere -- the dev hook gallery-check uses.
+  // Function declarations: restore() (audio-tuning-data) and later slices both ask.
+  function frontDoorOn() {
+    return /^https?:$/.test(location.protocol) || /[?&]frontdoor\b/.test(location.search);
+  }
+  // The BASE address: nothing in the fragment, nothing in the query but the two dev hooks.
+  // A share link, #g=, #gallery and ?z= are all somewhere else.
+  function frontDoorUrl() {
+    if (location.hash) return false;
+    const q = new URLSearchParams(location.search);
+    q.delete("frontdoor"); q.delete("api");
+    return !q.toString();
+  }
+  // THIS load is applyRestore's reload: a scene was just picked (a gallery card, a #g= link,
+  // a cloud load, a restore), so it lands on that scene, not back on the gallery. A one-shot,
+  // read and cleared here -- a plain reload of the base address opens the gallery again.
+  const scenePicked = (() => {
+    try { const v = sessionStorage.getItem("kt.picked"); sessionStorage.removeItem("kt.picked"); return v === "1"; }
+    catch (e) { return false; }
+  })();
+  // Whether a dialog that owns the screen is up. Looked up, not closed over, so any slice may ask.
+  function frontModalUp() {
+    return ["galdlg", "restoredlg", "help", "tutdlg"].some(id => {
+      const d = document.getElementById(id);
+      return !!d && !d.classList.contains("hidden");
+    });
+  }
+
   // ---- modal dialog focus -------------------------------------------------------------
   // For the FOUR dialogs that darken the page behind them: #help, #restoredlg, #galdlg and
   // #syncpop. They already trap the mouse (a full-screen backdrop that closes on click); this
@@ -14934,7 +14967,13 @@
   // (they're sparse), so it estimates the band's noise floor, not its loudness.
   const medBuf = new Float32Array(FLUX_HIST);
   function median(a) { medBuf.set(a); medBuf.sort(); return medBuf[FLUX_HIST >> 1]; }
-  function audioMsg(m) { const e = el("audMsg"); e.textContent = m || ""; e.style.display = m ? "block" : "none"; }
+  function audioMsg(m) {
+    const e = el("audMsg"); e.textContent = m || ""; e.style.display = m ? "block" : "none";
+    // ...and in the Capture / Mic dialog while it is up: it may be the only thing on screen,
+    // and a refused or audio-less share has to say why the dialog did not close.
+    const p = document.getElementById("syncpop"), w = document.getElementById("sync-why");
+    if (m && p && w && !p.classList.contains("hidden")) { w.textContent = m; w.hidden = false; }
+  }
   function setAudioUI() {
     el("vAudio").textContent = audio.on ? (audio.muted ? audio.src + " · muted" : audio.src) : "off";
     // Capture/Mic stay LIT while muted — the source really is still running, and dimming
@@ -15070,6 +15109,7 @@
       const refused = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
       if (refused) audio.settled = true;
       audioMsg(refused ? "Permission denied." : "Couldn’t start audio.");
+      if (refused) audioRefused(kind);
       persist();
     }
   }
@@ -15514,7 +15554,11 @@
   // needs a fresh user gesture. So remember the last live source and re-open it on
   // the very first interaction. Skip if that gesture lands on the audio buttons
   // themselves (their own handlers start it) so we don't double-open the picker.
+  // `var` with no initialiser: set here, read by the front door's audio question in a later
+  // slice -- a source already chosen on an earlier visit is an answer, resumed on the first gesture.
+  var audioArmed;
   function armAudioResume(kind) {
+    audioArmed = true;
     const cleanup = () => {
       document.removeEventListener("pointerdown", resume, true);
       document.removeEventListener("keydown", resume, true);
@@ -22119,7 +22163,9 @@
     // twice would install two resume listeners and start two streams. restore() is the one
     // startup path and runs exactly once.
     const a = saved && saved.audio;
-    if (a !== "capture" && a !== "mic" && a !== "off") armAudioResume("mic");
+    // NOT AT THE FRONT DOOR, which asks instead (ui-help-misc): an armed mic there fires on the
+    // click that picks a gallery card, and the permission prompt lands on the reload it starts.
+    if (a !== "capture" && a !== "mic" && a !== "off" && !frontDoorOn()) armAudioResume("mic");
   }
   // Drop the payload from the address bar. Runs even when decode FAILS, so a
   // corrupt link doesn't stick around and get retried on every reload.
@@ -25325,6 +25371,7 @@
       if (msg) msg.textContent = "Couldn't save — browser storage is full or blocked. Nothing was changed.";
       return;
     }
+    try { sessionStorage.setItem("kt.picked", "1"); } catch (e) {}   // land on it, not on the gallery (scenePicked)
     location.reload();
   }
   el("rst-go").addEventListener("click", applyRestore);
@@ -27007,7 +27054,10 @@
     el("galbtn").addEventListener("click", () => galOpen(el("galdlg").classList.contains("hidden")));
   }
   // A #gallery link: at startup, and pasted into a tab that is already open.
-  if (cloudOn() && location.hash === GAL_HASH) Promise.resolve().then(() => galOpen(true));
+  // ...and the FRONT DOOR: a visit to the bare address opens on the gallery, except on the
+  // reload that lands a scene just picked from it (scenePicked).
+  if (cloudOn() && (location.hash === GAL_HASH || (frontDoorOn() && frontDoorUrl() && !scenePicked)))
+    Promise.resolve().then(() => galOpen(true));
   window.addEventListener("hashchange", () => {
     if (cloudOn() && location.hash === GAL_HASH && el("galdlg").classList.contains("hidden")) galOpen(true);
   });
@@ -28117,11 +28167,26 @@
   function syncResetDelay() { syncState.sinceLast = 0; saveSync(); }
 
   const syncPop = el("syncpop");
+  // REQUIRED: the front door's version of this dialog (openRequiredAudio below) has no way
+  // out but a source -- no ×, no Maybe later, no backdrop, no Escape -- until one starts
+  // (markAudioUsed), or until every source this browser has was refused (audioRefused).
+  let syncRequired = false;
+  const syncRefused = new Set();
+  function syncRequire(on) {
+    syncRequired = on;
+    el("sync-close").hidden = on;
+    el("sync-later").hidden = on;
+  }
   function hideSyncPopup() {
+    syncRequire(false);
+    el("sync-capture").hidden = el("sync-mic").hidden = false;
     syncPop.classList.add("hidden");
     dlgRelease(syncPop.querySelector(".sync-box"));
   }
-  function dismissSync() { hideSyncPopup(); track("sync_popup_dismiss"); }
+  function dismissSync() {
+    if (syncRequired) return;
+    hideSyncPopup(); track("sync_popup_dismiss");
+  }
   // Escape's route in. Guarded on being open, because the key handler fires on every Escape
   // press whether or not the nudge is up, and an unguarded dismissSync would post a
   // sync_popup_dismiss event each time — analytics for a popup nobody was shown.
@@ -28177,6 +28242,7 @@
     // deliberately releases any existing trap before arming its own, so a nudge opening on
     // top would take the keyboard and leave the tutorial visible underneath and dead.
     if (tutorialOpen()) return false;
+    if (syncRequired) return false;   // the required one is already up; this would spend a showing on it
     syncWhy("");                      // the TIMED nudge has no reason to give
     syncPop.classList.remove("hidden");
     // This one opens on a TIMER, not on a click, so taking focus is a real interruption — but
@@ -28185,6 +28251,39 @@
     dlgModal(syncPop.querySelector(".sync-box"));
     track("sync_popup_shown", { shows: syncState.shows + 1 });
     return true;
+  }
+  // The sources this browser can offer. A phone has no getDisplayMedia, so Capture is hidden
+  // there rather than offered and failing.
+  function syncCan(kind) {
+    const md = navigator.mediaDevices;
+    return !!md && typeof md[kind === "capture" ? "getDisplayMedia" : "getUserMedia"] === "function";
+  }
+  // THE FRONT DOOR'S AUDIO QUESTION, held open until a source is live. Reacting to the music is
+  // the point of the app, and the first gesture is the only moment a browser lets it ask.
+  function openRequiredAudio() {
+    const cap = syncCan("capture"), mic = syncCan("mic");
+    if (!cap && !mic) return false;   // nothing to answer with -- never trap anyone
+    syncRefused.clear();
+    syncRequire(true);
+    el("sync-capture").hidden = !cap;
+    el("sync-mic").hidden = !mic;
+    syncWhy("Pick an audio source to start \u2014 the visual reacts to whatever is playing.");
+    syncPop.classList.remove("hidden");
+    dlgModal(syncPop.querySelector(".sync-box"));
+    track("audio_required_shown");
+    return true;
+  }
+  // A REFUSAL of every source on offer lets go: someone who has said no to both (or to the mic
+  // on a phone) is not held hostage by a dialog nothing can close. A cancelled picker is a
+  // refusal too, so on a desktop that takes both. A function declaration: startAudio, two
+  // slices up, calls it.
+  function audioRefused(kind) {
+    if (!syncRequired) return;
+    syncRefused.add(kind);
+    if (["capture", "mic"].every(k => syncRefused.has(k) || !syncCan(k))) {
+      syncRequire(false);
+      track("audio_required_refused");
+    }
   }
   function markAudioUsed() {          // a source is live — satisfy the nudge permanently
     if (!syncState.used) { syncState.used = true; saveSync(); }
@@ -28195,6 +28294,24 @@
   syncPop.addEventListener("click", e => { if (e.target === syncPop) dismissSync(); });
   el("sync-capture").addEventListener("click", () => { track("sync_popup_capture"); startAudio("capture"); });
   el("sync-mic").addEventListener("click", () => { track("sync_popup_mic"); startAudio("mic"); });
+
+  // Asked once per load, at the front door only, when nothing else has the screen: after the
+  // gallery closes (or on the reload that lands a picked scene), the credits and the
+  // tutorial. Not with the UI hidden -- body.ui-hidden display:nones #syncpop and an
+  // invisible modal would still trap focus. Credits wait like the tutorial's, with the same
+  // 20 s backstop for a scene paused on arrival.
+  if (frontDoorOn()) {
+    let askWaited = 0;
+    const askTimer = setInterval(() => {
+      if (audio.on || audioArmed) { clearInterval(askTimer); return; }
+      if (document.hidden || document.body.classList.contains("ui-hidden")) return;
+      askWaited += 0.25;
+      if (creditLeft > 0 && askWaited < 20) return;
+      if (frontModalUp() || tutorialPending()) return;
+      clearInterval(askTimer);
+      openRequiredAudio();
+    }, 250);
+  }
 
   if (!syncState.used && syncState.shows < 3) {
     const syncTimer = setInterval(() => {
@@ -28333,10 +28450,14 @@
         + "your browser only; nothing is recorded or sent anywhere."
         // The mic is armed by default (see restore()), so the click that closes this tour is
         // the one the browser prompts on. Saying so here is the difference between "of course"
-        // and an unexplained permission box a second after a tutorial ended.
-        + "<br><br>So that it just works: <b>your first click after this tour will ask to use the "
-        + "microphone</b>. Allow it and the room drives the visual; refuse, and it is never asked "
-        + "again — you can still start either source yourself from ☰ → Audio." },
+        // and an unexplained permission box a second after a tutorial ended. At the front door
+        // nothing is armed: the audio dialog follows this tour instead (openRequiredAudio).
+        + (frontDoorOn()
+          ? "<br><br>So that it just works: <b>after this tour Kicktro asks for an audio source</b> — "
+            + "Capture or Mic. Pick one and the music drives the visual; you can switch any time from ☰ → Audio."
+          : "<br><br>So that it just works: <b>your first click after this tour will ask to use the "
+            + "microphone</b>. Allow it and the room drives the visual; refuse, and it is never asked "
+            + "again — you can still start either source yourself from ☰ → Audio.") },
     { head: "Two menus", art: TUT_ART.menus,
       body: "<span class=\"tut-keys\">M</span> opens the <b>scene editor</b> down the left — everything "
         + "that is part of what you are looking at. While it is open the scenes stop auto-cycling, so "
@@ -28405,6 +28526,10 @@
   // this before this slice ran. Nothing does today — every caller is a timer or a gesture,
   // both of which land after startup — but the whole point of a hoisted guard is that it is
   // safe to call from anywhere.
+  // Not yet shown. The front door's audio question waits on this as well as on tutorialOpen,
+  // or the two would race for the same moment after the credits. A declaration, for the same
+  // reason as tutorialOpen; tutSeen only reads storage.
+  function tutorialPending() { return !!document.getElementById("tutdlg") && !tutSeen(); }
   function tutorialOpen() {
     const d = document.getElementById("tutdlg");
     return !!d && !d.classList.contains("hidden");
@@ -28489,6 +28614,7 @@
         if (document.hidden) return;
         tutWaited += 0.25;
         if (creditLeft > 0 && tutWaited < TUT_MAX_WAIT) return;
+        if (frontModalUp()) return;             // not over the gallery the front door opens on
         openTutorial(true);
       }, 250);
     }

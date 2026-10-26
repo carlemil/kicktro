@@ -149,7 +149,13 @@
   // (they're sparse), so it estimates the band's noise floor, not its loudness.
   const medBuf = new Float32Array(FLUX_HIST);
   function median(a) { medBuf.set(a); medBuf.sort(); return medBuf[FLUX_HIST >> 1]; }
-  function audioMsg(m) { const e = el("audMsg"); e.textContent = m || ""; e.style.display = m ? "block" : "none"; }
+  function audioMsg(m) {
+    const e = el("audMsg"); e.textContent = m || ""; e.style.display = m ? "block" : "none";
+    // ...and in the Capture / Mic dialog while it is up: it may be the only thing on screen,
+    // and a refused or audio-less share has to say why the dialog did not close.
+    const p = document.getElementById("syncpop"), w = document.getElementById("sync-why");
+    if (m && p && w && !p.classList.contains("hidden")) { w.textContent = m; w.hidden = false; }
+  }
   function setAudioUI() {
     el("vAudio").textContent = audio.on ? (audio.muted ? audio.src + " · muted" : audio.src) : "off";
     // Capture/Mic stay LIT while muted — the source really is still running, and dimming
@@ -285,6 +291,7 @@
       const refused = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
       if (refused) audio.settled = true;
       audioMsg(refused ? "Permission denied." : "Couldn’t start audio.");
+      if (refused) audioRefused(kind);
       persist();
     }
   }
@@ -729,7 +736,11 @@
   // needs a fresh user gesture. So remember the last live source and re-open it on
   // the very first interaction. Skip if that gesture lands on the audio buttons
   // themselves (their own handlers start it) so we don't double-open the picker.
+  // `var` with no initialiser: set here, read by the front door's audio question in a later
+  // slice -- a source already chosen on an earlier visit is an answer, resumed on the first gesture.
+  var audioArmed;
   function armAudioResume(kind) {
+    audioArmed = true;
     const cleanup = () => {
       document.removeEventListener("pointerdown", resume, true);
       document.removeEventListener("keydown", resume, true);

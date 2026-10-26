@@ -312,7 +312,9 @@
     // twice would install two resume listeners and start two streams. restore() is the one
     // startup path and runs exactly once.
     const a = saved && saved.audio;
-    if (a !== "capture" && a !== "mic" && a !== "off") armAudioResume("mic");
+    // NOT AT THE FRONT DOOR, which asks instead (ui-help-misc): an armed mic there fires on the
+    // click that picks a gallery card, and the permission prompt lands on the reload it starts.
+    if (a !== "capture" && a !== "mic" && a !== "off" && !frontDoorOn()) armAudioResume("mic");
   }
   // Drop the payload from the address bar. Runs even when decode FAILS, so a
   // corrupt link doesn't stick around and get retried on every reload.

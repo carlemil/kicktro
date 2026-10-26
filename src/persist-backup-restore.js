@@ -362,6 +362,7 @@
       if (msg) msg.textContent = "Couldn't save — browser storage is full or blocked. Nothing was changed.";
       return;
     }
+    try { sessionStorage.setItem("kt.picked", "1"); } catch (e) {}   // land on it, not on the gallery (scenePicked)
     location.reload();
   }
   el("rst-go").addEventListener("click", applyRestore);

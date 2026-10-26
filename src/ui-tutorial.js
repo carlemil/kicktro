@@ -121,10 +121,14 @@
         + "your browser only; nothing is recorded or sent anywhere."
         // The mic is armed by default (see restore()), so the click that closes this tour is
         // the one the browser prompts on. Saying so here is the difference between "of course"
-        // and an unexplained permission box a second after a tutorial ended.
-        + "<br><br>So that it just works: <b>your first click after this tour will ask to use the "
-        + "microphone</b>. Allow it and the room drives the visual; refuse, and it is never asked "
-        + "again — you can still start either source yourself from ☰ → Audio." },
+        // and an unexplained permission box a second after a tutorial ended. At the front door
+        // nothing is armed: the audio dialog follows this tour instead (openRequiredAudio).
+        + (frontDoorOn()
+          ? "<br><br>So that it just works: <b>after this tour Kicktro asks for an audio source</b> — "
+            + "Capture or Mic. Pick one and the music drives the visual; you can switch any time from ☰ → Audio."
+          : "<br><br>So that it just works: <b>your first click after this tour will ask to use the "
+            + "microphone</b>. Allow it and the room drives the visual; refuse, and it is never asked "
+            + "again — you can still start either source yourself from ☰ → Audio.") },
     { head: "Two menus", art: TUT_ART.menus,
       body: "<span class=\"tut-keys\">M</span> opens the <b>scene editor</b> down the left — everything "
         + "that is part of what you are looking at. While it is open the scenes stop auto-cycling, so "
@@ -193,6 +197,10 @@
   // this before this slice ran. Nothing does today — every caller is a timer or a gesture,
   // both of which land after startup — but the whole point of a hoisted guard is that it is
   // safe to call from anywhere.
+  // Not yet shown. The front door's audio question waits on this as well as on tutorialOpen,
+  // or the two would race for the same moment after the credits. A declaration, for the same
+  // reason as tutorialOpen; tutSeen only reads storage.
+  function tutorialPending() { return !!document.getElementById("tutdlg") && !tutSeen(); }
   function tutorialOpen() {
     const d = document.getElementById("tutdlg");
     return !!d && !d.classList.contains("hidden");
@@ -277,6 +285,7 @@
         if (document.hidden) return;
         tutWaited += 0.25;
         if (creditLeft > 0 && tutWaited < TUT_MAX_WAIT) return;
+        if (frontModalUp()) return;             // not over the gallery the front door opens on
         openTutorial(true);
       }, 250);
     }

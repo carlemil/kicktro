@@ -407,11 +407,26 @@
   function syncResetDelay() { syncState.sinceLast = 0; saveSync(); }
 
   const syncPop = el("syncpop");
+  // REQUIRED: the front door's version of this dialog (openRequiredAudio below) has no way
+  // out but a source -- no ×, no Maybe later, no backdrop, no Escape -- until one starts
+  // (markAudioUsed), or until every source this browser has was refused (audioRefused).
+  let syncRequired = false;
+  const syncRefused = new Set();
+  function syncRequire(on) {
+    syncRequired = on;
+    el("sync-close").hidden = on;
+    el("sync-later").hidden = on;
+  }
   function hideSyncPopup() {
+    syncRequire(false);
+    el("sync-capture").hidden = el("sync-mic").hidden = false;
     syncPop.classList.add("hidden");
     dlgRelease(syncPop.querySelector(".sync-box"));
   }
-  function dismissSync() { hideSyncPopup(); track("sync_popup_dismiss"); }
+  function dismissSync() {
+    if (syncRequired) return;
+    hideSyncPopup(); track("sync_popup_dismiss");
+  }
   // Escape's route in. Guarded on being open, because the key handler fires on every Escape
   // press whether or not the nudge is up, and an unguarded dismissSync would post a
   // sync_popup_dismiss event each time — analytics for a popup nobody was shown.
@@ -467,6 +482,7 @@
     // deliberately releases any existing trap before arming its own, so a nudge opening on
     // top would take the keyboard and leave the tutorial visible underneath and dead.
     if (tutorialOpen()) return false;
+    if (syncRequired) return false;   // the required one is already up; this would spend a showing on it
     syncWhy("");                      // the TIMED nudge has no reason to give
     syncPop.classList.remove("hidden");
     // This one opens on a TIMER, not on a click, so taking focus is a real interruption — but
@@ -475,6 +491,39 @@
     dlgModal(syncPop.querySelector(".sync-box"));
     track("sync_popup_shown", { shows: syncState.shows + 1 });
     return true;
+  }
+  // The sources this browser can offer. A phone has no getDisplayMedia, so Capture is hidden
+  // there rather than offered and failing.
+  function syncCan(kind) {
+    const md = navigator.mediaDevices;
+    return !!md && typeof md[kind === "capture" ? "getDisplayMedia" : "getUserMedia"] === "function";
+  }
+  // THE FRONT DOOR'S AUDIO QUESTION, held open until a source is live. Reacting to the music is
+  // the point of the app, and the first gesture is the only moment a browser lets it ask.
+  function openRequiredAudio() {
+    const cap = syncCan("capture"), mic = syncCan("mic");
+    if (!cap && !mic) return false;   // nothing to answer with -- never trap anyone
+    syncRefused.clear();
+    syncRequire(true);
+    el("sync-capture").hidden = !cap;
+    el("sync-mic").hidden = !mic;
+    syncWhy("Pick an audio source to start \u2014 the visual reacts to whatever is playing.");
+    syncPop.classList.remove("hidden");
+    dlgModal(syncPop.querySelector(".sync-box"));
+    track("audio_required_shown");
+    return true;
+  }
+  // A REFUSAL of every source on offer lets go: someone who has said no to both (or to the mic
+  // on a phone) is not held hostage by a dialog nothing can close. A cancelled picker is a
+  // refusal too, so on a desktop that takes both. A function declaration: startAudio, two
+  // slices up, calls it.
+  function audioRefused(kind) {
+    if (!syncRequired) return;
+    syncRefused.add(kind);
+    if (["capture", "mic"].every(k => syncRefused.has(k) || !syncCan(k))) {
+      syncRequire(false);
+      track("audio_required_refused");
+    }
   }
   function markAudioUsed() {          // a source is live — satisfy the nudge permanently
     if (!syncState.used) { syncState.used = true; saveSync(); }
@@ -485,6 +534,24 @@
   syncPop.addEventListener("click", e => { if (e.target === syncPop) dismissSync(); });
   el("sync-capture").addEventListener("click", () => { track("sync_popup_capture"); startAudio("capture"); });
   el("sync-mic").addEventListener("click", () => { track("sync_popup_mic"); startAudio("mic"); });
+
+  // Asked once per load, at the front door only, when nothing else has the screen: after the
+  // gallery closes (or on the reload that lands a picked scene), the credits and the
+  // tutorial. Not with the UI hidden -- body.ui-hidden display:nones #syncpop and an
+  // invisible modal would still trap focus. Credits wait like the tutorial's, with the same
+  // 20 s backstop for a scene paused on arrival.
+  if (frontDoorOn()) {
+    let askWaited = 0;
+    const askTimer = setInterval(() => {
+      if (audio.on || audioArmed) { clearInterval(askTimer); return; }
+      if (document.hidden || document.body.classList.contains("ui-hidden")) return;
+      askWaited += 0.25;
+      if (creditLeft > 0 && askWaited < 20) return;
+      if (frontModalUp() || tutorialPending()) return;
+      clearInterval(askTimer);
+      openRequiredAudio();
+    }, 250);
+  }
 
   if (!syncState.used && syncState.shows < 3) {
     const syncTimer = setInterval(() => {

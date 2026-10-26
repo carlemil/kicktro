@@ -247,11 +247,14 @@ picture), **Beat tuning** (how beats are detected), **Layers** (the effect stack
 **Layer effect & filters** (the selected layer's visual, its sliders, its own filters and
 its palette). Press **M** to show or hide it.
 
-**React to music** — the **microphone is the default**: with no source of your own chosen,
-the first click anywhere on the page asks to listen through your mic, so music playing in
-the room drives the visual without you having to find anything. (The browser will only ask
-from a real click, which is why it waits for one — and the tutorial holds it until you are
-done reading.) Say no, or press **Stop**, and it is not asked again. Click **Capture**
+**React to music** — Kicktro asks for a source before it starts. On kicktro.com, once a
+scene is on screen (you closed the gallery, or picked a card from it) and no source of yours
+is remembered, an audio dialog offers **Capture** and **Mic**, and it stays up until one of
+them is running: there is no ✕ and no Maybe later. If you refuse every source your browser
+offers, the dialog lets you go. It waits for the credits and for the tutorial, and a source
+you chose on an earlier visit counts as an answer: it starts again on your first click.
+(Opened from a file, the old default applies instead: the first click asks for the mic.)
+Press **Stop** later and it is not asked again in that visit. Click **Capture**
 to tap system/tab audio instead (so it reacts to whatever you're playing, e.g. Spotify: pick
 *Entire Screen* + "share system audio", or a *tab* + "share tab audio"), or **Mic** for the
 microphone. The
@@ -742,6 +745,11 @@ The gallery has a link of its own: while it is open the address bar reads
 `https://kicktro.com/#gallery`, and **🔗 Copy link** at the end of the tab row copies it.
 Opening that link opens the page with the gallery already showing.
 
+**The gallery is the front door**: opening plain `https://kicktro.com/` (no link of any
+kind in the address) always opens it, so a visit starts by choosing what to watch. Picking a
+card reloads the page onto that scene, not back onto the gallery; close the gallery to stay
+on whatever was showing.
+
 **Publish to gallery**, under the Delete and Share buttons in the Scene box, puts the
 selected scene in the gallery under your profile name (signed in, with a name set). Only
 your own scenes can be published — one you loaded from someone else is theirs; press **New**
@@ -767,8 +775,8 @@ you widened. A few things deliberately stay behind:
 - **Render resolution** is yours, not the scene's — otherwise a scene built on a fast
   GPU could bring a laptop or phone to a crawl with no obvious cause.
 - **Audio** can't be started for you; browsers require you to click. A beat-reactive
-  scene wanders gently until you turn on Capture or Mic — the mic is armed by default,
-  but it still waits for your first click and your permission.
+  scene wanders gently until you turn on Capture or Mic — the site asks for one as soon as a
+  scene is showing, but it still waits for your click and your permission.
 - **The random bits stay random** — where a Julia orbit starts (unless you turn off
   Random seed), the chaos game's speckle, and how far into its cycle the animation is.
 

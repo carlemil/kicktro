@@ -827,6 +827,11 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   startup and a `hashchange` open the dialog. It is deliberately NOT one of the reload-on-hashchange
   fragments (`g|c|zp|sp=`) — it installs nothing. `#galbtn` (▦) sits right of ☰, hidden with no
   API; the fixed row is ☰ 14 / ▦ 54 / fullscreen 94 / mute 134 / panel 174, banner at 214.
+- **THE FRONT DOOR** (boot-globals): `frontDoorOn()` = http(s) or `?frontdoor` (the dev hook) —
+  NEVER file://, which every headless tool loads. There, `frontDoorUrl()` (no hash, no query but
+  `frontdoor`/`api`) opens the gallery at startup, except when `scenePicked`: the one-shot
+  sessionStorage `kt.picked` that `applyRestore` sets before its reload, read and cleared at boot.
+  The tutorial waits on `frontModalUp()` (gallery/restore/help/tutorial visible, looked up by id).
 - Hover/focus → muted looping `<video preload=none>`, shown on `playing`; **touch: first tap
   previews, second loads** — a tap FOCUSES before its click, so focus must not preview on touch.
 - **Favourites are optimistic** (`galFav`: flip, then the server's `{mine, favs}` settles it; a
@@ -838,7 +843,8 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   → 480×270 WebP + H.264). `--builtin` writes `thumbs/` (staged by `pages.yml`) and re-emits;
   `--server` renders `/api/admin/thumbs/todo` and PUTs; `--check <slug>` proves two renders
   identical AND that the beat changes them (negative control). Three splices, each asserted once.
-- `tools/gallery-check.js` (stub API, two cases) is the gate.
+- `tools/gallery-check.js` (stub API; case-door/-picked/-armed drive the front door via
+  `?frontdoor` with refusing `mediaDevices` stubs) is the gate.
 
 ### Kicktro API (`server/`, replacing Firebase — card 825)
 A Node 24 server for `api.kicktro.com` on the TALEBINDERY VPS (`deploy@136.148.210.49`). The page
@@ -875,7 +881,9 @@ talks to it since M2.
 
 ### Audio & beat reactivity
 `startAudio("capture"|"mic")` must run inside a user gesture. **The MIC is armed by default**:
-`restore()` (not `applyBlob`) calls `armAudioResume("mic")` when no source was ever chosen. The
+`restore()` (not `applyBlob`) calls `armAudioResume("mic")` when no source was ever chosen —
+**except at the front door**, where `openRequiredAudio()` asks instead (an armed mic fired on
+the card click and its prompt landed on the reload). The
 stored `audio` field has THREE states: a source name, `"off"` (user settled it; `audio.settled`,
 which `applyBlob` reads back), null (never asked).
 
@@ -930,7 +938,14 @@ A separate, additive layer at the END of `audioTick`: `audio.tempo = {period, bp
   `body.ui-hidden`. Persistence opt-out is `data-nopersist`.
 - `#syncpop` shows to users who haven't started audio at `SYNC_DELAYS` (30s, 5min, 1h), max 3
   ever, state in `burnTheWeb.sync.v1`; `showSyncPopup()` returns whether it opened and the caller
-  only spends a showing when it did. `track(name, params)` is provider-agnostic; GA4 is live
+  only spends a showing when it did. **At the front door it is REQUIRED once per load**
+  (`openRequiredAudio`, `syncRequired`): no ×/Maybe later/backdrop/Escape until a source starts
+  (`markAudioUsed`) or every source `syncCan` offers was refused (`audioRefused(kind)`, called
+  from `startAudio`'s catch; a declaration). A 250 ms interval opens it once nothing has the
+  screen: not `audio.on`/`audioArmed` (a `var`, set by `armAudioResume` = a remembered source),
+  not hidden UI, credits done (20 s backstop), `!frontModalUp() && !tutorialPending()`. Stored
+  `"off"` is NOT an answer. `audioMsg` mirrors into `#sync-why` while it is up.
+  `track(name, params)` is provider-agnostic; GA4 is live
   (`GA_MEASUREMENT_ID`; `""` makes it inert).
 - **Tutorial** `#tutdlg` (`src/ui-tutorial.js`, before `ui-menubar.js`): `TUT_STEPS`; also ☰ →
   Tutorial. **Music is step TWO on purpose.** Own key `burnTheWeb.tutorial.v1`, written when it

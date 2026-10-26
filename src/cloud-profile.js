@@ -1435,7 +1435,10 @@
     el("galbtn").addEventListener("click", () => galOpen(el("galdlg").classList.contains("hidden")));
   }
   // A #gallery link: at startup, and pasted into a tab that is already open.
-  if (cloudOn() && location.hash === GAL_HASH) Promise.resolve().then(() => galOpen(true));
+  // ...and the FRONT DOOR: a visit to the bare address opens on the gallery, except on the
+  // reload that lands a scene just picked from it (scenePicked).
+  if (cloudOn() && (location.hash === GAL_HASH || (frontDoorOn() && frontDoorUrl() && !scenePicked)))
+    Promise.resolve().then(() => galOpen(true));
   window.addEventListener("hashchange", () => {
     if (cloudOn() && location.hash === GAL_HASH && el("galdlg").classList.contains("hidden")) galOpen(true);
   });
