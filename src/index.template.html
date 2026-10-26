@@ -105,7 +105,7 @@
       <!-- Opt-in, and off by default: publishing is a deliberate act, not a side effect of
            saving. Ticking it re-saves the whole profile (see cloudPublish for why a
            pub-only write cannot satisfy the rules). -->
-      <label class="check" title="List your whole profile on the gallery's Collections tab so anyone can load all your scenes at once. Your name and scene count become visible. One scene goes in with Publish to gallery in the Scene box instead."><input type="checkbox" id="cloud-pub"> List my profile under Collections</label>
+      <label class="check" title="List your whole profile on the gallery's Collections tab so anyone can load all your scenes at once. Your name and scene count become visible. Each of your scenes is in the gallery on its own either way."><input type="checkbox" id="cloud-pub"> List my profile under Collections</label>
       <!-- ON by default. An automatic upload is still an upload, so it gets a control you can
            see and switch off rather than happening silently. data-nopersist: this is a device
            preference with its own localStorage key, not scene data. -->
@@ -161,11 +161,9 @@
     <button id="delpreset" class="audbtn" type="button" title="Delete the selected scene">Delete</button>
     <button id="sharepreset" class="audbtn" type="button" title="Copy a link to this scene — short via your cloud profile when signed in, self-contained otherwise">Share</button>
   </div>
-  <!-- One scene into the public gallery, credited to your profile name (card 825, M3). Shown
-       only when the cloud is configured (cloudInit); signed out it says how to sign in. -->
-  <div class="presetrow" id="publishrow" style="display:none">
-    <button id="publishpreset" class="audbtn" type="button" title="Put this scene in the public gallery under your profile name, where anyone can watch it, favourite it and load it">Publish to gallery</button>
-  </div>
+  <!-- Every scene of your own is a gallery card (gsyncPush); there is nothing to press, so
+       this says what happens instead. Shown only when the cloud is configured (cloudInit). -->
+  <p class="hint" id="gsyncrow" style="display:none">Your scenes are public in the gallery. A change shows there an hour after you last touch the scene, so polish away.</p>
   <!-- Auto-cycle / Scene TTL / Transition defaults come from CONFIG.scene (set in JS at startup),
        not from value=/checked here — so they live in one place. -->
   <label class="check" title="Switch scene on the TTL timer, whether or not this panel is open."><input type="checkbox" id="cycle"> Auto-cycle favourites</label>
@@ -406,7 +404,7 @@
   <div class="gal-box" role="dialog" aria-modal="true" aria-labelledby="gal-title">
     <button type="button" class="pal-close" id="gal-close" aria-label="Close">×</button>
     <h2 id="gal-title">Gallery</h2>
-    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>❤️</b> says you love a scene and <b>💔</b> that it is not for you (signed in) — the number between them is loves minus dislikes, which <b>Most loved</b> sorts by, and clicking it takes your vote back; <b>🔗</b> copies a link that opens the scene for anyone. Your own scene goes in with <b>Publish to gallery</b> in the Scene box; <b>My scenes</b> lists what you have published, and <b>✕</b> takes one out.</p>
+    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>❤️</b> says you love a scene and <b>💔</b> that it is not for you (signed in) — the number between them is loves minus dislikes, which <b>Most loved</b> sorts by, and clicking it takes your vote back; <b>🔗</b> copies a link that opens the scene for anyone. Every scene you make goes in by itself, signed in or not (then as <b>Anonymous</b>): a change shows there an hour after your last edit to the scene, so you can play with it first. <b>My scenes</b> lists yours, with how long each still waits; delete the scene from your list to take it out.</p>
     <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
       <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true" title="Highest score first: every ❤️ counts for a scene, every 💔 against it">Most loved</button>
       <button type="button" role="tab" class="gal-tab" data-tab="all" aria-selected="false" title="Every scene, A to Z">All</button>

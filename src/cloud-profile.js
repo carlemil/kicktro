@@ -107,11 +107,15 @@
     return fetch(API + "/api/auth/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken: googleIdToken }),
+      // This browser's anonymous session, if it has one: its cards become the account's.
+      body: JSON.stringify({ idToken: googleIdToken, anon: anonLive(anonRead()) ? anonRead().token : undefined }),
     }).then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
       .then(j => {
         cloudSess = { uid: j.uid, token: j.token, expires: +j.expires };
         cloudSaveSess();
+        gsyncOwn();
+        if (j.claimed) galBust();
+        gsyncSoon();
         track("cloud_sign_in", {});
         cloudSyncUI();
         // ...and, if this account has no profile yet, put this machine's library into it.
@@ -538,62 +542,134 @@
     return "HTTP " + status;
   }
 
-  // ---- publish ONE scene to the gallery (card 825, M3) ---------------------------------
-  // "Publish to gallery" in the Scene box: the selected scene, as a one-scene library blob (the
-  // shape a #zp= bundle and a profile carry, same serializeBlob + zipToB64), so loading a card
-  // runs the validated restore path everything else uses. Credited to your PROFILE name, which
-  // the server keeps on the account -- so it is written there first (PATCH /api/me) rather than
-  // trusting that a profile save already carried it.
-  // Only your own scenes: one from a collection you loaded, or one shared with you, is someone
-  // else's to publish. A copy you made with New is yours, and keeps its `origin`.
-  function cloudPublishScene() {
-    if (!cloudOn()) return;
-    const btn = el("publishpreset");
-    if (!cloudSess) {
-      alert("Sign in first (☰ → Cloud profile). A published scene is credited to your profile name.");
-      return;
+  // ---- EVERY SCENE OF YOURS IS IN THE GALLERY ---------------------------------------------
+  // There is no private and no Publish button. Each change goes up within seconds -- the whole
+  // set of your own scenes, PUT /api/me/gallery -- carrying the time of the edit (`edited`,
+  // stamped by autosavePreset), and the SERVER keeps a changed scene out of sight until that
+  // edit is an hour old; every further change restarts the hour (server/gallery-sync.js). So
+  // the wait is on the SHOWING, not the sending: GSYNC_SOON only folds the hundred edits of one
+  // slider drag into one upload. Others keep seeing the last public version meanwhile.
+  // Not uploaded as yours: a scene with a `collection` (someone else's), and the server also
+  // skips an untouched copy of a scene the app shipped.
+  // Signed in, cards are credited to your profile name. Signed out, the browser gets an
+  // anonymous account (POST /api/auth/anon, its own localStorage key) whose cards read
+  // Anonymous until a Google sign-in on this browser claims them. A browser that has been
+  // signed in never uploads anonymously again (`owned`): signing out must not post your
+  // scenes a second time under Anonymous.
+  // Only on a real site or a ?api= dev server: every headless tool loads file:// with the
+  // production API configured, and must not publish its test scenes.
+  const GSYNC_ANON_KEY = "kt.anon.v1";
+  const GSYNC_SOON = 4000;             // one drag = one upload
+  const GSYNC_RETRY = 60000;           // after a failure (offline, rate limit)
+  const GSYNC_RENEW = 30 * 86400000;   // an anonymous session renews inside its last 30 days
+  // `var` with no initialiser: persist() (five slices up) calls gsyncSoon, and until this
+  // slice has run there is nothing to send with.
+  var gsyncReady, gsyncT, gsyncBusy, gsyncAgain, gsyncLast, gsyncWho;
+  const gsyncOn = () => cloudOn() && (/^https?:$/.test(location.protocol) || /[?&]api=/.test(location.search));
+  function anonRead() {
+    try {
+      const a = JSON.parse(localStorage.getItem(GSYNC_ANON_KEY) || "null");
+      return a && typeof a === "object" ? a : null;
+    } catch (e) { return null; }
+  }
+  function anonWrite(a) {
+    try {
+      if (a) localStorage.setItem(GSYNC_ANON_KEY, JSON.stringify(a));
+      else localStorage.removeItem(GSYNC_ANON_KEY);
+    } catch (e) { /* private mode: a new anonymous account next visit */ }
+  }
+  const anonLive = a => !!(a && typeof a.token === "string" && a.expires > Date.now());
+  // An anonymous account is minted only for a library with something of YOUR OWN in it: a
+  // scene edited since uploads began, or one not named like anything the app ships. A first
+  // visit holds only stock scenes, and must not make an account for nothing.
+  function gsyncWorthAnon() {
+    const stock = new Set(DEFAULT_LIBRARY.map(p => p.name).concat(EFFECTS.map(e => e.name), ["Blank canvas"]));
+    return presets.some(p => !collectionOf(p) && (p.edited || !stock.has(p.name)));
+  }
+  // The bearer to upload with: the Google session, else this browser's anonymous one (renewed,
+  // or minted), else null = nothing to upload as.
+  function gsyncToken() {
+    if (cloudSess) return cloudFresh();
+    const a = anonRead();
+    if (a && a.owned) return Promise.resolve(null);
+    if (anonLive(a) && Date.now() < a.expires - GSYNC_RENEW) return Promise.resolve(a.token);
+    if (anonLive(a)) {
+      return fetch(API + "/api/auth/refresh", { method: "POST", headers: { Authorization: "Bearer " + a.token } })
+        .then(r => (r.ok ? r.json() : null))
+        .then(j => {
+          if (j && typeof j.token === "string") { a.token = j.token; a.expires = +j.expires || a.expires; anonWrite(a); }
+          return a.token;
+        }, () => a.token);
     }
-    if (!(curPreset >= 0 && presets[curPreset])) return;
-    autosavePreset();                     // publish what is on screen, not the last autosave
-    const p = presets[curPreset];
-    const coll = collectionOf(p);
-    if (coll) {
-      alert("“" + p.name + "” came from " + (coll === SHARED_COLLECTION ? "someone else (Shared with you)" : "the “" + coll + "” collection")
-        + " — only your own scenes can be published. Press New to make your own copy first.");
-      return;
+    if (!gsyncWorthAnon()) return Promise.resolve(null);
+    return fetch(API + "/api/auth/anon", { method: "POST" })
+      .then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
+      .then(j => { anonWrite({ uid: j.uid, token: j.token, expires: +j.expires }); return j.token; });
+  }
+  // Your own scenes as one library blob (the profile's codec), each with a sid: one is given
+  // here to a scene that has none, or that shares one with an earlier scene (a merged copy).
+  function gsyncBlob() {
+    autosavePreset();
+    const own = [], seen = new Set();
+    let gave = false;
+    for (const p of presets) {
+      if (collectionOf(p)) continue;
+      if (!sidOk(p.sid) || seen.has(p.sid)) { p.sid = newSid(); gave = true; }
+      seen.add(p.sid);
+      own.push(p);
     }
-    const author = myProfileName();
-    if (!author) {
-      alert("Give your profile a name first (☰ → Cloud profile) — published scenes are credited to it.");
-      return;
-    }
-    const name = (String(p.name || "").trim() || "Untitled").slice(0, 60);
-    if (!confirm("Publish “" + name + "” to the public gallery as " + author + "?\n\nAnyone can watch it, favourite it and load it. "
-      + "You can remove it again from the gallery (✕ on its card).")) return;
-    const one = { ...p };
-    delete one.rotate;                    // your auto-cycle choice, not part of the scene
-    if (!originOk(one.origin)) one.origin = author;
-    const wire = serializeBlob({ presets: [one], curPreset: 0, cycle: false });
+    if (gave) persist();
+    const wire = serializeBlob({ presets: own, curPreset: 0, cycle: false });
     const pal = palettesUsedBy(wire);
     if (pal) wire.palettes = pal;
-    const say = t => { if (btn) btn.textContent = t; };
-    say("Publishing…");
-    apiFetch("/api/me", { method: "PATCH", body: JSON.stringify({ name: author }) })
-      .then(() => zipToB64(JSON.stringify(wire)))
-      .then(payload => {
-        if (payload == null) throw new Error("this browser cannot compress the scene");
-        if (payload.length >= 200000) throw new Error("the scene is too large to publish");
-        return apiFetch("/api/gallery", { method: "POST", body: JSON.stringify({ name, payload }) });
-      })
-      .then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
+    return wire;
+  }
+  function gsyncSoon() {
+    if (!gsyncReady || gsyncT || !gsyncOn()) return;
+    gsyncT = setTimeout(gsyncPush, GSYNC_SOON);
+  }
+  function gsyncPush() {
+    gsyncT = 0;
+    if (!gsyncOn()) return;
+    if (gsyncBusy) { gsyncAgain = true; return; }
+    const json = JSON.stringify(gsyncBlob());
+    const who = cloudSess ? cloudSess.uid : "anon";
+    if (json === gsyncLast && who === gsyncWho) return;          // nothing new since the last upload
+    gsyncBusy = true;
+    let payload = null;
+    zipToB64(json).then(b => {
+      if (b == null) return null;
+      if (b.length >= CLOUD.maxPayload) throw new Error("library too big to upload");
+      payload = b;
+      return gsyncToken();
+    }).then(tok => {
+      if (!tok) return null;
+      const body = { payload };
+      const name = cloudSess && myProfileName();
+      if (name) body.name = name;
+      return fetch(API + "/api/me/gallery", {
+        method: "PUT", body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok },
+      });
+    }).then(r => {
+      if (r && r.status === 401) {                               // that session is over
+        if (who !== "anon") cloudSignOut(); else anonWrite(null);
+        throw new Error("signed out");
+      }
+      if (r && !r.ok) throw new Error("HTTP " + r.status);
+      gsyncLast = json; gsyncWho = who;
+      if (r) galBust();                                          // My scenes must show it
+    }).catch(() => { if (!gsyncT) gsyncT = setTimeout(gsyncPush, GSYNC_RETRY); })
       .then(() => {
-        galBust();                        // your card must be in the next listing you open
-        track("gallery_publish", {});
-        say("Published!");
-        setTimeout(() => say("Publish to gallery"), 1800);
-        cloudMsg("“" + name + "” is in the gallery. Its thumbnail appears after the next render run.");
-      })
-      .catch(e => { say("Publish to gallery"); alert("Could not publish: " + e.message); });
+        gsyncBusy = false;
+        if (gsyncAgain) { gsyncAgain = false; gsyncSoon(); }
+      });
+  }
+  // Signed in on this browser: its scenes are that account's from now on.
+  function gsyncOwn() {
+    const a = anonRead();
+    if (!(a && a.owned)) anonWrite({ owned: true });
+    gsyncLast = null;
   }
   // ---- publish your whole profile (the Collections tab) ----
   // Toggling this re-saves the WHOLE profile rather than patching `pub` alone: the API's PUT
@@ -641,9 +717,17 @@
   function galJson(p, authed) {
     const hit = galMem[p];
     if (hit && Date.now() - hit.t < GAL_TTL()) return Promise.resolve(hit.j);
-    return (authed ? apiFetch(p, { method: "GET" }) : apiGet(p))
+    return (authed ? galAuthFetch(p) : apiGet(p))
       .then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
       .then(j => { if (!authed) galMem[p] = { t: Date.now(), j }; return j; });
+  }
+  // My scenes is this browser's anonymous account's when it is signed out; My favourites needs
+  // Google (an anonymous account cannot vote).
+  const galMe = () => (cloudSess ? cloudSess.uid : anonLive(anonRead()) ? anonRead().uid : "");
+  function galAuthFetch(p) {
+    if (cloudSess) return apiFetch(p, { method: "GET" });
+    const a = anonRead();
+    return fetch(API + p, { headers: anonLive(a) ? { Authorization: "Bearer " + a.token } : {} });
   }
   // Public profiles. Uncached on purpose: refollowCollections calls it once per cloud load.
   function galList() {
@@ -700,10 +784,10 @@
       t.setAttribute("aria-selected", String(t.dataset.tab === gal.tab));
     }
     if (gal.tab === "people") { gal.done = true; galSyncMore(); galPeople(); return; }
-    if (galAuthed() && !cloudSess) {
+    if (galAuthed() && !galMe() || gal.tab === "mine" && !cloudSess) {
       gal.done = true; gal.pend = []; galSyncMore();
       galHint(gal.tab === "own"
-        ? "Your published scenes belong to an account — sign in under ☰ → Cloud profile to see them here."
+        ? "Every scene you make shows up here, and in the gallery an hour after your last change to it."
         : "Favourites belong to an account — sign in under ☰ → Cloud profile, then press ❤️ on any scene.");
       return;
     }
@@ -726,7 +810,7 @@
       let rows = (j && Array.isArray(j.items)) ? j.items : [];
       // An API from before mine=own ignores it and lists EVERYONE's: keep only yours, so the
       // tab can never show you someone else's scene with a ✕ you cannot use.
-      if (gal.tab === "own") rows = rows.filter(r => cloudSess && r.owner === cloudSess.uid);
+      if (gal.tab === "own") rows = rows.filter(r => r.owner === galMe());
       if (gal.offset === 0 && j && j.builtin) {
         if (j.sort === "new" || j.sort === "name" || j.sort === "favs") gal.order = j.sort;
         for (const c of gal.pend) {
@@ -760,8 +844,8 @@
     if (el("gal-list").children.length) { galHint(""); return; }
     galHint(gal.q ? "Nothing matches “" + gal.q + "”."
       : gal.tab === "mine" ? "No favourites yet — press ❤️ on a scene you like."
-      : gal.tab === "own" ? "You have not published a scene yet — Publish to gallery, in the Scene box, puts the one on screen here."
-      : "No one has published a scene yet. Publish to gallery, in the Scene box, puts yours here.");
+      : gal.tab === "own" ? "No scenes of yours yet — press New in the Scene box, change it, and it shows up here."
+      : "No scenes here yet. Every scene you make shows up, an hour after your last change to it.");
   }
   // Keep paging while the end of the list is in view: the grid scrolls inside .gal-box, so
   // that is the observer's root. The Load more button is the same call, for anything else.
@@ -848,7 +932,20 @@
     share.setAttribute("aria-label", "Copy a link to " + c.name);
     share.addEventListener("click", e => { e.stopPropagation(); galCopyLink(c, share); });
     cap.append(nm, share, vote, by);
-    if (cloudSess && c.owner && c.owner === cloudSess.uid) {
+    // My scenes: one still inside its hour says when it goes public (the hour restarts on
+    // every change, so this is the earliest, not a promise).
+    if (c.pending || c.live === false) {
+      const w = document.createElement("div");
+      w.className = "gal-wait";
+      const m = c.pending ? Math.max(1, Math.ceil((c.pending - Date.now()) / 60000)) : 0;
+      w.textContent = !c.pending ? "Not public yet" : c.live ? "Your change shows in " + m + " min"
+        : "Public in " + m + " min";
+      w.title = "A change goes public an hour after you last touch the scene — keep polishing until then.";
+      cap.appendChild(w);
+    }
+    // ✕ only for a card published by hand before every scene became one: a synced card goes
+    // when its scene does (delete the scene).
+    if (cloudSess && c.owner && c.owner === cloudSess.uid && !c.synced) {
       const rm = document.createElement("button");
       rm.type = "button"; rm.className = "gal-rm"; rm.textContent = "✕";
       rm.title = "Remove your scene from the gallery";
@@ -1421,7 +1518,7 @@
     if (!cloudOn()) return;              // feature off ⇒ the row stays hidden, nothing loads
     const row = el("cloudrow");
     if (row) row.classList.remove("hidden");
-    if (el("publishrow")) el("publishrow").style.display = "";
+    if (el("gsyncrow")) el("gsyncrow").style.display = "";
     cloudLoadSess();
     // Seed the field from the cached name BEFORE any request, so the box shows who you are
     // straight away and the scene list's heading (already reading the same cache) agrees.
@@ -1431,6 +1528,10 @@
     cloudSyncUI();
     if (cloudSess) cloudFetchProfileMeta();
     if (cloudSess) cloudLinksFetch();
+    if (cloudSess) gsyncOwn();            // signed in before uploads began: never anonymous here
+    sceneMark(true);                      // the startup scene as loaded, unless a load already marked it
+    gsyncReady = true;
+    if (gsyncOn()) setTimeout(gsyncSoon, 6000);   // whatever changed while uploads were off
     if (!CLOUD.clientId) { cloudMsg("Sign-in is not configured for this build.", true); return; }
     const s = document.createElement("script");
     s.src = GIS_SRC; s.async = true; s.defer = true;
@@ -1506,6 +1607,5 @@
     if (cloudOn() && location.hash === GAL_HASH && el("galdlg").classList.contains("hidden")) galOpen(true);
   });
   for (const t of document.querySelectorAll("#galdlg .gal-tab")) t.addEventListener("click", () => galSetTab(t.dataset.tab));
-  if (el("publishpreset")) el("publishpreset").addEventListener("click", cloudPublishScene);
   if (el("galdlg")) el("galdlg").addEventListener("click", e => { if (e.target === el("galdlg")) galOpen(false); });
   cloudInit();

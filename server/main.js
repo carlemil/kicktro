@@ -31,6 +31,8 @@ const cfg = {
   // a server reached directly can never be told a client address by the client.
   trustXff: env.TRUST_XFF === "1",
   rev: env.GIT_REV || "dev",
+  // How long an edit waits before others see it (gallery-sync.js). An hour; the probe shortens it.
+  pendingMs: env.PENDING_MS == null || env.PENDING_MS === "" ? 3600000 : +env.PENDING_MS,
 };
 
 function fail(msg) {
@@ -41,6 +43,7 @@ if (!cfg.clientId) fail("GOOGLE_CLIENT_ID is not set");
 if (cfg.sessionSecret.length < 32) fail("SESSION_SECRET must be at least 32 characters");
 if (cfg.adminToken && cfg.adminToken.length < 24) fail("ADMIN_TOKEN must be at least 24 characters");
 if (!Number.isInteger(cfg.port) || cfg.port < 0 || cfg.port > 65535) fail("PORT is not a valid port");
+if (!(cfg.pendingMs >= 0)) fail("PENDING_MS is not a number of milliseconds");
 
 const db = openDb(cfg.dbPath);
 const limiter = new Limiter();

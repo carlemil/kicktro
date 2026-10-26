@@ -750,14 +750,16 @@ Opening that link opens the page with the gallery already showing.
 
 **The gallery is the front door**: opening plain `https://kicktro.com/` (no link of any
 kind in the address) always opens it, so a visit starts by choosing what to watch. Picking a
-card reloads the page onto that scene, not back onto the gallery; close the gallery to stay
+card plays that scene straight away, without reloading the page; close the gallery to stay
 on whatever was showing.
 
-**Publish to gallery**, under the Delete and Share buttons in the Scene box, puts the
-selected scene in the gallery under your profile name (signed in, with a name set). Only
-your own scenes can be published — one you loaded from someone else is theirs; press **New**
-to make your own copy first. Its card shows a placeholder until its thumbnail is rendered,
-and **✕** on your own card takes it down again.
+**Every scene you make is in the gallery.** There is no publish button: your own scenes go
+up as you change them, under your profile name when you are signed in and as **Anonymous**
+when you are not (signing in later moves them to your name). A change is public only once it
+is **an hour old**, and each further edit restarts that hour, so you can play with a scene
+before anyone sees it. Scenes you loaded from someone else stay theirs, and untouched copies
+of the starter scenes are never posted. **My scenes** shows how long each of yours still
+waits; deleting a scene from your list takes its card down, votes kept should it come back.
 
 The fourth tab, **Collections**, is the older list of whole profiles: tick **List my profile
 under Collections** in the cloud box to be on it, with your chosen name and how many scenes

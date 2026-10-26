@@ -7,6 +7,7 @@ const path = require("node:path");
 const { HttpError, readJson, sendJson } = require("./http");
 const { tx } = require("./db");
 const { newId, secretEqual, AuthError } = require("./auth");
+const { makeSync } = require("./gallery-sync");
 
 const CAP = {
   profileName: 40,
@@ -15,7 +16,7 @@ const CAP = {
   sceneName: 60,
   scenePayload: 200000,     // exclusive: share links AND gallery scenes
   sharesPerUser: 1000,
-  galleryPerUser: 200,
+  galleryPerUser: 500,      // = profileCount: every scene of a full library is a card
   favsPerUser: 5000,
   hatesPerUser: 5000,
   poster: 1 << 20,          // 1 MB
@@ -35,6 +36,8 @@ const LIMIT = {   // [max, windowMs]
   share: [30, 3600000],
   publish: [20, 86400000],
   fav: [300, 3600000],
+  anon: [5, 86400000],      // anonymous accounts minted per IP per day
+  sync: [600, 3600000],     // library pushes per account per hour (the page sends each edit within seconds)
 };
 
 const ID_RE = /^[A-Za-z0-9]{10,40}$/;
@@ -78,9 +81,15 @@ function thumbUrls(id, ver) {
     : { poster: null, clip: null };
 }
 
+// A card's author: the account's public name, else Anonymous (a signed-out browser's
+// account, or a signed-in one that never named itself) -- in the SQL, so every client
+// version shows the same word.
+const AUTHOR = "case when u.name = '' then 'Anonymous' else u.name end author";
+
 function makeRoutes(ctx) {
   const { db, cfg, verifyGoogle, sessions, limiter } = ctx;
   const q = sql => db.prepare(sql);
+  const gsync = makeSync({ db, cfg, CAP, newId, clean });
 
   // ---- prepared statements -------------------------------------------------------------
   const S = {
@@ -116,16 +125,23 @@ function makeRoutes(ctx) {
     shareMine: q("select id, name, created from shares where owner = ? order by created desc"),
 
     galIns: q("insert into gallery (id, owner, name, payload, created) values (?, ?, ?, ?, ?)"),
-    galGet: q("select g.*, u.name author, (select count(*) from favs f where f.scene_id = g.id) favs, "
+    galGet: q("select g.*, " + AUTHOR + ", (select count(*) from favs f where f.scene_id = g.id) favs, "
       + "(select count(*) from hates h where h.scene_id = g.id) hates "
       + "from gallery g join users u on u.uid = g.owner where g.id = ?"),
-    galRow: q("select id, owner, thumb_ver from gallery where id = ?"),
+    galRow: q("select id, owner, thumb_ver, skey, payload, gone from gallery where id = ?"),
+    galOwnedBy: q("select id, skey, name, thumb_ver from gallery where owner = ?"),
+    galMove: q("update gallery set owner = ? where id = ?"),
+    userInsAnon: q("insert into users (uid, google_sub, firebase_uid, name, created, anon) values (?, ?, null, '', ?, 1)"),
+    profAll: q("select p.uid, p.payload, u.name from profiles p join users u on u.uid = p.uid order by p.updated"),
     galDel: q("delete from gallery where id = ?"),
     galCount: q("select count(*) n from gallery where owner = ?"),
     galOwnedIds: q("select id, thumb_ver from gallery where owner = ?"),
-    galTodo: q("select id, name, payload, thumb_ver from gallery where thumb_ver = 0 order by created"),
-    galAll: q("select id, name, payload, thumb_ver from gallery order by created"),
-    galThumb: q("update gallery set thumb_ver = ? where id = ?"),
+    // To render: a public card with no thumbnail, or whose public version changed since its
+    // thumbnail was made (a promoted edit).
+    galTodo: q("select id, name, payload, thumb_ver from gallery where payload != '' "
+      + "and (thumb_ver = 0 or thumb_at < pub_at) order by created"),
+    galAll: q("select id, name, payload, thumb_ver from gallery where payload != '' order by created"),
+    galThumb: q("update gallery set thumb_ver = ?, thumb_at = ? where id = ?"),
     galBuiltinFavs: q("select scene_id, count(*) n from favs where scene_id like 'builtin:%' group by scene_id"),
     galBuiltinHates: q("select scene_id, count(*) n from hates where scene_id like 'builtin:%' group by scene_id"),
 
@@ -165,6 +181,14 @@ function makeRoutes(ctx) {
   function maybeUser(r) {
     try { return r.req.headers.authorization ? user(r) : null; } catch (e) { return null; }
   }
+  // A Google-signed-in account. An anonymous one (a signed-out browser, POST /api/auth/anon)
+  // may push its scenes and read its own cards, nothing else: no profile, no links, no votes
+  // -- minting accounts must not be a way to stuff the score.
+  function account(r) {
+    const u = user(r);
+    if (u.anon) throw new HttpError(403, "sign in with Google for this");
+    return u;
+  }
   function admin(r) {
     const m = /^Bearer (\S+)$/.exec(r.req.headers.authorization || "");
     if (!cfg.adminToken) throw new HttpError(404, "not found");
@@ -198,7 +222,7 @@ function makeRoutes(ctx) {
       if (e instanceof AuthError) throw new HttpError(401, "Google sign-in was not accepted: " + e.message);
       throw e;
     }
-    let created = false;
+    let created = false, claimed = 0;
     const u = tx(db, () => {
       let row = S.userBySub.get(claims.sub);
       if (!row) {
@@ -206,9 +230,38 @@ function makeRoutes(ctx) {
         row = S.userBySub.get(claims.sub);
         created = true;
       }
+      claimed = claimAnon(row, body.anon);
       return row;
     });
-    sendJson(r.res, 200, { ...sessionOut(u), created, hasProfile: !!S.profGet.get(u.uid) });
+    sendJson(r.res, 200, { ...sessionOut(u), created, claimed, hasProfile: !!S.profGet.get(u.uid) });
+  });
+  // Signing in from a browser that was anonymous: its cards become the account's (votes and
+  // thumbnails kept), except where the account already has a card for the same scene; the
+  // anonymous account then goes. Only with that account's own live session, so nobody can
+  // claim another browser's scenes.
+  function claimAnon(u, tok) {
+    if (typeof tok !== "string" || !tok) return 0;
+    const c = sessions.read(tok);
+    const a = c && S.userByUid.get(c.u);
+    if (!a || !a.anon || a.token_ver !== c.v || a.uid === u.uid) return 0;
+    const mine = new Set(S.galOwnedBy.all(u.uid).map(g => g.skey || "\u0000" + g.name));
+    let n = 0;
+    for (const g of S.galOwnedBy.all(a.uid)) {
+      if (mine.has(g.skey || "\u0000" + g.name)) {
+        S.favDelScene.run(g.id); S.hateDelScene.run(g.id); S.galDel.run(g.id);
+        removeThumbs(g.id, g.thumb_ver);
+      } else { S.galMove.run(u.uid, g.id); n++; }
+    }
+    S.userDel.run(a.uid);
+    return n;
+  }
+  // A signed-out browser's account: no Google, no name (its cards read Anonymous). The page
+  // keeps the session and pushes its scenes with it.
+  on("POST", "/api/auth/anon", r => {
+    limit(r.ip, "anon");
+    const uid = newId();
+    S.userInsAnon.run(uid, "anon:" + newId(), Date.now());
+    sendJson(r.res, 200, { ...sessionOut(S.userByUid.get(uid)), anon: true });
   });
   on("POST", "/api/auth/refresh", r => {
     const u = user(r);
@@ -226,7 +279,7 @@ function makeRoutes(ctx) {
     sendJson(r.res, 200, { uid: u.uid, name: u.name, migrated: !!u.firebase_uid });
   });
   on("PATCH", "/api/me", async r => {
-    const u = user(r);
+    const u = account(r);
     limit(u.uid, "write");
     const body = await readJson(r.req, BODY.small);
     onlyKeys(body, ["name"]);
@@ -248,7 +301,7 @@ function makeRoutes(ctx) {
     sendJson(r.res, 200, { ok: true });
   });
   on("GET", "/api/me/scenes", r => {
-    const u = user(r);
+    const u = account(r);
     sendJson(r.res, 200, { items: S.shareMine.all(u.uid) });
   });
   on("GET", "/api/me/favs", r => {
@@ -259,7 +312,7 @@ function makeRoutes(ctx) {
 
   // -- own profile
   on("GET", "/api/profile", r => {
-    const u = user(r);
+    const u = account(r);
     const p = S.profGet.get(u.uid);
     if (!p) throw new HttpError(404, "no profile yet");
     // ?meta=1 leaves the library out: the page reads name/count/pub/version at every startup
@@ -272,7 +325,7 @@ function makeRoutes(ctx) {
   // unguarded. This is Firestore's currentDocument precondition, which cloudSave relies on to
   // stop a stale machine overwriting a newer library.
   on("PUT", "/api/profile", async r => {
-    const u = user(r);
+    const u = account(r);
     limit(u.uid, "write");
     const body = await readJson(r.req, BODY.profile);
     onlyKeys(body, ["name", "payload", "count", "pub"]);
@@ -296,7 +349,7 @@ function makeRoutes(ctx) {
     sendJson(r.res, 200, { updated }, { ETag: '"' + updated + '"' });
   });
   on("DELETE", "/api/profile", r => {
-    const u = user(r);
+    const u = account(r);
     S.profDel.run(u.uid);
     sendJson(r.res, 200, { ok: true });
   });
@@ -318,7 +371,7 @@ function makeRoutes(ctx) {
 
   // -- share links (#c=)
   on("POST", "/api/scenes", async r => {
-    const u = user(r);
+    const u = account(r);
     limit(u.uid, "share");
     const body = await readJson(r.req, BODY.scene);
     onlyKeys(body, ["name", "payload"]);
@@ -354,6 +407,7 @@ function makeRoutes(ctx) {
 
   // -- gallery of scenes
   on("GET", "/api/gallery", r => {
+    gsync.promote();
     const sp = r.url.searchParams;
     // sort=name is the gallery's All tab, A to Z. An older client never sends it.
     const sort = sp.get("sort") === "new" ? "new" : sp.get("sort") === "name" ? "name" : "favs";
@@ -362,24 +416,27 @@ function makeRoutes(ctx) {
     const needle = (sp.get("q") || "").slice(0, 60).trim();
     const like = "%" + needle.replace(/[\\%_]/g, c => "\\" + c) + "%";
     // ?mine=favs narrows to the caller's own favourites (the gallery's My favourites tab) and
-    // ?mine=own to the scenes the caller published (My scenes), so those lists page and filter
-    // exactly like the others. Both need a session; the rest does not.
+    // ?mine=own to the caller's own cards (My scenes), so those lists page and filter exactly
+    // like the others. Both need a session; the rest does not. Everyone else sees only what is
+    // PUBLIC (payload, never a pending edit); My scenes also lists a scene still inside its first
+    // hour, with `pending` = when the waiting edit goes public.
     const mine = sp.get("mine");
     const favOf = mine === "favs" ? user(r).uid : "";
     const ownOf = mine === "own" ? user(r).uid : "";
     const where = "where (? = '' or g.name like ? escape '\\' or u.name like ? escape '\\') "
       + "and (? = '' or g.id in (select scene_id from favs where uid = ?)) "
-      + "and (? = '' or g.owner = ?)";
+      + "and (? = '' or g.owner = ?) and g.gone = 0 and (g.payload != '' or g.owner = ?)";
     const order = sort === "new" ? "order by g.created desc, g.id"
       : sort === "name" ? "order by g.name collate nocase, g.id"
       : "order by favs - hates desc, favs desc, g.created desc, g.id";   // Most loved: the SCORE
-    const rows = q("select g.id, g.name, g.owner, g.created, g.thumb_ver, u.name author, "
+    const rows = q("select g.id, g.name, g.pend_name, g.owner, g.created, g.thumb_ver, g.edited, g.skey, "
+      + "g.pend is not null pending, g.payload != '' live, " + AUTHOR + ", "
       + "(select count(*) from favs f where f.scene_id = g.id) favs, "
       + "(select count(*) from hates h where h.scene_id = g.id) hates "
       + "from gallery g join users u on u.uid = g.owner " + where + " " + order + " limit ? offset ?")
-      .all(needle, like, like, favOf, favOf, ownOf, ownOf, lim, off);
+      .all(needle, like, like, favOf, favOf, ownOf, ownOf, ownOf, lim, off);
     const total = q("select count(*) n from gallery g join users u on u.uid = g.owner " + where)
-      .get(needle, like, like, favOf, favOf, ownOf, ownOf).n;
+      .get(needle, like, like, favOf, favOf, ownOf, ownOf, ownOf).n;
     const builtin = {};
     for (const b of S.galBuiltinFavs.all()) builtin[b.scene_id] = b.n;
     // builtin stays LOVES ONLY (an older client reads it as its heart count); dislikes ride beside.
@@ -387,19 +444,27 @@ function makeRoutes(ctx) {
     for (const b of S.galBuiltinHates.all()) builtinHates[b.scene_id] = b.n;
     sendJson(r.res, 200, {
       total, offset: off, sort, builtin, builtinHates,
-      items: rows.map(g => ({ id: g.id, name: g.name, author: g.author, owner: g.owner, created: g.created,
-        favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver) })),
+      items: rows.map(g => ({ id: g.id, name: ownOf && g.pend_name ? g.pend_name : g.name, author: g.author,
+        owner: g.owner, created: g.created, favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver),
+        ...(g.skey ? { synced: true } : {}),   // follows a scene in its owner's library: no ✕
+        ...(ownOf ? { live: !!g.live, ...(g.pending ? { pending: g.edited + cfg.pendingMs } : {}) } : {}) })),
     }, { "Cache-Control": favOf || ownOf ? "private, no-store" : "public, max-age=30" });
   });
+  // Others get the PUBLIC version, and nothing for a card that is not public (yet, or any
+  // more); the owner gets the newest, pending edit included.
   on("GET", "/api/gallery/([^/]+)", r => {
+    gsync.promote();
     const id = decodeURIComponent(r.m[1]);
     const g = ID_RE.test(id) && S.galGet.get(id);
-    if (!g) throw new HttpError(404, "no such scene");
-    sendJson(r.res, 200, { id: g.id, name: g.name, author: g.author, owner: g.owner, payload: g.payload,
+    const me = g && (g.payload === "" || g.gone || g.pend) ? maybeUser(r) : null;
+    const own = !!(me && g && me.uid === g.owner);
+    if (!g || (!own && (g.payload === "" || g.gone))) throw new HttpError(404, "no such scene");
+    sendJson(r.res, 200, { id: g.id, name: own && g.pend_name ? g.pend_name : g.name, author: g.author, owner: g.owner,
+      payload: own && g.pend ? g.pend : g.payload,
       created: g.created, favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver) });
   });
   on("POST", "/api/gallery", async r => {
-    const u = user(r);
+    const u = account(r);
     limit(u.uid, "publish");
     const body = await readJson(r.req, BODY.scene);
     onlyKeys(body, ["name", "payload"]);
@@ -422,9 +487,30 @@ function makeRoutes(ctx) {
     const g = ID_RE.test(id) && S.galRow.get(id);
     if (!g) throw new HttpError(404, "no such scene");
     if (g.owner !== u.uid) throw new HttpError(403, "not your scene");
+    // A card that follows a scene in your library (every one since auto-publish) goes when
+    // the scene does: there is no keeping a scene of your own out of the gallery.
+    if (g.skey) throw new HttpError(409, "this card is your scene: delete the scene to remove it");
     tx(db, () => { S.favDelScene.run(id); S.hateDelScene.run(id); S.galDel.run(id); });
     removeThumbs(id, g.thumb_ver);
     sendJson(r.res, 200, { ok: true });
+  });
+  // The page's library, pushed whole: every scene of your own becomes / updates its card
+  // (gallery-sync.js -- an edit waits an hour, a scene gone from the library hides its card).
+  // Signed in or anonymous. `name` (signed in only) is the profile name cards are credited to.
+  on("PUT", "/api/me/gallery", async r => {
+    const u = user(r);
+    limit(u.uid, "sync");
+    const body = await readJson(r.req, BODY.profile);
+    onlyKeys(body, ["payload", "name"]);
+    const lib = gsync.inflate(vPayload(body.payload, CAP.profilePayload));
+    if (lib.presets.length > CAP.profileCount) throw new HttpError(400, "more than " + CAP.profileCount + " scenes");
+    const name = body.name == null || u.anon ? null : vName(body.name, CAP.profileName, "name");
+    const out = tx(db, () => {
+      if (name !== null && name !== u.name) S.userName.run(name, u.uid);
+      return gsync.sync(u.uid, lib, { hide: true });
+    });
+    delete out.names;
+    sendJson(r.res, 200, out);
   });
   // Favourite / un-favourite, and the same for a dislike (the broken heart). Idempotent both
   // ways; ONE vote per person, so setting either clears the other in the same transaction.
@@ -437,7 +523,7 @@ function makeRoutes(ctx) {
     throw new HttpError(404, "no such scene");
   }
   on("PUT", "/api/gallery/([^/]+)/fav", r => {
-    const u = user(r);
+    const u = account(r);
     limit(u.uid, "fav");
     const id = favTarget(r.m[1]);
     tx(db, () => {
@@ -448,14 +534,14 @@ function makeRoutes(ctx) {
     sendJson(r.res, 200, voteReply(u.uid, id));
   });
   on("DELETE", "/api/gallery/([^/]+)/fav", r => {
-    const u = user(r);
+    const u = account(r);
     limit(u.uid, "fav");
     const id = favTarget(r.m[1]);
     S.favDel.run(u.uid, id);
     sendJson(r.res, 200, voteReply(u.uid, id));
   });
   on("PUT", "/api/gallery/([^/]+)/hate", r => {
-    const u = user(r);
+    const u = account(r);
     limit(u.uid, "fav");
     const id = favTarget(r.m[1]);
     tx(db, () => {
@@ -466,7 +552,7 @@ function makeRoutes(ctx) {
     sendJson(r.res, 200, voteReply(u.uid, id));
   });
   on("DELETE", "/api/gallery/([^/]+)/hate", r => {
-    const u = user(r);
+    const u = account(r);
     limit(u.uid, "fav");
     const id = favTarget(r.m[1]);
     S.hateDel.run(u.uid, id);
@@ -481,6 +567,7 @@ function makeRoutes(ctx) {
   // -- admin: thumbnails (tools/thumbs.js) and the one-time Firebase import
   on("GET", "/api/admin/thumbs/todo", r => {
     admin(r);
+    gsync.promote();
     const rows = r.url.searchParams.get("all") ? S.galAll.all() : S.galTodo.all();
     sendJson(r.res, 200, { items: rows });
   });
@@ -505,9 +592,33 @@ function makeRoutes(ctx) {
       fs.writeFileSync(file + ".tmp", buf);
       fs.renameSync(file + ".tmp", file);
     }
-    S.galThumb.run(ver, id);
+    S.galThumb.run(ver, Date.now(), id);
     removeThumbs(id, g.thumb_ver);
     sendJson(r.res, 200, { id, thumb_ver: ver, ...thumbUrls(id, ver) });
+  });
+  // Every stored profile's scenes become cards (the switch to "everything is public", run
+  // once): insert-only and never hiding -- a profile can be older than what the page pushed
+  // since -- and public at once (the scenes carry no edit time). ?dry=1 reports what it WOULD
+  // do, per account, inside a transaction that is rolled back.
+  on("POST", "/api/admin/backfill", r => {
+    admin(r);
+    const dry = r.url.searchParams.get("dry") === "1";
+    const rep = { dry, accounts: [], errors: [] };
+    const ROLLBACK = {};
+    try {
+      tx(db, () => {
+        for (const p of S.profAll.all()) {
+          try {
+            const o = gsync.sync(p.uid, gsync.inflate(p.payload), { insertOnly: true });
+            rep.accounts.push({ uid: p.uid, name: p.name, ...o });
+          } catch (e) { rep.errors.push(p.uid + ": " + e.message); }
+        }
+        if (dry) throw ROLLBACK;
+      });
+    } catch (e) { if (e !== ROLLBACK) throw e; }
+    const sum = k => rep.accounts.reduce((a, x) => a + x[k], 0);
+    rep.total = { added: sum("added"), stock: sum("stock"), theirs: sum("theirs"), existing: sum("same"), skipped: sum("skipped") };
+    sendJson(r.res, 200, rep);
   });
   // Idempotent: re-running the export adds what is missing and refreshes a profile only from a
   // NEWER copy; users and shares are never overwritten. Bad rows are reported, not fatal, so

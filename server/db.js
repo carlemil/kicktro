@@ -85,6 +85,30 @@ const MIGRATIONS = [
   );
   create index hates_scene on hates(scene_id);
   `,
+
+  // 3 -- every scene of your own is a card (gallery-sync.js), signed in or not. skey is the
+  // scene's key inside its owner's library ('s:<sid>' from a client, 'n:<name>' from a
+  // backfilled profile); null = a card published by hand before this (kept as it is).
+  // An edit is not public for an hour: it waits in pend/pend_name/pend_hash with `edited`
+  // the time of the edit, and is promoted over payload once edited is that old. payload ''
+  // = never public yet (it is NOT NULL from migration 1). gone = the scene left its owner's
+  // library: hidden, votes kept, back if the scene comes back. pub_at = when payload last
+  // changed, thumb_at = when the thumbnail was rendered, so a promoted edit re-renders.
+  // users.anon = an account with no Google sign-in: one browser's signed-out scenes.
+  `
+  alter table gallery add column skey text;
+  alter table gallery add column pend text;
+  alter table gallery add column pend_name text;
+  alter table gallery add column pend_hash text;
+  alter table gallery add column pub_hash text;
+  alter table gallery add column edited integer not null default 0;
+  alter table gallery add column gone integer not null default 0;
+  alter table gallery add column pub_at integer not null default 0;
+  alter table gallery add column thumb_at integer not null default 0;
+  create unique index gallery_skey on gallery(owner, skey) where skey is not null;
+  create index gallery_pend on gallery(edited) where pend is not null;
+  alter table users add column anon integer not null default 0;
+  `,
 ];
 
 function openDb(file) {
@@ -123,4 +147,4 @@ function tx(db, fn) {
   }
 }
 
-module.exports = { openDb, tx, SCHEMA_VERSION: MIGRATIONS.length };
+module.exports = { openDb, tx, SCHEMA_VERSION: MIGRATIONS.length, MIGRATIONS };

@@ -171,6 +171,48 @@
   // and shows in the gallery as "scene · original author · collection". Function declarations:
   // validatePresetList lives in the previous slice.
   function originOk(v) { return (typeof v === "string" && v.trim().slice(0, 40)) || undefined; }
+  // `sid` + `edited` -- every scene of your own is a gallery card (gsyncPush in cloud-profile.js).
+  // sid names the scene's card across renames and machines (given at the first upload, or by
+  // New); edited is WHEN ITS CONTENT LAST CHANGED, which is what the server counts its hour
+  // from: a change is public only once it is an hour old. Both ride beside `name` like
+  // `origin` (autosavePreset, validatePresetList), so a cloud round trip keeps the card.
+  // Function declarations: validatePresetList lives in the previous slice.
+  function sidOk(v) { return typeof v === "string" && /^[A-Za-z0-9]{8,32}$/.test(v) ? v : undefined; }
+  function editedOk(v) { return Number.isFinite(v) && v > 0 ? Math.round(v) : undefined; }
+  function newSid() {
+    const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    let s = "";
+    for (const x of b) s += A[x % 62];
+    return s;
+  }
+  // Key order is not content: a stored scene comes back from validatePresetList in another
+  // order than snapshotScene writes, and must not read as an edit for it.
+  function canonJson(v) {
+    if (Array.isArray(v)) return "[" + v.map(x => (x === undefined ? "null" : canonJson(x))).join(",") + "]";
+    if (v && typeof v === "object") return "{" + Object.keys(v).filter(k => v[k] !== undefined).sort()
+      .map(k => JSON.stringify(k) + ":" + canonJson(v[k])).join(",") + "}";
+    return JSON.stringify(v);
+  }
+  function sceneBody(p) {
+    const o = {};
+    const meta = ["name", "collection", "rotate", "origin", "sid", "edited"];   // beside the scene, not in it
+    for (const k in p) if (meta.indexOf(k) < 0) o[k] = p[k];
+    return canonJson(o);
+  }
+  // What the selected scene rendered when it was last LOADED or saved (its sceneBody): the
+  // baseline autosavePreset tells an edit from a fold by. Not the stored copy: that is SPARSE
+  // (no keys a later version added, no defaulted beat rows) while snapshotScene is whole, so
+  // against it the first fold after every load read as an edit -- a first visit stamped its
+  // starter scene and minted an anonymous account for nothing. Keyed by the preset OBJECT
+  // (a fold replaces it, a delete shifts indices). `var`, no initialiser.
+  var sceneBase;
+  function sceneMark(keep) {
+    const p = presets[curPreset];
+    if (!p || (keep && sceneBase && sceneBase.p === p)) return;
+    sceneBase = { p, body: sceneBody(snapshotScene()) };
+  }
   function originOf(p) {
     if (!p) return undefined;
     const c = collectionOf(p);
@@ -770,6 +812,7 @@
     buildPresetList();                 // move the highlight — covers the auto-cycle too,
     applyingPreset = false;            // which sets the value without firing `change`
     sceneTitleFor(i);                  // name the scene on screen (queues behind the credits)
+    sceneMark();                       // as loaded: what a later fold is compared with
     persist();
   }
   function createPreset() {           // save the current scene as a new preset
@@ -781,7 +824,8 @@
     const suggest = bumpName(cur ? cur.name : "Scene " + presets.length);
     const name = (prompt("Scene name:", suggest) || "").trim();
     if (!name) return;
-    presets.push({ name, origin: originOf(cur), ...snapshotScene() });   // a copy remembers its first author
+    // A copy remembers its first author, and is a card of its own (a fresh sid).
+    presets.push({ name, origin: originOf(cur), sid: newSid(), edited: Date.now(), ...snapshotScene() });
     curPreset = presets.length - 1;
     stopCycling();                    // ...and keep it on screen (see stopCycling)
     rebuildPresetOptions();
@@ -825,13 +869,22 @@
   function autosavePreset() {
     if (curPreset >= 0 && curPreset < presets.length) {
       const p = presets[curPreset];
-      presets[curPreset] = { name: p.name, collection: p.collection, rotate: p.rotate, origin: p.origin, ...snapshotScene() };
+      const snap = snapshotScene();
+      // `edited` moves only when what the scene RENDERS changed: the gallery's hour restarts on
+      // it, so a no-op fold (Save, Backup, switching layers) must not push a card back an hour.
+      const body = sceneBody(snap);
+      const changed = (sceneBase && sceneBase.p === p ? sceneBase.body : sceneBody(p)) !== body;
+      presets[curPreset] = { name: p.name, collection: p.collection, rotate: p.rotate, origin: p.origin,
+        sid: p.sid, edited: changed ? Date.now() : p.edited, ...snap };
+      sceneBase = { p: presets[curPreset], body };
+      if (changed) gsyncSoon();
     }
   }
   el("renamepreset").addEventListener("click", () => {
     if (curPreset < 0 || curPreset >= presets.length) return;
     const name = (prompt("Rename scene:", presets[curPreset].name) || "").trim();
     if (!name) return;
+    if (name !== presets[curPreset].name) presets[curPreset].edited = Date.now();   // the card's name changes too
     presets[curPreset].name = name;
     rebuildPresetOptions();
     persist();

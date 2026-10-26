@@ -565,6 +565,8 @@
   }
   #galdlg .gal-cname { grid-column: 1; grid-row: 1; color: #ffcf87; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #galdlg .gal-by { grid-column: 1; grid-row: 2; color: #ffb15a; opacity: .65; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* My scenes: a card still inside its hour (gsyncPush). Its own row under the caption. */
+  #galdlg .gal-wait { grid-column: 1 / -1; grid-row: 3; color: #9fd6ff; font-size: 10px; opacity: .85; }
   #galdlg .gal-share, #galdlg .gal-rm {
     grid-row: 1 / span 2; padding: 4px 8px; border-radius: 999px; cursor: pointer; white-space: nowrap;
     background: transparent; border: 1px solid rgba(255, 140, 40, 0.3); color: #ffcf87;

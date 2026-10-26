@@ -180,7 +180,8 @@
       // silently dropped on every cloud load and gallery install (the trap presetprobe pins
       // for the scene fields). `rotate` is only ever `false` or absent, and absent means in.
       .map(p => ({ name: String(p.name || "Scene"), collection: p.collection,
-                   rotate: p.rotate === false ? false : undefined, origin: originOk(p.origin), effect: p.effect,
+                   rotate: p.rotate === false ? false : undefined, origin: originOk(p.origin),
+                   sid: sidOk(p.sid), edited: editedOk(p.edited), effect: p.effect,
                    state: mergeState(p.effect, p.state), beat: p.beat, pulse: mergePulse(p.effect, p.pulse), plen: mergePlen(p.effect, p.plen),
                    btune: mergeBtune(p.btune),
                    cam: p.cam, sceneFx: p.sceneFx, beatTune: mergeBeatTune(p.beatTune), ranges: p.ranges, extra: p.extra,

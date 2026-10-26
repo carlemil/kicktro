@@ -100,6 +100,7 @@
     // changed. Deliberately AFTER the guard above: a scene being loaded at startup is not
     // an edit, and persistReady is exactly the flag that already says so.
     autoSaveNoteChange();
+    gsyncSoon();                         // ...and the gallery: your scenes go up as you change them
     try { localStorage.setItem(STORE_KEY, JSON.stringify(serializeBlob(fullSnapshot()))); }
     catch (e) {
       const quota = e && (e.name === "QuotaExceededError" || e.name === "SecurityError");

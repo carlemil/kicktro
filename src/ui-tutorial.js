@@ -169,8 +169,9 @@
         + "picture (pixelate, mirror, bloom). <b>+ Add filter</b> opens the full catalogue." },
     { head: "Keeping and sharing", art: TUT_ART.share,
       body: "Your scenes live in this browser. <b>Cloud profile</b> keeps the whole library against a "
-        + "Google account; <b>Publish to gallery</b> puts one scene in the <b>Gallery</b>, where "
-        + "everyone's published scenes play as you hover them and <b>❤️</b> sorts the best to the top. "
+        + "Google account. Every scene you make is also in the <b>Gallery</b>, an hour after your last "
+        + "change to it, so polish it first: there everyone's scenes play as you hover them and "
+        + "<b>❤️</b> sorts the best to the top. "
         + "<b>Share</b> copies a link to the one scene you "
         + "have open.<br><br>That is the tour. <b>☰ → Help</b> explains every single control, and "
         + "<b>☰ → Tutorial</b> brings this back whenever you want it." },

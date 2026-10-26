@@ -17,19 +17,28 @@
 //            along as builtinHates, a removed scene takes its dislikes
 //   admin: token required, thumbnail upload checks magic bytes, versioned immutable files,
 //          Range replies, old version removed; Firebase import is idempotent and maps accounts
-//   cors, body limit, account deletion, data surviving a restart (migrations re-run cleanly)
+//   every scene a card (PUT /api/me/gallery): an edit is public only once an hour old (PENDING_MS,
+//          1.5 s here), a further edit restarts the hour, an older copy is ignored, stock and
+//          borrowed scenes are not cards, a scene gone hides its card (votes kept), hand-published
+//          and backfilled cards are adopted; anonymous accounts: per-IP limit, push only (no
+//          profile, links or votes), Anonymous author, claimed on Google sign-in; the backfill
+//          (dry run changes nothing, insert-only, idempotent); a promoted edit re-renders
+//   cors, body limit, account deletion, data surviving a restart (migrations re-run cleanly),
+//   migration 3 over a v2 database
 "use strict";
 const http = require("node:http");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const zlib = require("node:zlib");
 const { spawn } = require("node:child_process");
 
 const ROOT = path.join(__dirname, "..");
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "ktsrv-"));
 const CLIENT = "probe-client.apps.googleusercontent.com";
 const ADMIN = "probe-admin-token-0123456789abcdef";
+const PENDING = 1500;   // the gallery's hour (PENDING_MS), shortened so the probe can wait it out
 let fails = 0, passes = 0;
 function ok(name, cond, extra) {
   if (typeof name !== "string") throw new Error("ok(name, cond): name must be a string");
@@ -59,12 +68,12 @@ function idToken(sub, over = {}, { key = good.privateKey, kid = "k1", alg = "RS2
 
 // ---- the server under test --------------------------------------------------------------
 let proc = null, base = "";
-function start() {
+function start(db = path.join(TMP, "kt.db")) {
   return new Promise((resolve, reject) => {
     proc = spawn(process.execPath, ["--disable-warning=ExperimentalWarning", path.join(ROOT, "server", "main.js")], {
       env: {
         ...process.env, PORT: "0", HOST: "127.0.0.1", QUIET: "1",
-        DB_PATH: path.join(TMP, "kt.db"), THUMB_DIR: path.join(TMP, "thumbs"),
+        DB_PATH: db, PENDING_MS: String(PENDING), THUMB_DIR: path.join(TMP, "thumbs"),
         GOOGLE_CLIENT_ID: CLIENT, GOOGLE_JWKS_URL: "http://127.0.0.1:" + jwks.address().port + "/certs",
         SESSION_SECRET: "probe-session-secret-0123456789abcdef", ADMIN_TOKEN: ADMIN,
         ALLOWED_ORIGINS: "https://kicktro.com", ALLOW_DEV_ORIGINS: "0", GIT_REV: "probe",
@@ -434,12 +443,221 @@ async function main() {
   const B3 = await signIn("google-sub-B");
   ok("delete account: signing in again starts a NEW account", B3.created === true && B3.uid !== B.uid);
 
+  // ---- every scene is a card: the library push, the hour, anonymous accounts, backfill -------
+  const H = PENDING;
+  const sleep = ms => new Promise(res => setTimeout(res, ms));
+  const lib = (presets, extra = {}) => zlib.deflateRawSync(Buffer.from(JSON.stringify({ presets, curPreset: 0, cycle: false, ...extra })))
+    .toString("base64url");
+  const unlib = b64 => JSON.parse(zlib.inflateRawSync(Buffer.from(b64, "base64url")).toString("utf8"));
+  const scene = (name, v, more = {}) => ({ name, effect: "plasma", state: { speed: v },
+    layers: [{ effect: "plasma", state: { speed: v }, filters: ["blur"] }], ...more });
+  const speedOf = b64 => unlib(b64).presets[0].state.speed;
+  const STOCK = require(path.join(ROOT, "server", "stock.js"));
+  const st = STOCK.scenes.find(s => s.layers.length >= 1);
+  const stockCopy = { name: st.name, effect: st.effect, state: st.state, extra: { palette: st.palette, filters: st.filters },
+    layers: st.layers.map(L => ({ ...L })) };
+  const stockEdited = { ...stockCopy, layers: [...stockCopy.layers, { effect: "tunnel", state: {} }] };
+  const push = (tok, presets, name) => call("PUT", "/api/me/gallery", { token: tok,
+    body: { payload: lib(presets), ...(name !== undefined ? { name } : {}) } });
+  const cardsOf = async (tok, q) => (await call("GET", "/api/gallery?mine=own&sort=name&limit=100"
+    + (q ? "&q=" + encodeURIComponent(q) : ""), { token: tok })).json;
+  const publicNamed = async q => (await call("GET", "/api/gallery?sort=name&limit=100&q=" + encodeURIComponent(q))).json;
+  const glory0 = scene("Old Glory", 2, { sid: "sidOldGlory1", edited: Date.now() - 2 * H });
+
+  const N1 = (await call("POST", "/api/auth/anon")).json;
+  ok("anon: a signed-out browser gets an account and a session", N1 && N1.token && N1.uid && N1.anon === true && N1.name === "",
+    JSON.stringify(N1));
+  const N2 = (await call("POST", "/api/auth/anon")).json;
+  for (let i = 0; i < 3; i++) await call("POST", "/api/auth/anon");
+  r = await call("POST", "/api/auth/anon");
+  ok("anon: five accounts per address per day, then 429", r.status === 429, r.status);
+  r = await call("POST", "/api/gallery", { token: N1.token, body: { name: "Hand", payload: PAY } });
+  ok("anon: may not publish by hand", r.status === 403, r.status);
+  r = await call("PUT", "/api/profile", { token: N1.token, body: { name: "", payload: PAY, count: 1, pub: false } });
+  ok("anon: has no profile", r.status === 403, r.status);
+  r = await call("PUT", "/api/gallery/" + a2 + "/fav", { token: N1.token });
+  ok("anon: may not vote (minting accounts must not stuff the score)", r.status === 403, r.status);
+  r = await call("PUT", "/api/gallery/" + a2 + "/hate", { token: N1.token });
+  ok("anon: ...nor dislike", r.status === 403, r.status);
+  r = await call("POST", "/api/scenes", { token: N1.token, body: { name: "x", payload: PAY } });
+  ok("anon: makes no share links", r.status === 403, r.status);
+  r = await call("PATCH", "/api/me", { token: N1.token, body: { name: "Sneaky" } });
+  ok("anon: has no name to set", r.status === 403, r.status);
+
+  r = await call("PUT", "/api/me/gallery", { body: { payload: lib([]) } });
+  ok("sync: needs a session", r.status === 401, r.status);
+  r = await call("PUT", "/api/me/gallery", { token: N1.token, body: { payload: PAY } });
+  ok("sync: a payload that is not a deflated library is 400", r.status === 400, r.text);
+  r = await call("PUT", "/api/me/gallery", { token: N1.token, body: { payload: lib([]), pub: true } });
+  ok("sync: an unknown field is 400", r.status === 400, r.text);
+  const t0 = Date.now();
+  const reef0 = scene("Reef One", 1, { sid: "sidReefOne01", edited: t0, rotate: false });
+  r = await push(N1.token, [reef0, glory0,
+    scene("Borrowed", 3, { collection: "Shared with you", origin: "Bob" }),
+    { name: "Plasma", effect: "plasma", state: { speed: 0.4 }, layers: [{ effect: "plasma", state: {} }] },
+    stockCopy, stockEdited,
+  ], "Ignored");
+  ok("sync: a fresh edit waits, an hour-old one is public, stock and borrowed scenes are not cards",
+    r.status === 200 && r.json.pending === 1 && r.json.added === 2 && r.json.stock === 2 && r.json.theirs === 1, r.text);
+  let mine = await cardsOf(N1.token);
+  const reef = mine.items.find(x => x.name === "Reef One"), glory = mine.items.find(x => x.name === "Old Glory");
+  ok("sync: My scenes lists the waiting one with when it goes public", mine.total === 3 && reef && reef.live === false
+    && Math.abs(reef.pending - (t0 + H)) < 5 && glory && glory.live === true && !("pending" in glory), JSON.stringify(mine.items));
+  ok("sync: an edited stock scene is the user's own card", mine.items.some(x => x.name === st.name), JSON.stringify(mine.items));
+  ok("anon: cards read Anonymous (a name sent by an anonymous account is ignored)",
+    mine.items.every(x => x.author === "Anonymous"), JSON.stringify(mine.items));
+  ok("hour: others do not see a scene inside its first hour", (await publicNamed("Reef One")).total === 0);
+  ok("hour: ...but do see the hour-old one", (await publicNamed("Old Glory")).total === 1);
+  r = await call("GET", "/api/gallery/" + reef.id);
+  ok("hour: ...nor can open it by id", r.status === 404, r.status);
+  r = await call("GET", "/api/gallery/" + reef.id, { token: N1.token });
+  const reefScene = r.json && unlib(r.json.payload).presets[0];
+  ok("hour: the owner can, and the card holds the scene without its library bookkeeping", r.status === 200
+    && reefScene.name === "Reef One" && !("sid" in reefScene) && !("edited" in reefScene) && !("rotate" in reefScene), r.text);
+  r = await call("DELETE", "/api/gallery/" + reef.id, { token: N1.token });
+  ok("sync: a card that follows a scene is not removed by hand (409)", r.status === 409, r.status);
+  ok("sync: ...and the listing says so (synced), so the page shows no ✕", reef.synced === true
+    && !("synced" in (await call("GET", "/api/gallery?q=Storm")).json.items[0]), JSON.stringify(reef));
+  r = await push(N1.token, [reef0, glory0, stockEdited]);
+  ok("sync: pushing the same library again changes nothing", r.json.same === 3
+    && r.json.added + r.json.updated + r.json.pending === 0, r.text);
+
+  await sleep(Math.max(0, t0 + H + 150 - Date.now()));
+  ok("hour: once the edit is an hour old it is public", (await publicNamed("Reef One")).total === 1);
+  r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
+  ok("thumbs: a newly public card is on the todo list", r.json.items.some(x => x.id === reef.id), r.text);
+  await call("PUT", "/api/admin/thumbs/" + reef.id, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64") } });
+  r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
+  ok("thumbs: ...and leaves it once rendered", !r.json.items.some(x => x.id === reef.id), r.text);
+
+  // An edit: everyone keeps the public version for an hour; a further edit restarts the hour.
+  const e1 = Date.now();
+  r = await push(N1.token, [scene("Reef One", 5, { sid: "sidReefOne01", edited: e1 }), glory0, stockEdited]);
+  ok("hour: an edit waits", r.json.pending === 1, r.text);
+  ok("hour: ...others still get the public version", speedOf((await call("GET", "/api/gallery/" + reef.id)).json.payload) === 1);
+  ok("hour: ...the owner gets the edit",
+    speedOf((await call("GET", "/api/gallery/" + reef.id, { token: N1.token })).json.payload) === 5);
+  r = await push(N1.token, [scene("Reef One", 9, { sid: "sidReefOne01", edited: t0 }), glory0, stockEdited]);
+  ok("hour: an OLDER copy of a scene (another device) is ignored", r.json.stale === 1
+    && speedOf((await call("GET", "/api/gallery/" + reef.id, { token: N1.token })).json.payload) === 5, r.text);
+  await sleep(H / 2);
+  const e2 = Date.now();
+  const reef6 = scene("Reef One", 6, { sid: "sidReefOne01", edited: e2 });
+  r = await push(N1.token, [reef6, glory0, stockEdited]);
+  mine = await cardsOf(N1.token, "Reef");
+  ok("hour: a further edit moves the hour to start at that edit", r.json.pending === 1
+    && Math.abs(mine.items[0].pending - (e2 + H)) < 5, r.text + " " + JSON.stringify(mine.items));
+  await sleep(Math.max(0, e1 + H + 150 - Date.now()));
+  ok("hour: ...so an hour after the FIRST edit it is still the old version",
+    speedOf((await call("GET", "/api/gallery/" + reef.id)).json.payload) === 1);
+  await sleep(Math.max(0, e2 + H + 150 - Date.now()));
+  ok("hour: ...and an hour after the last edit it is the new one",
+    speedOf((await call("GET", "/api/gallery/" + reef.id)).json.payload) === 6);
+  r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
+  ok("thumbs: a promoted edit is re-rendered", r.json.items.some(x => x.id === reef.id), r.text);
+  await push(N1.token, [scene("Reef One", 7, { sid: "sidReefOne01", edited: Date.now() }), glory0, stockEdited]);
+  r = await push(N1.token, [scene("Reef One", 6, { sid: "sidReefOne01", edited: Date.now() }), glory0, stockEdited]);
+  mine = await cardsOf(N1.token, "Reef");
+  ok("hour: an edit undone before its hour is up leaves nothing waiting", r.json.same === 3 && !("pending" in mine.items[0]),
+    r.text + " " + JSON.stringify(mine.items));
+
+  // A scene gone from the library hides its card; votes are kept for when it comes back.
+  await call("PUT", "/api/gallery/" + glory.id + "/fav", { token: A.token });
+  r = await push(N1.token, [reef6, stockEdited]);
+  ok("sync: a scene no longer in the library hides its card", r.json.hidden === 1 && (await publicNamed("Old Glory")).total === 0
+    && (await call("GET", "/api/gallery/" + glory.id)).status === 404, r.text);
+  r = await push(N1.token, [reef6, glory0, stockEdited]);
+  r = await call("GET", "/api/gallery/" + glory.id);
+  ok("sync: ...and back, with its votes, when the scene returns", r.status === 200 && r.json.favs === 1, r.text);
+
+  // Signed in: a card published by hand is adopted by name (votes kept); the name credits.
+  const D = await signIn("google-sub-D");
+  const hand = (await call("POST", "/api/gallery", { token: D.token, body: { name: "Hand Made", payload: PAY } })).json.id;
+  await call("PUT", "/api/gallery/" + hand + "/fav", { token: A.token });
+  const old = Date.now() - 2 * H;
+  r = await push(D.token, [scene("Hand Made", 4, { sid: "sidHandMade1", edited: old })], "Dee");
+  mine = await cardsOf(D.token);
+  ok("sync: a card published by hand is adopted by its scene, votes kept", r.json.updated === 1 && mine.total === 1
+    && mine.items[0].id === hand && mine.items[0].favs === 1, r.text + " " + JSON.stringify(mine.items));
+  ok("sync: cards are credited to the profile name the push carries", mine.items[0].author === "Dee", JSON.stringify(mine.items));
+  ok("sync: ...and the adopted card holds the scene now", speedOf((await call("GET", "/api/gallery/" + hand)).json.payload) === 4);
+  r = await push(D.token, [scene("Hand Made", 4, { sid: "sidHandMade1", edited: old }),
+    scene("Twin", 1, { sid: "sidTwinTwin1", edited: old }), scene("Twin", 2, { sid: "sidTwinTwin1", edited: old })]);
+  ok("sync: two scenes sharing an id are two cards", r.json.added === 2 && (await cardsOf(D.token, "Twin")).total === 2, r.text);
+
+  // Signing in from an anonymous browser: its cards become the account's.
+  await push(N2.token, [scene("Night Drive", 3, { sid: "sidNightDrv1", edited: old }),
+    scene("Hand Made", 8, { sid: "sidHandMade1", edited: old })]);
+  r = await call("POST", "/api/auth/google", { body: { idToken: idToken("google-sub-D"), anon: N2.token.slice(0, -2) + "xx" } });
+  ok("claim: a forged anonymous session claims nothing", r.status === 200 && r.json.claimed === 0, r.text);
+  r = await call("POST", "/api/auth/google", { body: { idToken: idToken("google-sub-D"), anon: N2.token } });
+  ok("claim: signing in takes the anonymous browser's cards", r.status === 200 && r.json.claimed === 1 && r.json.uid === D.uid, r.text);
+  mine = await cardsOf(D.token);
+  ok("claim: ...except one for a scene the account already has a card for", mine.total === 4
+    && mine.items.filter(x => x.name === "Hand Made").length === 1
+    && mine.items.find(x => x.name === "Night Drive").author === "Dee", JSON.stringify(mine.items));
+  ok("claim: ...and the anonymous account is gone",
+    (await call("PUT", "/api/me/gallery", { token: N2.token, body: { payload: lib([]) } })).status === 401);
+
+  // The one-time backfill: every stored profile's own scenes, public at once.
+  const E = await signIn("google-sub-E");
+  r = await call("PUT", "/api/profile", { token: E.token, headers: { "If-Match": "none" }, body: { name: "dyze", count: 4, pub: false,
+    payload: lib([scene("Dyze Dream", 1), scene("Dyze Two", 2), stockCopy, scene("Borrowed Too", 3, { collection: "Kicktro" })]) } });
+  ok("backfill: a private profile to backfill", r.status === 200, r.text);
+  ok("backfill: ...whose scenes are not in the gallery yet", (await publicNamed("Dyze")).total === 0);
+  r = await call("POST", "/api/admin/backfill?dry=1");
+  ok("backfill: needs the admin token", r.status === 401, r.status);
+  r = await call("POST", "/api/admin/backfill?dry=1", { token: ADMIN });
+  let acc = r.json && r.json.accounts.find(x => x.uid === E.uid);
+  ok("backfill: a dry run reports what it would add", r.status === 200 && r.json.dry === true && acc && acc.added === 2
+    && acc.stock === 1 && acc.theirs === 1, r.text);
+  ok("backfill: ...a profile that is not a library is an error, not a stop", r.json.errors.some(x => x.startsWith(A.uid)), r.text);
+  ok("backfill: ...and changes nothing", (await publicNamed("Dyze")).total === 0);
+  r = await call("POST", "/api/admin/backfill", { token: ADMIN });
+  acc = r.json.accounts.find(x => x.uid === E.uid);
+  const pub = await publicNamed("Dyze");
+  ok("backfill: the real run makes them public at once, credited to the profile", acc.added === 2 && pub.total === 2
+    && pub.items.every(x => x.author === "dyze"), r.text + " " + JSON.stringify(pub));
+  r = await call("POST", "/api/admin/backfill", { token: ADMIN });
+  acc = r.json.accounts.find(x => x.uid === E.uid);
+  ok("backfill: running it again adds nothing", acc.added === 0 && acc.same === 2 && (await publicNamed("Dyze")).total === 2, r.text);
+  const dyzeId = pub.items[0].id;
+  await call("PUT", "/api/gallery/" + dyzeId + "/fav", { token: A.token });
+  r = await push(E.token, [scene("Dyze Dream", 1, { sid: "sidDyzeDrm1", edited: old }), scene("Dyze Two", 2, { sid: "sidDyzeTwo1", edited: old })]);
+  mine = await cardsOf(E.token);
+  ok("backfill: the page's first push adopts the backfilled cards, votes kept", r.json.same === 2 && r.json.added === 0
+    && mine.total === 2 && mine.items.find(x => x.id === dyzeId).favs === 1, r.text);
+  r = await call("POST", "/api/admin/backfill", { token: ADMIN });
+  ok("backfill: ...and a later run does not duplicate them", r.json.accounts.find(x => x.uid === E.uid).added === 0
+    && (await cardsOf(E.token)).total === 2, r.text);
+
   // ---- restart: the data is on disk and the migrations re-run cleanly ------------------------
   await stop();
   base = "";
   await start();
   r = await call("GET", "/api/profile", { token: A.token });
   ok("restart: data and sessions survive a restart", r.status === 200 && r.json.name === "Alice", r.text);
+  r = await call("GET", "/api/gallery?sort=name&limit=100&q=Dyze");
+  ok("restart: ...the cards too", r.json.total === 2, r.text);
+
+  // ---- migration 3 over a database the previous server wrote --------------------------------
+  await stop();
+  base = "";
+  const { DatabaseSync } = require("node:sqlite");
+  const { MIGRATIONS } = require(path.join(ROOT, "server", "db.js"));
+  const oldFile = path.join(TMP, "v2.db");
+  const odb = new DatabaseSync(oldFile);
+  odb.exec(MIGRATIONS[0]); odb.exec(MIGRATIONS[1]); odb.exec("pragma user_version = 2");
+  odb.prepare("insert into users (uid, google_sub, name, created) values ('OldUser0001', 'old-sub', 'Olga', 1)").run();
+  odb.prepare("insert into gallery (id, owner, name, payload, created) values ('OldCard00001', 'OldUser0001', 'Vintage', ?, 1)").run(PAY);
+  odb.close();
+  await start(oldFile);
+  r = await call("GET", "/api/health");
+  ok("migrate: a v2 database comes up at the current schema", r.json.schema === MIGRATIONS.length, r.text);
+  r = await call("GET", "/api/gallery?q=Vintage");
+  ok("migrate: a card published before it is still public, as it was", r.json.total === 1 && r.json.items[0].author === "Olga", r.text);
+  r = await call("GET", "/api/gallery/OldCard00001");
+  ok("migrate: ...with its payload", r.status === 200 && r.json.payload === PAY, r.text);
 
   await stop();
   jwks.close();
