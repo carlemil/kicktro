@@ -15,6 +15,18 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.90.0] — 2026-10-26
+
+### Added
+- **The gallery is the front door**: opening plain `https://kicktro.com/` now always opens the **Gallery**, so a visit starts by choosing what to watch. Picking a card lands you on that scene (not back on the gallery); closing the gallery keeps whatever was already showing. Links to something specific — a shared scene, a card, `#gallery` — open just as before.
+- **Kicktro asks for an audio source before it starts**: once a scene is on screen and no source is chosen, the **Capture / Mic** dialog opens and stays open until one of them is running — reacting to the music is the point. A source you chose on an earlier visit counts as an answer (it starts again on your first click). If you refuse every source your browser offers, the dialog lets you close it, and it only offers the sources your browser has (a phone gets Mic only). A refused permission is explained inside the dialog.
+
+### Changed
+- On kicktro.com the first click no longer silently asks for the microphone — the audio dialog asks instead, after the gallery, the credits and the tutorial. The tutorial's music step says what comes next.
+
+### Internal
+- gallery-check: three front-door cases (`?frontdoor` turns it on for a local page) with refusing media stubs, plus a check that a local file still opens no gallery and asks nothing.
+
 ## [1.89.0] — 2026-10-25
 
 ### Added
