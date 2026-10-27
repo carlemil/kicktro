@@ -15,6 +15,25 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.93.0] — 2026-10-27
+
+### Added
+- **Every scene you make is in the gallery** — there is no Publish button and nothing is private any more. A new or changed scene goes public **an hour after your last change** to it (each further edit restarts the hour), so a half-finished idea is not on show while you work on it. **My scenes** says when: "Public in N min" or "Your change shows in N min". Signed out, your scenes are credited to **Anonymous**; signing in with Google moves them to your name. Delete a scene from your own list and its card leaves the gallery (its votes are kept if it comes back). The starter scenes you have not touched are never posted.
+- **Previews for brand-new scenes**: a card that has no picture yet now renders one in your browser the first time you see it ("Rendering preview…" for a few seconds), and everyone after you sees it straight away. It only happens on a computer, a few cards per visit at most, in a sealed copy of the page that cannot touch your own scenes or account.
+- **Sign in from the gallery**: signed out, pressing ❤️, 💔, the score or **My favourites** now opens a small **Sign in** box over the gallery, saying the feature is for signed-in users, with the Google button right there. Signing in closes it and shows your votes; Escape closes only the box.
+
+### Changed
+- **Picking a gallery card no longer reloads the page**: the scene is added to "Shared with you" and blends in with a normal transition — no "Compiling shaders" wait and no opening credits each time. The same goes for a `#g=` card link.
+- The **opening credits** now run on your first visit and then once a week, instead of on every load.
+- Cards that are now automatic have no **✕**; remove the scene from your own list instead.
+
+### Fixed
+- A gallery card that used its own custom palettes came in without them, so its layers fell back to the wrong colours. Its palettes are now added to yours.
+
+### Internal
+- API: `PUT /api/me/gallery` mirrors your own library (the server holds a change for an hour before it goes public), `POST /api/auth/anon` mints the anonymous account that Google sign-in claims, `POST /api/admin/backfill` made every older profile's scenes cards, and `PUT /api/gallery/:id/thumb` takes a visitor's 480×270 WebP poster only while a card needs one (first wins; `tools/thumbs.js --server` later replaces it with the full render and clip). The listing marks a stale thumbnail.
+- The thumbnail harness now lives in the app (`src/gallery-thumbs.js`, `THUMB`); `tools/thumbs.js` slices it out of the built page instead of splicing it in, and its renders are byte-identical to before. New `stockprobe`; serverprobe at 199 cases; gallery-check gains the sync, sign-in, in-place install, credits and visitor-render cases, each seen to fail on a broken build.
+
 ## [1.92.0] — 2026-10-26
 
 ### Added
