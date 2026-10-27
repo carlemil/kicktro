@@ -15,6 +15,22 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.94.0] — 2026-10-27
+
+### Added
+- **Delete your own scenes from the gallery**: every card that is yours now has a **✕** beside the vote, in every tab, signed in or not. Confirming it removes the scene for everyone — the card, its votes and its preview — and from your own scenes too. It stays gone: another computer of yours, or a change still on its way up, cannot bring it back.
+
+### Changed
+- **The gallery holds the picture still** while it is open, so the scene behind it no longer races on unseen; closing the gallery carries on where it left off (it does not show the "paused" note, and clicking the picture still pauses as before).
+- **A tidier Scene box**: it now holds just **New**, **Auto-cycle**, **Show author**, the **Scene TTL** and **Transition** sliders and **Choose transitions**. The scene list with its Rename, Delete and Share buttons is gone — the **Gallery** is where you find, open and delete scenes now, and auto-cycle still plays through them. Scenes you had left out of auto-cycle stay left out.
+
+### Fixed
+- **No white flicker when the gallery opens**: each card used to flash a light frame and a broken-picture icon until its preview arrived. A card now stays dark until its preview has loaded.
+
+### Internal
+- API: deleting a card you own is no longer refused for synced cards; it records a tombstone (`gallery_dead`, migration 5) so a later upload that still carries the scene makes nothing, and moves with an anonymous account when Google sign-in claims it. `serverprobe` covers it (11 of its checks fail on the old server).
+- `gallery-check`: the ✕ deletes through the real handlers, with a cancelled ✕ as the negative; case-home keeps the real animation loop to prove the scene stops while the gallery is open and runs again once it closes. `presetprobe`, `author-check` and `worldbelow-check` follow the trimmed Scene box. case-lazy asserts a poster not loaded yet draws nothing, and shows once loaded (negative).
+
 ## [1.93.0] — 2026-10-27
 
 ### Added
