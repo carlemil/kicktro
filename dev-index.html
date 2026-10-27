@@ -2112,10 +2112,9 @@
   </div>
   <!-- Auto-cycle / Scene TTL / Transition defaults come from CONFIG.scene (set in JS at startup),
        not from value=/checked here — so they live in one place. -->
-  <label class="check" title="Switch scene on the TTL timer, whether or not this panel is open."><input type="checkbox" id="cycle"> Auto-cycle</label>
-  <!-- The on-screen banner naming each scene as you land on it. It sits HERE, under
-       Auto-cycle, because that is when you see it most — every cycle tick draws one — even
-       though it is drawn by the credits overlay and remembered per browser like the credits
+  <!-- The on-screen banner naming each scene as you land on it. It sits just above
+       Auto-cycle (by request) and is never gated by it — every cycle tick draws one, and so does
+       landing on a scene by hand. It is it is drawn by the credits overlay and remembered per browser like the credits
        preference, not in the scene. Moved out of the Credits menu box for that reason; do not
        add a second copy there, or the two will disagree. -->
   <!-- data-nopersist: a per-browser preference sitting inside #panel, so without it the
@@ -2126,6 +2125,7 @@
        the state in which this control has nothing it can visibly do. -->
   <label class="check" data-nopersist title="Credit the scene to its author on screen as you switch to it — the name shows either way"><input type="checkbox" id="sceneTitleOn" checked> Show author</label>
   <p class="hint" id="sceneAuthorHint"></p>
+  <label class="check" title="Switch scene on the TTL timer, whether or not this panel is open."><input type="checkbox" id="cycle"> Auto-cycle</label>
   <div id="grp-ttl">
     <label>Scene TTL <span class="val" id="vTtl"></span></label>
     <div class="dual"><div class="track"></div><div class="fill"></div>
@@ -18097,10 +18097,11 @@
   // disables every input and button inside, so the keyboard cannot reach them. New sits ABOVE
   // Auto-cycle and is never gated: creating a scene stopCycling()s, which would gray New itself.
   function syncSceneEnabled() {
-    const on = cycleChk.checked;
-    const groups = [el("sceneTitleOn").closest("label"),
-      el("sceneAuthorHint"), el("grp-ttl"), el("grp-tdur")];
-    for (const g of groups) {
+    // Scene TTL follows Auto-cycle; Transition and + Choose transitions are switched off
+    // for good, by request (a stored transition still plays). New and Show author sit above
+    // Auto-cycle and are never gated.
+    const gated = [[el("grp-ttl"), cycleChk.checked], [el("grp-tdur"), false]];
+    for (const [g, on] of gated) {
       g.classList.toggle("ctl-off", !on);
       for (const c of g.querySelectorAll("input, button")) c.disabled = !on;
     }

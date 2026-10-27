@@ -1100,10 +1100,11 @@
   // disables every input and button inside, so the keyboard cannot reach them. New sits ABOVE
   // Auto-cycle and is never gated: creating a scene stopCycling()s, which would gray New itself.
   function syncSceneEnabled() {
-    const on = cycleChk.checked;
-    const groups = [el("sceneTitleOn").closest("label"),
-      el("sceneAuthorHint"), el("grp-ttl"), el("grp-tdur")];
-    for (const g of groups) {
+    // Scene TTL follows Auto-cycle; Transition and + Choose transitions are switched off
+    // for good, by request (a stored transition still plays). New and Show author sit above
+    // Auto-cycle and are never gated.
+    const gated = [[el("grp-ttl"), cycleChk.checked], [el("grp-tdur"), false]];
+    for (const [g, on] of gated) {
       g.classList.toggle("ctl-off", !on);
       for (const c of g.querySelectorAll("input, button")) c.disabled = !on;
     }
