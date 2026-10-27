@@ -15,6 +15,19 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.95.1] — 2026-10-28
+
+### Changed
+- **Scene box order**: New, Show author, Auto-cycle, Scene TTL, Transition, + Choose transitions. **Show author** now sits above Auto-cycle and always works, like New. **Scene TTL** still greys out while Auto-cycle is off.
+- **Transition and + Choose transitions are switched off** (greyed out whatever Auto-cycle says). A scene that already carries a transition still plays it.
+
+### Fixed
+- **The pulse plot no longer flatlines.** The graph under **Shape** in a slider's box now always draws the chosen shape. While the slider's two thumbs sit together (every slider's default) the curve is dimmed and dashed, and hovering it says to spread the thumbs apart — until you do, a beat has nothing to move the slider through.
+
+### Internal
+- `tempoui-check` asserts a pinned slider still plots its shape and carries the tooltip; `foldcycle-check` pins the new Scene box order and the switched-off transition controls.
+- `breakout-check` asserts the dimmed pinned plot instead of the flat line, and drags the filter catalogue instead of the transitions picker, whose opener is switched off now.
+
 ## [1.95.0] — 2026-10-27
 
 ### Added
