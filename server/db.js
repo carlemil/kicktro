@@ -115,6 +115,19 @@ const MIGRATIONS = [
   `
   alter table gallery add column thumb_clip integer not null default 1;
   `,
+  // 5 -- a card its owner DELETED (the gallery's ✕ on one of your scenes): deleted for
+  // everyone, votes and thumbnail with it, and never made again from that scene. The page
+  // drops the scene from its library too, but another device (or an upload already in
+  // flight) can still push it: sync skips a key listed here, and an n: key's name.
+  `
+  create table gallery_dead (
+    owner text not null references users(uid) on delete cascade,
+    skey  text not null,
+    name  text not null,
+    at    integer not null,
+    primary key (owner, skey)
+  );
+  `,
 ];
 
 function openDb(file) {

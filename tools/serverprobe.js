@@ -561,9 +561,7 @@ async function main() {
   const reefScene = r.json && unlib(r.json.payload).presets[0];
   ok("hour: the owner can, and the card holds the scene without its library bookkeeping", r.status === 200
     && reefScene.name === "Reef One" && !("sid" in reefScene) && !("edited" in reefScene) && !("rotate" in reefScene), r.text);
-  r = await call("DELETE", "/api/gallery/" + reef.id, { token: N1.token });
-  ok("sync: a card that follows a scene is not removed by hand (409)", r.status === 409, r.status);
-  ok("sync: ...and the listing says so (synced), so the page shows no ✕", reef.synced === true
+  ok("sync: the listing marks a card that follows a scene (synced)", reef.synced === true
     && !("synced" in (await call("GET", "/api/gallery?q=Storm")).json.items[0]), JSON.stringify(reef));
   r = await push(N1.token, [reef0, glory0, stockEdited]);
   ok("sync: pushing the same library again changes nothing", r.json.same === 3
@@ -623,6 +621,29 @@ async function main() {
   r = await call("GET", "/api/gallery/" + glory.id);
   ok("sync: ...and back, with its votes, when the scene returns", r.status === 200 && r.json.favs === 1, r.text);
 
+  // The owner's ✕ deletes a synced card for everyone, for good: no later push makes it again.
+  r = await call("DELETE", "/api/gallery/" + glory.id, { token: A.token });
+  ok("delete own: someone else's card is refused (403)", r.status === 403, r.status);
+  r = await call("DELETE", "/api/gallery/" + glory.id, { token: N1.token });
+  ok("delete own: the owner deletes a synced card, told which scene to drop", r.status === 200 && r.json.sid === "sidOldGlory1"
+    && r.json.name === "Old Glory", r.text);
+  ok("delete own: ...gone for everyone", (await call("GET", "/api/gallery/" + glory.id)).status === 404
+    && (await publicNamed("Old Glory")).total === 0);
+  r = await call("GET", "/api/gallery/" + glory.id, { token: N1.token });
+  ok("delete own: ...the owner included", r.status === 404, r.status);
+  r = await push(N1.token, [reef6, glory0, stockEdited]);
+  mine = await cardsOf(N1.token, "Old Glory");
+  ok("delete own: a push still carrying the scene (another device) does not bring it back", r.json.deleted === 1
+    && r.json.added + r.json.pending === 0 && mine.total === 0, r.text + " " + JSON.stringify(mine.items));
+  r = await push(N1.token, [reef6, scene("Old Glory", 3, { sid: "sidOldGlory1", edited: Date.now() }), stockEdited]);
+  ok("delete own: ...nor does an edit of it", r.json.deleted === 1 && (await cardsOf(N1.token, "Old Glory")).total === 0, r.text);
+  r = await push(N1.token, [reef6, scene("Old Glory", 2, { edited: Date.now() - 2 * H }), stockEdited]);
+  ok("delete own: ...nor an unkeyed copy of the same name", r.json.deleted === 1, r.text);
+  r = await push(N1.token, [reef6, scene("New Glory", 2, { sid: "sidNewGlory1", edited: Date.now() - 2 * H }), stockEdited]);
+  ok("delete own: another scene still becomes a card", r.json.added === 1 && r.json.deleted === 0, r.text);
+  r = await call("GET", "/api/gallery?mine=own&limit=100", { token: N1.token });
+  ok("delete own: ...and the deleted card's votes are gone", r.json.items.every(x => x.favs === 0), r.text);
+
   // Signed in: a card published by hand is adopted by name (votes kept); the name credits.
   const D = await signIn("google-sub-D");
   const hand = (await call("POST", "/api/gallery", { token: D.token, body: { name: "Hand Made", payload: PAY } })).json.id;
@@ -640,7 +661,10 @@ async function main() {
 
   // Signing in from an anonymous browser: its cards become the account's.
   await push(N2.token, [scene("Night Drive", 3, { sid: "sidNightDrv1", edited: old }),
-    scene("Hand Made", 8, { sid: "sidHandMade1", edited: old })]);
+    scene("Hand Made", 8, { sid: "sidHandMade1", edited: old }), scene("Left Behind", 1, { sid: "sidLeftBhnd1", edited: old })]);
+  const left = (await cardsOf(N2.token, "Left Behind")).items[0];
+  r = await call("DELETE", "/api/gallery/" + left.id, { token: N2.token });
+  ok("delete own: an anonymous browser deletes its own card", r.status === 200 && r.json.sid === "sidLeftBhnd1", r.text);
   r = await call("POST", "/api/auth/google", { body: { idToken: idToken("google-sub-D"), anon: N2.token.slice(0, -2) + "xx" } });
   ok("claim: a forged anonymous session claims nothing", r.status === 200 && r.json.claimed === 0, r.text);
   r = await call("POST", "/api/auth/google", { body: { idToken: idToken("google-sub-D"), anon: N2.token } });
@@ -649,6 +673,11 @@ async function main() {
   ok("claim: ...except one for a scene the account already has a card for", mine.total === 4
     && mine.items.filter(x => x.name === "Hand Made").length === 1
     && mine.items.find(x => x.name === "Night Drive").author === "Dee", JSON.stringify(mine.items));
+  r = await push(D.token, [scene("Hand Made", 4, { sid: "sidHandMade1", edited: old }), scene("Twin", 1, { sid: "sidTwinTwin1", edited: old }),
+    scene("Twin", 2, { sid: "sidTwinTwin1", edited: old }), scene("Night Drive", 3, { sid: "sidNightDrv1", edited: old }),
+    scene("Left Behind", 1, { sid: "sidLeftBhnd1", edited: old })]);
+  ok("claim: what the anonymous browser deleted stays deleted under the account", r.json.deleted === 1
+    && (await cardsOf(D.token, "Left Behind")).total === 0, r.text);
   ok("claim: ...and the anonymous account is gone",
     (await call("PUT", "/api/me/gallery", { token: N2.token, body: { payload: lib([]) } })).status === 401);
 

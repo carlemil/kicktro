@@ -10,8 +10,9 @@
 // -- lazily, at the top of every gallery read, so no timer is needed.
 //
 // Not a card: a scene from somebody else (`collection`: a followed collection or "Shared with
-// you"), and an untouched copy of a scene the app SHIPPED (server/stock.js, every first-visit
-// library there has been) -- every profile carries those, and they are nobody's own work.
+// you"), an untouched copy of a scene the app SHIPPED (server/stock.js, every first-visit
+// library there has been) -- every profile carries those, and they are nobody's own work --
+// and a scene whose card its owner deleted (gallery_dead): that is for good.
 const zlib = require("node:zlib");
 const crypto = require("node:crypto");
 const { HttpError } = require("./http");
@@ -121,6 +122,7 @@ function makeSync({ db, cfg, CAP, newId, clean }) {
     ungone: q("update gallery set gone = 0 where id = ?"),
     keyed: q("select id, skey from gallery where owner = ? and skey is not null and gone = 0"),
     hide: q("update gallery set gone = 1 where id = ?"),
+    dead: q("select skey, name from gallery_dead where owner = ?"),
     promote: q("update gallery set payload = pend, name = pend_name, pub_hash = pend_hash, pub_at = ?, "
       + "created = case when payload = '' then ? else created end, pend = null, pend_name = null, pend_hash = null "
       + "where pend is not null and edited <= ?"),
@@ -134,9 +136,12 @@ function makeSync({ db, cfg, CAP, newId, clean }) {
   // a keyed card whose scene is not in lib is hidden (a push carries the whole library).
   // Runs inside the caller's transaction.
   function sync(uid, lib, opts = {}, now = Date.now()) {
-    const out = { added: 0, updated: 0, pending: 0, same: 0, stock: 0, theirs: 0, skipped: 0, stale: 0, hidden: 0, names: [] };
+    const out = { added: 0, updated: 0, pending: 0, same: 0, stock: 0, theirs: 0, skipped: 0, stale: 0, hidden: 0, deleted: 0, names: [] };
     const palettes = lib.palettes;
     const seen = new Set();
+    // Scenes whose card the owner deleted: by key, and an unkeyed (stored-profile) scene by name.
+    const deadKey = new Set(), deadName = new Set();
+    for (const d of S.dead.all(uid)) { deadKey.add(d.skey); deadName.add(d.name); }
     let have = S.count.get(uid).n;
     for (const p of lib.presets) {
       if (!p || typeof p !== "object" || typeof p.name !== "string") { out.skipped++; continue; }
@@ -146,6 +151,7 @@ function makeSync({ db, cfg, CAP, newId, clean }) {
       let key = typeof p.sid === "string" && SID_RE.test(p.sid) ? "s:" + p.sid : "n:" + name;
       for (let i = 2; seen.has(key); i++) key = key.replace(/#\d+$/, "") + "#" + i;
       seen.add(key);
+      if (deadKey.has(key) || (key.startsWith("n:") && deadName.has(name))) { out.deleted++; continue; }
       const blob = sceneBlob(p, palettes);
       if (blob.length >= CAP.scenePayload) { out.skipped++; continue; }
       const hash = hashOf(p);

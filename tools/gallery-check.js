@@ -39,14 +39,16 @@
 //   (kt.picked) skips the gallery and asks; a source chosen before is an answer.
 // case-home (#gallery): the gallery's own link opens it on Most loved; Copy link copies it; the ▦
 //   button beside ☰ toggles it and the address bar follows; #gallery pasted into the open tab
-//   opens it with no reload.
+//   opens it with no reload; while it is open the scene holds still (the rendered-frame count
+//   stops, no "paused" note) and runs again once it closes (NEGATIVE).
 // case-sync-anon / case-sync-in (?api=, so the upload path is live on file://): a first visit
 //   (stock scenes only) uploads nothing and mints no anonymous account; New stamps a sid and
 //   an edit time and goes up within seconds -- signed out as a freshly minted anonymous
 //   account with no name, signed in with your session and profile name -- your scenes only,
 //   each with a sid; a slider edit moves the stamp and goes up once more; the NEGATIVE: an
 //   input that changes nothing moves no stamp and uploads nothing. My scenes shows the card
-//   with how long it still waits and no ✕ (a synced card leaves with the scene).
+//   with how long it still waits and its ✕; a cancelled ✕ does nothing (NEGATIVE), a confirmed
+//   one sends DELETE with that session, the scene leaves your list and the next upload.
 // case-sync-off (no ?api=, the NEGATIVE): the same New and edit upload nothing at all.
 // case-lazy (REAL TIME, no budget -- virtual time never delivers an IntersectionObserver
 //   callback): the poster in view is fetched, one below the fold is not (NEGATIVE) until its
@@ -102,7 +104,8 @@ const head = [
   "  }",
   "  window.__ok = ok; window.__fails = function () { return fails; };",
   "  var CRED = /^case-cred-/.test(CASE);",
-  "  if (!CRED) requestAnimationFrame = function () { return 0; };",
+  // case-home watches the rendered-frame count, so it keeps the real rAF too.
+  "  if (!CRED && CASE !== 'case-home') requestAnimationFrame = function () { return 0; };",
   // A pick installs IN PLACE: 'galchk' is set just before it (and on a #g= link's boot), and the
   // in-page verdict clears it. A page that BOOTS with it set has reloaded -- a FAIL, carrying
   // the first page's count.
@@ -208,7 +211,7 @@ const head = [
   "      window.__req[window.__req.length - 1].body = JSON.parse(opts.body);",
   "      var anonPut = auth === 'Bearer anon-tok';",
   "      rows = rows.filter(function (r) { return r.id !== 'syn-1'; });",
-  "      rows.push({ id: 'syn-1', name: 'Sync Test', author: anonPut ? 'Anonymous' : 'Dee Tester', owner: anonPut ? 'anon-uid' : 'me-uid',",
+  "      if (!window.__synDead) rows.push({ id: 'syn-1', name: 'Sync Test', author: anonPut ? 'Anonymous' : 'Dee Tester', owner: anonPut ? 'anon-uid' : 'me-uid',",
   "        created: Date.now(), favs: 0, hates: 0, poster: null, clip: null, synced: true, live: false, pending: Date.now() + 3600000 });",
   "      return answer(200, { added: 1, changed: 0, same: 0, hidden: 0, stock: 0 });",
   "    }",
@@ -224,6 +227,16 @@ const head = [
   "      var off = +sp.get('offset') || 0, lim = +sp.get('limit') || 48;",
   "      return answer(200, { total: list.length, offset: off, sort: sp.get('sort'), builtin: builtin, builtinHates: builtinHates,",
   "        items: list.slice(off, off + lim).map(function (r) { return Object.assign({}, r); }) }, 30);",
+  "    }",
+  "    var dm = /^\\/api\\/gallery\\/([^/]+)$/.exec(path);",
+  "    if (dm && method === 'DELETE') {",
+  "      var d0 = rows.filter(function (r) { return r.id === decodeURIComponent(dm[1]); })[0];",
+  "      if (!d0) return answer(404, { error: 'no such scene' });",
+  "      rows = rows.filter(function (r) { return r !== d0; });",
+  "      if (!d0.synced) return answer(200, { ok: true });",
+  "      window.__synDead = true;",
+  "      var own = (JSON.parse(localStorage.getItem('burnTheWeb.v1') || '{}').presets || []).filter(function (p) { return p.name === d0.name && !p.collection; })[0];",
+  "      return answer(200, { ok: true, sid: own && own.sid, name: d0.name });",
   "    }",
   "    if (path.indexOf('/api/gallery/') === 0) {",
   "      sessionStorage.setItem('galchk-fetch', path);",
@@ -251,6 +264,7 @@ const tail = [
   "  var scores = function () { return cards().map(function (c) { return Number(c.querySelector('.gal-score').textContent); }); };",
   "  var lit = function (id) { var c = card(id), on = c.querySelectorAll('.gal-vote .on');",
   "    return on.length === 1 && on[0].getAttribute('aria-checked') === 'true' && c.querySelectorAll('.gal-vote [aria-checked=true]').length === 1 ? on[0].classList[0].slice(4) : 'BAD'; };",
+  "  var frames = function () { return parseInt($('frames').textContent, 10) || 0; };",
   "  var reqs = function (re) { return window.__req.filter(function (r) { return re.test(r.m + ' ' + r.p); }); };",
   "  var done = function () { console.log('DONE ' + CASE + ' fails=' + window.__fails()); if (CASE === 'case-lazy' || CASE === 'case-render') setTimeout(function () { try { window.close(); } catch (e) {} }, 200); };",
   "  var steps = [], at = 0;",
@@ -392,8 +406,34 @@ const tail = [
   "      ok('...and shows the uploaded scene', !!c, cards().map(function (x) { return x.dataset.id; }).join(','));",
   "      var w = c && c.querySelector('.gal-wait');",
   "      ok('...with how long it still waits', w && /Public in (59|60) min/.test(w.textContent), w && w.textContent);",
-  "      ok('...and no ✕: a synced card leaves with the scene', c && !c.querySelector('.gal-rm'));",
+  "      ok('...with its ✕', c && !!c.querySelector('.gal-rm'));",
   "      ok('...credited ' + (ANON ? 'Anonymous' : 'to your name'), c && c.textContent.indexOf(ANON ? 'Anonymous' : 'Dee Tester') >= 0, c && c.textContent);",
+  "      window.confirm = function () { return false; };",
+  "      if (c && c.querySelector('.gal-rm')) c.querySelector('.gal-rm').click();",
+  "    });",
+  "    then(400, function () {",
+  "      if (OFF) return;",
+  "      var has = function () { return lib().some(function (p) { return p.name === 'Sync Test'; }); };",
+  "      ok('NEGATIVE: a cancelled ✕ sends nothing and keeps the scene', reqs(/^DELETE /).length === 0 && has() && !!card('syn-1'));",
+  "      window.confirm = function () { return true; };",
+  "      window.__n2 = puts().length;",
+  "      if (card('syn-1') && card('syn-1').querySelector('.gal-rm')) card('syn-1').querySelector('.gal-rm').click();",
+  "    });",
+  "    then(500, function () {",
+  "      if (OFF) return;",
+  "      var d = reqs(/^DELETE \\/api\\/gallery\\/syn-1$/);",
+  "      ok('✕ deletes the card with ' + (ANON ? 'the anonymous' : 'your') + ' session', d.length === 1 && d[0].auth === (ANON ? 'Bearer anon-tok' : 'Bearer tok-1'), d.length && d[0].auth);",
+  "      ok('...the card leaves the tab', !card('syn-1'));",
+  "      ok('...and the scene leaves your own list', lib().length > 0 && !lib().some(function (p) { return p.name === 'Sync Test'; }), lib().map(function (p) { return p.name; }).join(','));",
+  "    });",
+  "    then(4600, function () {",
+  "      if (OFF) return;",
+  "      ok('...which goes up without it', puts().length === window.__n2 + 1, puts().length + ' vs ' + window.__n2);",
+  "      window.__dec = null; lastScene();",
+  "    });",
+  "    then(300, function () {",
+  "      if (OFF) return;",
+  "      ok('...the upload no longer carries the scene', !!window.__dec && !window.__dec.presets.some(function (p) { return p.name === 'Sync Test'; }));",
   "      done();",
   "    });",
   "    run(); return;",
@@ -497,6 +537,16 @@ const tail = [
   "    });",
   "    then(500, function () {",
   "      ok('#gallery pasted into an open tab opens it without a reload', !$('galdlg').classList.contains('hidden') && window.__noReload === 1, location.hash);",
+  "      window.__f0 = frames();",
+  "    });",
+  "    then(700, function () {",
+  "      ok('the open gallery holds the scene still', window.__f0 > 0 && frames() === window.__f0, window.__f0 + ' -> ' + frames());",
+  "      ok('...without the paused note', $('paused').classList.contains('hidden'));",
+  "      $('gal-close').click();",
+  "      window.__f1 = frames();",
+  "    });",
+  "    then(700, function () {",
+  "      ok('NEGATIVE: closed, the scene runs again', frames() > window.__f1, window.__f1 + ' -> ' + frames());",
   "      done();",
   "    });",
   "    run(); return;",

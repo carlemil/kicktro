@@ -147,9 +147,11 @@ function makeRoutes(ctx) {
     galGet: q("select g.*, " + AUTHOR + ", (select count(*) from favs f where f.scene_id = g.id) favs, "
       + "(select count(*) from hates h where h.scene_id = g.id) hates "
       + "from gallery g join users u on u.uid = g.owner where g.id = ?"),
-    galRow: q("select id, owner, thumb_ver, thumb_at, pub_at, skey, payload, gone from gallery where id = ?"),
+    galRow: q("select id, owner, name, thumb_ver, thumb_at, pub_at, skey, payload, gone from gallery where id = ?"),
     galOwnedBy: q("select id, skey, name, thumb_ver from gallery where owner = ?"),
     galMove: q("update gallery set owner = ? where id = ?"),
+    deadIns: q("insert or replace into gallery_dead (owner, skey, name, at) values (?, ?, ?, ?)"),
+    deadMove: q("update or ignore gallery_dead set owner = ? where owner = ?"),
     userInsAnon: q("insert into users (uid, google_sub, firebase_uid, name, created, anon) values (?, ?, null, '', ?, 1)"),
     profAll: q("select p.uid, p.payload, u.name from profiles p join users u on u.uid = p.uid order by p.updated"),
     galDel: q("delete from gallery where id = ?"),
@@ -271,6 +273,7 @@ function makeRoutes(ctx) {
         removeThumbs(g.id, g.thumb_ver);
       } else { S.galMove.run(u.uid, g.id); n++; }
     }
+    S.deadMove.run(u.uid, a.uid);    // what that browser deleted stays deleted
     S.userDel.run(a.uid);
     return n;
   }
@@ -467,7 +470,7 @@ function makeRoutes(ctx) {
       items: rows.map(g => ({ id: g.id, name: ownOf && g.pend_name ? g.pend_name : g.name, author: g.author,
         owner: g.owner, created: g.created, favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver, g.thumb_clip),
         ...(g.stale ? { stale: true } : {}),   // the thumbnail shows an older public version
-        ...(g.skey ? { synced: true } : {}),   // follows a scene in its owner's library: no ✕
+        ...(g.skey ? { synced: true } : {}),   // follows a scene in its owner's library
         ...(ownOf ? { live: !!g.live, ...(g.pending ? { pending: g.edited + cfg.pendingMs } : {}) } : {}) })),
     }, { "Cache-Control": favOf || ownOf ? "private, no-store" : "public, max-age=30" });
   });
@@ -508,12 +511,16 @@ function makeRoutes(ctx) {
     const g = ID_RE.test(id) && S.galRow.get(id);
     if (!g) throw new HttpError(404, "no such scene");
     if (g.owner !== u.uid) throw new HttpError(403, "not your scene");
-    // A card that follows a scene in your library (every one since auto-publish) goes when
-    // the scene does: there is no keeping a scene of your own out of the gallery.
-    if (g.skey) throw new HttpError(409, "this card is your scene: delete the scene to remove it");
-    tx(db, () => { S.favDelScene.run(id); S.hateDelScene.run(id); S.galDel.run(id); });
+    // A card that follows a scene in your library (every one since auto-publish) is deleted
+    // for good: the scene's key is tombstoned so no later push makes it again, and the answer
+    // names the scene (sid / name) so the page drops it from your library as well.
+    tx(db, () => {
+      if (g.skey) S.deadIns.run(u.uid, g.skey, g.name, Date.now());
+      S.favDelScene.run(id); S.hateDelScene.run(id); S.galDel.run(id);
+    });
     removeThumbs(id, g.thumb_ver);
-    sendJson(r.res, 200, { ok: true });
+    const sid = g.skey && g.skey.startsWith("s:") ? g.skey.slice(2) : null;
+    sendJson(r.res, 200, { ok: true, ...(sid ? { sid } : {}), ...(g.skey ? { name: g.name } : {}) });
   });
   // The page's library, pushed whole: every scene of your own becomes / updates its card
   // (gallery-sync.js -- an edit waits an hour, a scene gone from the library hides its card).

@@ -119,7 +119,11 @@
     // only when something actually changed (cardDirty) — without it, switching path mode or
     // drawing a freehand loop with the canvas paused left the editor showing the old orbit,
     // which reads as every button in it being broken.
-    if (paused) { if (useGL && glReady) glRender(); cardDrawPaused(); return; }
+    // The open GALLERY holds the scene the same way (it covers it, plays its own clips, and a
+    // visitor's preview render wants the GPU), without the "paused" note and without touching
+    // `paused`, so closing it resumes exactly what was running. Not before the first rendered
+    // frame: the front door opens the gallery at boot, and would sit over black.
+    if (paused || (frameCount > 0 && galHolds())) { if (useGL && glReady) glRender(); cardDrawPaused(); return; }
 
     if (useGL && !glReady) return;    // context lost / not yet restored
 

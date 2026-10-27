@@ -729,10 +729,11 @@
   // My scenes is this browser's anonymous account's when it is signed out; My favourites needs
   // Google (an anonymous account cannot vote).
   const galMe = () => (cloudSess ? cloudSess.uid : anonLive(anonRead()) ? anonRead().uid : "");
-  function galAuthFetch(p) {
-    if (cloudSess) return apiFetch(p, { method: "GET" });
+  function galAuthFetch(p, opts) {
+    opts = opts || { method: "GET" };
+    if (cloudSess) return apiFetch(p, opts);
     const a = anonRead();
-    return fetch(API + p, { headers: anonLive(a) ? { Authorization: "Bearer " + a.token } : {} });
+    return fetch(API + p, { ...opts, headers: anonLive(a) ? { Authorization: "Bearer " + a.token } : {} });
   }
   // Public profiles. Uncached on purpose: refollowCollections calls it once per cloud load.
   function galList() {
@@ -957,13 +958,13 @@
       w.title = "A change goes public an hour after you last touch the scene — keep polishing until then.";
       cap.appendChild(w);
     }
-    // ✕ only for a card published by hand before every scene became one: a synced card goes
-    // when its scene does (delete the scene).
-    if (cloudSess && c.owner && c.owner === cloudSess.uid && !c.synced) {
+    // ✕ on every card of yours, in every tab (signed out: this browser's anonymous account's).
+    // It deletes the scene for everyone AND from your own list (galRemove).
+    if (c.owner && c.owner === galMe()) {
       const rm = document.createElement("button");
       rm.type = "button"; rm.className = "gal-rm"; rm.textContent = "✕";
-      rm.title = "Remove your scene from the gallery";
-      rm.setAttribute("aria-label", "Remove " + c.name + " from the gallery");
+      rm.title = "Delete this scene, for you and for everyone";
+      rm.setAttribute("aria-label", "Delete " + c.name);
       rm.addEventListener("click", e => { e.stopPropagation(); galRemove(c, card); });
       cap.appendChild(rm);
     }
@@ -1095,16 +1096,35 @@
       })
       .catch(() => { /* offline: votes just show unmarked */ });
   }
+  // The server deletes the card for good (a later upload of the scene, from another device,
+  // makes nothing) and names the scene it followed, which leaves your own list here too.
   function galRemove(c, card) {
-    if (!confirm("Remove “" + c.name + "” from the public gallery? Its votes go with it. The scene stays in your own list.")) return;
-    apiFetch("/api/gallery/" + encodeURIComponent(c.id), { method: "DELETE" })
+    if (!confirm("Delete “" + c.name + "”?\n\nIt goes from the gallery for everyone, with its votes, and from your own scenes. This cannot be undone.")) return;
+    galAuthFetch("/api/gallery/" + encodeURIComponent(c.id), { method: "DELETE" })
       .then(r => {
         if (!r.ok && r.status !== 404) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
+        return r.status === 404 ? null : r.json().catch(() => null);
+      }).then(j => {
+        if (j && (j.sid || j.name)) dropOwnScene(typeof j.sid === "string" ? j.sid : "", String(j.name || ""));
         card.remove();
         galBust();
         galEmpty();
         track("gallery_remove", {});
       }).catch(e => galHint("Could not remove it: " + e.message));
+  }
+  // Your own scene (never a borrowed one) by its card id, or by name for a card the backfill
+  // made before scenes had ids. Like Delete in the scene list, removing the selected scene
+  // APPLIES its neighbour, and removing the last re-seeds the shipped library.
+  function dropOwnScene(sid, name) {
+    const at = presets.findIndex(p => !collectionOf(p) && (sid ? p.sid === sid : p.name === name));
+    if (at < 0) return;
+    const was = curPreset;
+    presets.splice(at, 1);
+    if (at < was) curPreset = was - 1;
+    ensureSelection();
+    if (at === was) { curPreset = Math.min(at, presets.length - 1); applyPreset(curPreset); }
+    rebuildPresetOptions();
+    persist();
   }
   // One card as a one-scene library blob plus who made it. A built-in is cut out of the
   // shipped collection (no request); anyone else's is fetched by id, and the ANSWER names it,
@@ -1252,6 +1272,8 @@
     }).catch(e => galHint("Could not load: " + e.message));
   }
 
+  // A declaration: frame() (an earlier slice) asks it every frame.
+  function galHolds() { const d = el("galdlg"); return !!d && !d.classList.contains("hidden"); }
   function galOpen(show) {
     const dlg = el("galdlg");
     if (!dlg) return;
