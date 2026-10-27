@@ -314,9 +314,6 @@ const tail = [
   "        lib().filter(function (p) { return p.edited; }).map(function (p) { return p.name; }).join(','));",
   "      window.prompt = function () { return 'Sync Test'; };",
   "      window.__t0 = Date.now();",
-  // New follows Auto-cycle (grayed while it is off; this page seeds it off): tick it on in the
-  // same task -- the cycler only moves inside frame(), and creating the scene turns it off.
-  "      $('cycle').checked = true; $('cycle').dispatchEvent(new Event('change', { bubbles: true }));",
   "      $('newpreset').click();",
   "    });",
   "    then(500, function () {",

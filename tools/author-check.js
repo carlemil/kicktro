@@ -73,12 +73,7 @@ const body = [
   "var b2=selScene(2);",
   "ok('an origin equal to the collection is shown once', /^Gamma\\s*·\\s*Bob$/.test(b2), b2||'(empty)');",
   "window.prompt=function(){return 'Beta copy'};",
-  // New follows Auto-cycle (grayed while it is off, and this page seeds it off so the cycler
-  // stays put): tick it on in the same task as the click -- the cycler only moves inside
-  // frame(), and creating the scene switches it straight back off.
-  "selScene(1); var cyc=document.getElementById('cycle'); cyc.checked=true; cyc.dispatchEvent(new Event('change',{bubbles:true}));",
-  "document.getElementById('newpreset').click();",
-  "ok('creating a scene turns Auto-cycle off again', !cyc.checked);",
+  "selScene(1); document.getElementById('newpreset').click();",
   "var saved=JSON.parse(localStorage.getItem('burnTheWeb.v1')); var last=saved.presets[saved.presets.length-1];",
   "ok('New from a borrowed scene records its first author as origin', !!last&&last.name==='Beta copy'&&last.origin==='Ann',",
   "   JSON.stringify(last&&{name:last.name,origin:last.origin,collection:last.collection}));",

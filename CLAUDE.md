@@ -509,8 +509,8 @@ full-screen overlay; every rule an adopted block needs must name it, including t
 effect & filters) + `#lyrsec`. `buildControls` routes by `host`. `#scenenow` is filled by
 `syncSceneTitle()` from `rebuildPresetOptions`/`applyPreset`. **The Scene box is TRIMMED (card 827):**
 New, Auto-cycle, Show author, Scene TTL, Transition, + Choose transitions — nothing else.
-**Everything but Auto-cycle follows it** (`syncSceneEnabled`: `.ctl-off` + `disabled`, by request;
-New too, although creating a scene `stopCycling()`s). `foldcycle-check` case-gate. There is
+**Everything BELOW Auto-cycle follows it** (`syncSceneEnabled`: `.ctl-off` + `disabled`, by request);
+**New sits above it and is never gated** (creating a scene `stopCycling()`s — gated, New grayed itself). `foldcycle-check` case-gate. There is
 no scene list, no Rename/Delete/Share, no per-scene cycle tick, no collection ✕, no publish hint;
 don't bring them back without the owner. `#preset` is hidden (`display:none` in the template) and
 stays the value store; a probe picks a scene by writing it and dispatching `change`.

@@ -1095,12 +1095,13 @@
 
   const effectSel = el("effect");
   const sub = el("sub");
-  // Everything else in the Scene box follows Auto-cycle (by request): off grays out New, Show
-  // author and its hint, Scene TTL and Transition with Choose transitions, blocks the mouse
-  // (.ctl-off) and disables every input and button inside, so the keyboard cannot reach them.
+  // The Scene box below Auto-cycle follows it (by request): off grays out Show author and its
+  // hint, Scene TTL and Transition with Choose transitions, blocks the mouse (.ctl-off) and
+  // disables every input and button inside, so the keyboard cannot reach them. New sits ABOVE
+  // Auto-cycle and is never gated: creating a scene stopCycling()s, which would gray New itself.
   function syncSceneEnabled() {
     const on = cycleChk.checked;
-    const groups = [el("newpreset").parentNode, el("sceneTitleOn").closest("label"),
+    const groups = [el("sceneTitleOn").closest("label"),
       el("sceneAuthorHint"), el("grp-ttl"), el("grp-tdur")];
     for (const g of groups) {
       g.classList.toggle("ctl-off", !on);
