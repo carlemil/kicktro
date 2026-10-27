@@ -1349,7 +1349,7 @@
   // effect is just another edit to it — the same as moving a slider. So: stay put, and
   // fold the new effect straight in. The consequence is real and intended, not a bug to
   // re-fix later: a preset named after the effect it started as will keep that name after
-  // you change the effect. Rename it if that bothers you.
+  // you change the effect.
   //
   // There is no scratch mode to fall back on: a scene is ALWAYS selected, so this write
   // always lands somewhere. Press New first if you want to keep the original.

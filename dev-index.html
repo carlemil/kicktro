@@ -23716,7 +23716,7 @@
   // effect is just another edit to it — the same as moving a slider. So: stay put, and
   // fold the new effect straight in. The consequence is real and intended, not a bug to
   // re-fix later: a preset named after the effect it started as will keep that name after
-  // you change the effect. Rename it if that bothers you.
+  // you change the effect.
   //
   // There is no scratch mode to fall back on: a scene is ALWAYS selected, so this write
   // always lands somewhere. Press New first if you want to keep the original.
@@ -26704,7 +26704,7 @@
     btns.className = "gal-btns";
     const b = document.createElement("button");
     b.type = "button"; b.className = "audbtn"; b.textContent = "Load scenes";
-    b.title = "Add these as a “" + p.name + "” collection in your scene list — your own scenes are untouched";
+    b.title = "Add these as a “" + p.name + "” collection in your scenes — your own scenes are untouched";
     b.addEventListener("click", () => galLoad(p));
     btns.appendChild(b);
     row.append(nm, meta, btns);
@@ -27000,7 +27000,7 @@
   }
   function cloudNameCommit() {
     const inp = el("cloud-name");
-    setProfileName(inp ? inp.value : "");   // trims, caches, and relabels the scene list
+    setProfileName(inp ? inp.value : "");   // trims, caches, and relabels your collection
     cloudNameShow();
   }
 
@@ -27081,7 +27081,7 @@
     if (row) row.classList.remove("hidden");
     cloudLoadSess();
     // Seed the field from the cached name BEFORE any request, so the box shows who you are
-    // straight away and the scene list's heading (already reading the same cache) agrees.
+    // straight away.
     const cached = storedProfileName();
     if (cached && el("cloud-name") && !el("cloud-name").value) el("cloud-name").value = cached;
     cloudNameShow();
@@ -28097,7 +28097,7 @@
       { n: "Auto-cycle", w: "all", t: "When on, a random saved scene is applied every so often (see Scene TTL) — it cycles whole scenes, not effects, though a scene switch can change the effect too. Turn off to stay put. Needs at least two saved scenes. Creating a scene or restoring a backup switches it off, so the one you just chose stays on screen." },
       { n: "Scene TTL", w: "all", t: "How long auto-cycle holds each scene: a random time in this range (seconds) before applying a random other one." },
       { n: "Transition", w: "all", t: "How long a scene change takes to blend, as a range in seconds — each switch draws a length from it. A suitable transition is chosen automatically for the two scenes involved: a crossfade between two full-screen effects, something that breaks the picture up (pixelate, blur, wipe) when a sparse point cloud meets a dense field, a dip or flash when the palettes jump, and often nothing at all when the scenes already dissolve on their own through Fire or Fade pixel. Collapse both thumbs to 0 to cut straight over instead." },
-      { n: "Effect", w: "all", t: "Which visual is running — the chooser at the top of the Effects section, directly above that effect's own sliders. Switching keeps the scene you have selected and folds the change into it, like any other edit — so you carry on working on your scene. The scene keeps its name, so rename it if it no longer suits. Part of a saved scene, so auto-cycle can switch it for you." },
+      { n: "Effect", w: "all", t: "Which visual is running — the chooser at the top of the Effects section, directly above that effect's own sliders. Switching keeps the scene you have selected and folds the change into it, like any other edit — so you carry on working on your scene. The scene keeps its name. Part of a saved scene, so auto-cycle can switch it for you." },
       { n: "Palette", w: "all", t: "The colour ramp this layer's heat is mapped through — click a swatch to pick it. Per-layer, so stacked effects can each carry their own colours (blended together in perceptual OKLab space when they overlap)." },
       { n: "Reverse colours", w: "all", t: "Runs this layer's palette the other way round — the dark (background) end stays black, so only the lit ramp is flipped. Per-layer." },
       { n: "Background", w: "all", t: "What this layer's unlit pixels (heat 0) show: Black (default), White, or the palette's own colour 0. In a multi-layer scene it's per-layer, so a background layer can wash the scene while the ones above keep a black backdrop." },

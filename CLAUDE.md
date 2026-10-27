@@ -795,7 +795,7 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
   `cloudSave` refuses only with no scenes AND no follows.
 - `collectionsHeld` is declared in `audio-tuning-data.js`, filled from `persist-presets.js`
   (function declarations). The follow is noted INSIDE `applySharedLibrary` after validation;
-  `delpreset` calls `forgetCollection` when a delete empties a collection.
+  `forgetCollection` has NO caller since the panel lost Delete and the collection ✕ (card 827): a follow can no longer be removed from the UI.
 - `refollowCollections(raw)` runs INSIDE `cloudApplyPayload`: appended never prepended, re-stamped
   with the followed key, present collections not re-fetched, missing sources skipped and named
   (`{raw, missed}`), uid-less entries resolved by NAME against `galList()` and healed back into
