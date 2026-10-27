@@ -1095,12 +1095,16 @@
 
   const effectSel = el("effect");
   const sub = el("sub");
-  const grpTtl = el("grp-ttl");   // effect-specific groups are shown/hidden via each descriptor's `controls`
-  // Preset TTL only matters while auto-cycle is on — gray it out and block input
-  // (plus disable the thumbs for keyboard) when the cycle toggle is off.
-  function syncTtlEnabled() {
+  // Everything else in the Scene box follows Auto-cycle (by request): off grays out New, Show
+  // author and its hint, Scene TTL and Transition with Choose transitions, blocks the mouse
+  // (.ctl-off) and disables every input and button inside, so the keyboard cannot reach them.
+  function syncSceneEnabled() {
     const on = cycleChk.checked;
-    grpTtl.classList.toggle("ctl-off", !on);
-    el("ttl-lo").disabled = el("ttl-hi").disabled = !on;
+    const groups = [el("newpreset").parentNode, el("sceneTitleOn").closest("label"),
+      el("sceneAuthorHint"), el("grp-ttl"), el("grp-tdur")];
+    for (const g of groups) {
+      g.classList.toggle("ctl-off", !on);
+      for (const c of g.querySelectorAll("input, button")) c.disabled = !on;
+    }
   }
   const paletteSel = el("palette");

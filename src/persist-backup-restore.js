@@ -534,7 +534,7 @@
   // land later and make their own call, and adoptSharedScene is idempotent so both are safe.
   adoptSharedScene();
   rebuildPresetOptions();
-  syncTtlEnabled();                   // match the Preset TTL enabled-state to the restored cycle toggle
+  syncSceneEnabled();                 // match the rest of the Scene box to the restored cycle toggle
   startCredits();                     // burn the credits into the opening frames
   persistReady = true;
   // Save the opening scene once, so a reload keeps it instead of re-applying (and

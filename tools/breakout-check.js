@@ -365,7 +365,13 @@ const ASSERT = [
   "      var opener = document.getElementById(\"transpick-open\");",
   "      ok(\"the transitions picker has an opener\", !!opener);",
   "      if (opener) {",
+  // The opener follows Auto-cycle (grayed while it is off, and this page seeds it off so
+  // nothing swaps the scene mid-run): on, click, off again, all in one task -- the cycler
+  // only moves inside frame().
+  "        var cyc = document.getElementById(\"cycle\"), cycSet = function (on) { cyc.checked = on; cyc.dispatchEvent(new Event(\"change\", { bubbles: true })); };",
+  "        cycSet(true);",
   "        opener.click();                    // built on OPEN -- un-hiding it proves nothing",
+  "        cycSet(false);",
   "        var dbox = document.querySelector(\"#transpickdlg .flt-box\");",
   "        var dh2 = dbox && dbox.querySelector(\"h2\");",
   "        ok(\"...and a title bar to grab\", !!dh2);",

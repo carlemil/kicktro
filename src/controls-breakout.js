@@ -1293,7 +1293,7 @@
   // each for a random time drawn from the Preset TTL range, then applies a random
   // *different* saved preset.
   let nextSwitch = 0;
-  cycleChk.addEventListener("change", () => { cycleOn = cycleChk.checked; nextSwitch = 0; syncTtlEnabled(); });
+  cycleChk.addEventListener("change", () => { cycleOn = cycleChk.checked; nextSwitch = 0; syncSceneEnabled(); });
   // Stop the cycler dead. Called when the user has just deliberately put a specific
   // scene on screen — creating a preset, or restoring a backup. Without it the next
   // tick of the TTL would swap that scene straight back out, which reads as "my new
@@ -1301,7 +1301,7 @@
   function stopCycling() {
     if (!cycleOn && !nextSwitch) return;
     cycleOn = false; cycleChk.checked = false; nextSwitch = 0;
-    syncTtlEnabled();
+    syncSceneEnabled();
   }
   function ttlMs() {
     const a = Math.min(+el("ttl-lo").value, +el("ttl-hi").value);

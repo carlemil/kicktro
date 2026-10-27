@@ -73,6 +73,22 @@ const ASSERT_JS = [
   "  var hidden = function () { return panel.classList.contains(\"hidden\"); };",
   "  var sceneName = function () { var n = document.getElementById(\"scenenow\"); return n ? n.textContent : \"?\"; };",
   "  var pressM = function () { window.dispatchEvent(new KeyboardEvent(\"keydown\", { key: \"m\", bubbles: true })); };",
+  "  // Everything else in the Scene box follows Auto-cycle: the controls and their gray groups.",
+  "  var SCENE_CTLS = [\"newpreset\", \"sceneTitleOn\", \"ttl-lo\", \"ttl-hi\", \"tdur-lo\", \"tdur-hi\", \"transpick-open\"];",
+  "  var sceneOff = function () { return SCENE_CTLS.filter(function (id) { var n = document.getElementById(id); return n.disabled && n.closest(\".ctl-off\") && +getComputedStyle(n.closest(\".ctl-off\")).opacity < 0.5; }); };",
+  "  var setCycle = function (on) { var c = document.getElementById(\"cycle\"); c.checked = on; c.dispatchEvent(new Event(\"change\", { bubbles: true })); };",
+  "",
+  "  if (CASE === \"case-gate\") {",
+  "    ok(\"a stored cycle:false boots unticked\", !document.getElementById(\"cycle\").checked);",
+  "    ok(\"...and the rest of the Scene box boots grayed and disabled\", sceneOff().length === SCENE_CTLS.length, sceneOff().join(\",\"));",
+  "    ok(\"Auto-cycle itself stays live\", !document.getElementById(\"cycle\").disabled && !document.getElementById(\"cycle\").closest(\".ctl-off\"));",
+  "    setCycle(true);",
+  "    ok(\"NEGATIVE: ticking Auto-cycle brings every one back\", sceneOff().length === 0, sceneOff().join(\",\"));",
+  "    setCycle(false);",
+  "    ok(\"unticking it grays them all again\", sceneOff().length === SCENE_CTLS.length, sceneOff().join(\",\"));",
+  "    console.log(\"DONE \" + CASE + \" fails=\" + fails);",
+  "    return;",
+  "  }",
   "",
   "  if (CASE === \"case-first\") {",
   "    ok(\"first visit starts with the panel hidden\", hidden());",
@@ -99,6 +115,7 @@ const ASSERT_JS = [
   "  ok(\"a stored panelOpen:true stays open\", !hidden());",
   "  ok(\"no paused note in the Scene box\", !document.querySelector(\"#panel .cycle-note\"));",
   "  ok(\"the cycle checkbox is still ticked\", document.getElementById(\"cycle\").checked);",
+  "  ok(\"...so the rest of the Scene box is live\", sceneOff().length === 0, sceneOff().join(\",\"));",
   "",
   "  var held = sceneName();",
   "  setTimeout(function () {",
@@ -167,12 +184,14 @@ function build(name, seedJson) {
 build("case-open", JSON.stringify({ panelOpen: true, cycle: true, ttl: [1, 1], tdur: [0, 0] }));
 // A returning user who had it closed: stays closed, and the cycler actually runs.
 build("case-closed", JSON.stringify({ panelOpen: false, cycle: true, ttl: [1, 1], tdur: [0, 0] }));
+// Auto-cycle OFF with the panel open: the rest of the Scene box is grayed from boot.
+build("case-gate", JSON.stringify({ panelOpen: true, cycle: false, ttl: [1, 1], tdur: [0, 0] }));
 // FIRST VISIT -- nothing stored at all. Must start hidden, or the show never runs.
 build("case-first", "null");
 
 const abs = path.resolve(outDir).split(path.sep).join("/");
 console.log(NL + "run each with:");
-for (const c of ["case-first", "case-closed", "case-open"]) {
+for (const c of ["case-first", "case-closed", "case-open", "case-gate"]) {
   console.log('  msedge --headless=new --disable-extensions --enable-logging=stderr --v=0'
     + ' --virtual-time-budget=60000 --user-data-dir="' + abs + '/ud-' + c + '"'
     + ' "file:///' + abs + '/' + c + '.html" 2>&1 | grep -oE ' + Q + '"(PASS|FAIL|DONE)[^"]*"' + Q);
