@@ -867,8 +867,13 @@
   // A poster is fetched when its card comes within a screen of view, not when the card is
   // added: the grid scrolls inside .gal-box, and the browser's own loading=lazy measures from
   // the WINDOW, which fetches every poster of a page the dialog has not scrolled to.
+  // The img stays hidden (.lz) until its poster has loaded: an img with no src yet draws a
+  // light frame and a broken-image icon, and every card is rebuilt when the gallery opens,
+  // so the whole grid flashed white. A poster that fails to load leaves the black thumb.
   let galImgObs = null;
   function galLazy(img, src) {
+    img.classList.add("lz");
+    img.addEventListener("load", () => img.classList.remove("lz"), { once: true });
     if (!window.IntersectionObserver) { img.src = src; return; }
     img.dataset.src = src;
     galImgObserver().observe(img);

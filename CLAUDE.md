@@ -814,7 +814,8 @@ paged as you
 scroll, `galleryPage` 24) plus Collections (the older per-profile listing, `galPeople`).
 Readable signed out. **Nothing loads up front**: a poster's `src` is set by `galLazy` (an
 IntersectionObserver rooted on `.gal-box`) — `loading=lazy` measures from the WINDOW and
-fetches a whole page the dialog has not scrolled to. Built-ins merge by `gal.order`, the sort
+fetches a whole page the dialog has not scrolled to. The img stays `.lz` (hidden) until it
+LOADS: a src-less img draws a light frame + broken icon, a white flash per card on open. Built-ins merge by `gal.order`, the sort
 the SERVER answered with (an API without `sort=name` answers `favs`). Virtual time never
 delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs in REAL time.
 - **EVERY OWN SCENE IS A CARD; there is no publish button and no private** (by request). The

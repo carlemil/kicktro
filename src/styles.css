@@ -497,6 +497,8 @@
   /* The clip sits OVER the poster, invisible until it is really playing, so a slow first
      frame shows the poster rather than black. */
   #galdlg .gal-thumb video { opacity: 0; }
+  /* A poster not loaded yet (galLazy): no src draws a light frame + broken icon, a white flash per card. */
+  #galdlg .gal-thumb img.lz { visibility: hidden; }
   #galdlg .gal-card.playing .gal-thumb video { opacity: 1; }
   #galdlg .gal-thumb.gal-ph { display: flex; align-items: center; justify-content: center; padding: 10px; box-sizing: border-box; }
   /* A card whose thumbnail this browser is rendering (gallery-thumbs.js). */
