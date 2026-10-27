@@ -109,6 +109,12 @@ const MIGRATIONS = [
   create index gallery_pend on gallery(edited) where pend is not null;
   alter table users add column anon integer not null default 0;
   `,
+  // thumb_clip 0 = the thumbnail is a POSTER ONLY, rendered by the first visitor's browser
+  // (PUT /api/gallery/:id/thumb, no clip); tools/thumbs.js --server replaces it with a real
+  // render, which is also what undoes a bad upload.
+  `
+  alter table gallery add column thumb_clip integer not null default 1;
+  `,
 ];
 
 function openDb(file) {

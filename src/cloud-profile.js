@@ -20,6 +20,7 @@
   // ?api=<origin> points a LOCAL page (file://, localhost) at a dev server, node server/main.js.
   // Ignored on any other host, so a crafted link can never send someone's session elsewhere.
   const API = (function () {
+    if (THUMB) return "";        // a thumbnail render talks to nobody
     try {
       const q = new URLSearchParams(location.search).get("api");
       const local = location.protocol === "file:" || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
@@ -868,11 +869,19 @@
   let galImgObs = null;
   function galLazy(img, src) {
     if (!window.IntersectionObserver) { img.src = src; return; }
-    if (!galImgObs) galImgObs = new IntersectionObserver(es => {
-      for (const x of es) if (x.isIntersecting) { galImgObs.unobserve(x.target); x.target.src = x.target.dataset.src; }
-    }, { root: document.querySelector("#galdlg .gal-box"), rootMargin: "100% 0px" });
     img.dataset.src = src;
-    galImgObs.observe(img);
+    galImgObserver().observe(img);
+  }
+  // A placeholder in view asks for a render (galRenderWant, gallery-thumbs.js); a poster loads.
+  function galImgObserver() {
+    if (!galImgObs) galImgObs = new IntersectionObserver(es => {
+      for (const x of es) {
+        if (!x.isIntersecting) continue;
+        galImgObs.unobserve(x.target);
+        if (x.target.__card) galRenderWant(x.target); else x.target.src = x.target.dataset.src;
+      }
+    }, { root: document.querySelector("#galdlg .gal-box"), rootMargin: "100% 0px" });
+    return galImgObs;
   }
   // A placeholder until a thumbnail is rendered: a gradient keyed on the id, never random,
   // so a card looks the same every time it is listed.
@@ -911,6 +920,7 @@
       const t = document.createElement("span");
       t.textContent = c.name;
       th.appendChild(t);
+      if (c.at == null && window.IntersectionObserver) { th.__card = c; galImgObserver().observe(th); }
     }
     const cap = document.createElement("div");
     cap.className = "gal-cap";

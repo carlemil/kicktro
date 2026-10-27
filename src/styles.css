@@ -555,6 +555,17 @@
   #galdlg .gal-thumb video { opacity: 0; }
   #galdlg .gal-card.playing .gal-thumb video { opacity: 1; }
   #galdlg .gal-thumb.gal-ph { display: flex; align-items: center; justify-content: center; padding: 10px; box-sizing: border-box; }
+  /* A card whose thumbnail this browser is rendering (gallery-thumbs.js). */
+  #galdlg .gal-thumb.gal-rendering::after {
+    content: "Rendering preview…"; position: absolute; left: 0; right: 0; bottom: 6px; text-align: center;
+    color: rgba(255, 255, 255, 0.7); font-size: 11px; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  }
+  /* The hidden copy of the page that renders it: in the viewport (an off-screen frame is
+     throttled) but invisible and out of the way. */
+  .thumb-frame {
+    position: fixed; left: 0; top: 0; width: 960px; height: 540px; border: 0;
+    opacity: 0; pointer-events: none; z-index: -1;
+  }
   #galdlg .gal-thumb.gal-ph span {
     color: rgba(255, 255, 255, 0.85); font-size: 13px; text-align: center; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
     overflow: hidden; text-overflow: ellipsis;

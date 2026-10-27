@@ -875,7 +875,19 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   clip = frames 300–598 at 30 fps, synthetic 120 BPM beat latched into every armed trigger; ffmpeg
   → 480×270 WebP + H.264). `--builtin` writes `thumbs/` (staged by `pages.yml`) and re-emits;
   `--server` renders `/api/admin/thumbs/todo` and PUTs; `--check <slug>` proves two renders
-  identical AND that the beat changes them (negative control). Three splices, each asserted once.
+  identical AND that the beat changes them (negative control). **The harness lives IN THE APP**
+  (`src/gallery-thumbs.js`): `thumbPrelude(cfg)` (SELF-CONTAINED — shipped as its own source text,
+  sliced by its two marker lines) swaps in in-memory storage seeded with the scene, the fixed-step
+  rAF and the xorshift `Math.random`; the app reads it as `THUMB` (`boot-globals.js`: no API, no
+  analytics, no front door, `thumbBeat` from `frame()`); `thumbRun` hands frames out via `cfg.sink`.
+- **The first visitor renders a missing thumbnail** (no GPU on the server): a placeholder in view
+  (`galImgObs`) queues `galRenderWant` — this page's own HTML (`fetch(location.pathname)`) + the
+  prelude in a **`sandbox="allow-scripts"` srcdoc iframe** (opaque origin: never the visitor's
+  storage), `.thumb-frame` IN the viewport at opacity 0 (off-screen frames are throttled). One at a
+  time, ≤ `GAL_RENDER_MAX` per visit, not on coarse pointers, rejected unless `done` reports 0
+  console errors and 0 GL errors. The poster shows at once and goes to `PUT /api/gallery/:id/thumb`
+  (unauthenticated, 480×270 WebP only — Chrome writes VP8X). Never write the literal head or script
+  tag in app source: every browser check SPLITS the built page on them. gallery-check `case-render`.
 - `tools/gallery-check.js` (stub API; case-door/-picked/-armed drive the front door via
   `?frontdoor` with refusing `mediaDevices` stubs) is the gate.
 
@@ -899,6 +911,10 @@ talks to it since M2.
   version, absent = unguarded; mismatch 412. That is `cloudSess.docTime`'s replacement.
 - Thumbnails are files `/thumbs/<id>-<ver>.webp|.mp4`, immutable, uploaded by the admin route
   (`ADMIN_TOKEN`); a new version deletes the old one. Byte ranges are served (hover video).
+  **A visitor's poster** (`PUT /api/gallery/:id/thumb`, anyone, `LIMIT.thumb` per IP) is taken
+  only while the card NEEDS one (none, or `thumb_at < pub_at`), first wins (409), size read from the
+  WebP header (`webpSize`). It sets `thumb_clip = 0` (listing `clip: null`) and keeps the card on
+  the admin todo, so `thumbs.js --server` replaces it — which is also what undoes a vandal's upload.
 - Routing: talebindery's Caddy owns 80/443. KickTro is its OWN compose project (`/srv/kicktro`,
   container `kicktro-api` on the external `edge` network) and drops `server/kicktro.caddy` into
   `/srv/caddy-sites`. The one-time talebindery change is LIVE (talebindery `15c18da8`,

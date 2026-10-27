@@ -377,7 +377,7 @@
     try { if (window.gtag) window.gtag("event", name, params || {}); } catch (e) {}
   }
   (function initAnalytics() {
-    if (!GA_MEASUREMENT_ID) return;
+    if (!GA_MEASUREMENT_ID || THUMB) return;
     window.dataLayer = window.dataLayer || [];
     window.gtag = function () { window.dataLayer.push(arguments); };
     window.gtag("js", new Date());

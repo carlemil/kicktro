@@ -41,12 +41,14 @@ console.log("--- Cloud profiles: the API client (" + file + ")\n");
 // ---- behaviour: which API the page talks to ----------------------------------------------
 {
   const head = slice("const API = (function () {", "const cloudOn =");
-  const apiFor = (apiBase, href) => {
+  const apiFor = (apiBase, href, thumb) => {
     const u = new URL(href);
-    return new Function("CLOUD", "location", head + "\n return API;")(apiBase == null ? undefined : { apiBase }, {
+    return new Function("CLOUD", "location", "THUMB", head + "\n return API;")(apiBase == null ? undefined : { apiBase }, {
       search: u.search, protocol: u.protocol, hostname: u.hostname,
-    });
+    }, thumb || null);
   };
+  ok("a THUMBNAIL render (a hidden copy of the page) talks to no API at all",
+     apiFor("https://api.kicktro.com", "https://kicktro.com/", { sink: "parent" }) === "");
   ok("the configured base is used as is, trailing slash dropped",
      apiFor("https://api.kicktro.com/", "https://kicktro.com/") === "https://api.kicktro.com");
   ok("an empty apiBase is the kill switch (no API at all)", apiFor("", "https://kicktro.com/") === "");

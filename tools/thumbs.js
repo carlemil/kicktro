@@ -17,7 +17,7 @@
 // The admin token comes from KICKTRO_ADMIN_TOKEN, else from /srv/kicktro/.env over ssh; it is
 // never printed. No npm packages: headless Edge on the REAL GPU and the local ffmpeg.
 //
-// The harness is abshot's: the page owns its rAF queue with a fixed 1/60 step and a stubbed
+// The harness is abshot's, kept in the app (src/gallery-thumbs.js): the page owns its rAF queue with a fixed 1/60 step and a stubbed
 // Math.random, so frame N is the same picture on every run. Poster = frame 300 (5 s in); clip =
 // frames 300..598 every other frame, i.e. 5 s at 30 fps. A synthetic 120 BPM beat (low on the
 // beat, mid on the backbeat, high on the eighths) is latched into every armed trigger, so a
@@ -54,105 +54,21 @@ const API = (args.api || "https://api.kicktro.com").replace(/\/+$/, "");
 const SSH = args.ssh || "deploy@136.148.210.49";
 function die(msg) { console.error("thumbs: " + msg); process.exit(1); }
 
-// ---- the page --------------------------------------------------------------------------
-// Three one-line splices, each asserted to match exactly once so a renamed line fails loudly
-// instead of silently rendering a scene with no beat.
-const SPLICES = [
-  // armed sliders react only while audio reaches the visual; the synthetic beat stands in
-  ["  const audioLive = () => audio.on && !audio.muted;",
-   "  const audioLive = () => !!window.__beatOn || (audio.on && !audio.muted);"],
-  // latch this frame's beats into every armed trigger, just before updateAnims reads them
-  ["    updateAnims(now, dt);             // drive the ranged sliders' erratic values",
-   "    if (window.__beatFn) window.__beatFn(audio, function(){ if (trigDirty) rebuildTriggers(); return trigList; });" + NL
-   + "    updateAnims(now, dt);             // drive the ranged sliders' erratic values"],
-  // a shared world links asynchronously; wait for it in REAL time before frames are counted,
-  // or the frame the picture comes right on would depend on the driver's speed
-  ["  function closeFilterPicker() {",
-   "  window.__worldPending = function(){ if (!worldProgs || !gl) return false; for (var k in worldProgs) { var e = worldProgs[k];"
-   + " if (e && e.pending && worldPar && !gl.getProgramParameter(e.p, worldPar.COMPLETION_STATUS_KHR)) return true; } return false; };" + NL
-   + "  function closeFilterPicker() {"],
-];
-
+// ---- the page ----------------------------------------------------------------------------
+// The harness lives IN THE APP (src/gallery-thumbs.js), because the gallery runs the same one in
+// a visitor's browser: thumbPrelude(cfg) runs before the app (in-memory storage seeded with the
+// scene, the owned rAF queue, the stubbed Math.random), the app reads it as THUMB (the synthetic
+// beat, no cloud, no front door) and thumbRun plays the frames out through cfg.sink. Here the
+// sink is the console. The prelude is sliced out of the built page by its marker lines, which
+// must match exactly once, so a renamed marker fails loudly instead of rendering nothing.
+const PRE_A = "  function thumbPrelude(cfg) {", PRE_B = "  // end thumbPrelude";
 function pageFor(app, blob, beat) {
-  // The scene arrives the way a Restore does: the library in burnTheWeb.v1 and the one-shot
-  // index that makes startup APPLY it (curPreset alone only selects).
-  const seed = Object.assign({}, blob, { curPreset: 0, cycle: false, tdur: [0, 0], panelOpen: false, audio: "off" });
-  const head = [
-    "(function(){",
-    "  try {",
-    "    localStorage.clear();",
-    "    localStorage.setItem('burnTheWeb.v1', " + JSON.stringify(JSON.stringify(seed)) + ");",
-    "    localStorage.setItem('burnTheWeb.tutorial.v1', 'true');",
-    "    localStorage.setItem('burnTheWeb.credits.v1', 'off');",
-    "    localStorage.setItem('burnTheWeb.sync.v1', JSON.stringify({ shows: 3, sinceLast: 0, used: true }));",
-    "    sessionStorage.setItem('btw.applyPreset', '0');",
-    "  } catch (e) {}",
-    "  window.__errs = 0;",
-    "  addEventListener('error', function(){ window.__errs++; });",
-    "  var ce = console.error; console.error = function(){ window.__errs++; ce.apply(console, arguments); };",
-    "  var gc = HTMLCanvasElement.prototype.getContext;",
-    "  HTMLCanvasElement.prototype.getContext = function(t){ var c = gc.apply(this, arguments); if (t === 'webgl2' && c) window.__gl = c; return c; };",
-    "  var st = 0x9E3779B9;",
-    "  Math.random = function(){ st ^= st << 13; st ^= st >>> 17; st ^= st << 5; return ((st >>> 0) % 1000000) / 1000000; };",
-    "  var q = [], t = 1000;",
-    "  window.__fno = 0;",
-    "  window.requestAnimationFrame = function(cb){ q.push(cb); return q.length; };",
-    "  window.cancelAnimationFrame = function(){};",
-    "  window.__pump = function(n){",
-    "    for (var i = 0; i < n; i++){ var cur = q; q = []; t += 1000 / 60; window.__fno++; for (var j = 0; j < cur.length; j++) cur[j](t); }",
-    "  };",
-    "  window.__beatOn = " + (beat !== false) + ";",
-    "  window.__beatFn = !window.__beatOn ? null : function(audio, list){",
-    "    var n = window.__fno, hit = [n % 30 === 0, n % 60 === 30, n % 15 === 0];",
-    "    var ts = list();",
-    "    for (var b = 0; b < 3; b++){ if (!hit[b]) continue; audio.beatNow[b] = true; audio.pulse[b] = 1;",
-    "      for (var i = 0; i < ts.length; i++){ ts[i].st.now[b] = true; ts[i].st.pulse[b] = 1; } }",
-    "  };",
-    "})();",
-  ].join(NL);
-  const body = [
-    "(function(){",
-    "  var W = " + W + ", H = " + H + ";",
-    "  function log(s){ console.log('THUMB|' + s); }",
-    "  var c2 = document.createElement('canvas'); c2.width = W; c2.height = H;",
-    "  var g2 = c2.getContext('2d'); g2.imageSmoothingQuality = 'high';",
-    "  function shot(type, q){ g2.clearRect(0, 0, W, H); g2.drawImage(document.getElementById('fire'), 0, 0, W, H); return c2.toDataURL(type, q).split(',')[1]; }",
-    "  function to(f){ if (window.__fno < f) window.__pump(f - window.__fno); }",
-    "  function go(){",
-    "    document.body.classList.add('ui-hidden');",
-    "    window.__pump(2);",
-    "    var t0 = Date.now();",
-    "    (function wait(){",
-    "      if (window.__worldPending() && Date.now() - t0 < 240000){ setTimeout(wait, 200); return; }",
-    "      log('scene|' + ((document.getElementById('scenenow') || {}).textContent || '').trim());",
-    "      var f = 0;",
-    "      (function warm(){",
-    "        f = Math.min(f + 30, " + POSTER + "); to(f);",
-    "        if (f < " + POSTER + "){ setTimeout(warm, 0); return; }",
-    "        log('poster|' + shot('image/png'));",
-    "        var i = 0;",
-    "        (function clip(){",
-    "          for (var k = 0; k < 15 && " + POSTER + " + i * " + STEP + " < " + CLIP_END + "; k++, i++){",
-    "            to(" + POSTER + " + i * " + STEP + ");",
-    "            log('f|' + i + '|' + shot('image/jpeg', 0.93));",
-    "          }",
-    "          if (" + POSTER + " + i * " + STEP + " < " + CLIP_END + "){ setTimeout(clip, 0); return; }",
-    "          log('done|' + window.__errs + '|' + (window.__gl ? window.__gl.getError() : 'nogl'));",
-    "        })();",
-    "      })();",
-    "    })();",
-    "  }",
-    "  if (window.__appReady) go(); else addEventListener('app:ready', go, { once: true });",
-    "})();",
-  ].join(NL);
-  let s = app;
-  for (const [from, to] of SPLICES) {
-    if (s.split(from).length - 1 !== 1) die("splice did not match exactly once: " + from.trim());
-    s = s.split(from).join(to);
-  }
-  s = s.split("<head>").join("<head>" + NL + "<script>" + head + "<" + "/script>");
-  s = s.split("</body>").join("<script>" + body + "<" + "/script>" + NL + "</body>");
-  return s;
+  if (app.split(PRE_A).length !== 2 || app.split(PRE_B).length !== 2) die("thumbPrelude markers not found exactly once in the page");
+  const pre = app.slice(app.indexOf(PRE_A), app.indexOf(PRE_B)).trim();
+  const cfg = { blob, sink: "console", type: "image/png", clip: true, beat: beat !== false };
+  const head = "(" + pre + ")(" + JSON.stringify(cfg).replace(/</g, "\\u003c") + ");";
+  const at = app.indexOf("<head>");
+  return app.slice(0, at + 6) + NL + "<script>" + head + "<" + "/script>" + app.slice(at + 6);
 }
 
 // ---- one render: Edge in REAL time (a shared world's async link needs it), killed on 'done'
@@ -183,8 +99,8 @@ function edgeRun(htmlFile, ud) {
         if (!m) continue;
         const f = m[1].split("|");
         if (f[0] === "scene") out.scene = f.slice(1).join("|");
-        else if (f[0] === "poster") out.poster = Buffer.from(f[1], "base64");
-        else if (f[0] === "f") out.frames[+f[1]] = Buffer.from(f[2], "base64");
+        else if (f[0] === "poster") out.poster = b64(f[1]);
+        else if (f[0] === "f") out.frames[+f[1]] = b64(f[2]);
         else if (f[0] === "done") { out.done = { errs: +f[1], gl: f[2] }; finish(); }
       }
     });
@@ -192,6 +108,7 @@ function edgeRun(htmlFile, ud) {
   });
 }
 
+const b64 = u => Buffer.from(u.slice(u.indexOf(",") + 1), "base64");
 function ffmpeg(argv) {
   const r = spawnSync(FFMPEG, ["-y", "-hide_banner", "-loglevel", "error", ...argv], { encoding: "utf8" });
   if (r.status !== 0) die("ffmpeg failed: " + (r.stderr || r.error));
@@ -270,7 +187,7 @@ function adminToken() {
       + ", frames " + (a.framesHash === c.framesHash ? "same" : "differ") + ")");
     // The negative control: with the synthetic beat off, a scene with armed sliders must come
     // out different. Every AI scene arms some, so identical frames here mean the beat never
-    // reached a trigger (a splice that matched but stopped doing anything).
+    // reached a trigger (thumbBeat no longer reaching the triggers).
     const off = await render(b.blob, b.slug + "-nobeat", false);
     const moved = off.framesHash !== a.framesHash;
     console.log((moved ? "PASS" : "FAIL") + "  the synthetic beat " + (moved ? "changes" : "does NOT change") + " the frames");

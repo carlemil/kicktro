@@ -51,6 +51,12 @@
 // case-lazy (REAL TIME, no budget -- virtual time never delivers an IntersectionObserver
 //   callback): the poster in view is fetched, one below the fold is not (NEGATIVE) until its
 //   card is scrolled into view; the page closes itself.
+// case-render (REAL TIME): srv-1 has no thumbnail, so the first visitor to see its card renders
+//   one -- in a sandboxed srcdoc iframe of the page's own HTML (served by the stub), one frame
+//   with no same-origin access -- and sends it with PUT /api/gallery/srv-1/thumb: a 480x270
+//   WebP that is NOT black (the scene really drew), shown on the card at once; the iframe is
+//   gone after; this page's localStorage is untouched by the copy's seeded library; and the
+//   NEGATIVE: cards that have a poster, and srv-1 a second time, send nothing.
 // No backtick in the injected source; lines joined by an explicit newline.
 const fs = require("fs");
 const path = require("path");
@@ -171,6 +177,7 @@ const head = [
   "  var realFetch = window.fetch;",
   "  window.fetch = function (url, opts) {",
   "    var u = String(url);",
+  "    if (window.__PAGE && u === location.pathname) return Promise.resolve({ ok: true, status: 200, text: function () { return Promise.resolve(window.__PAGE); } });",
   "    if (u.indexOf('/api/') < 0) return realFetch.apply(this, arguments);",
   "    opts = opts || {};",
   "    var method = (opts.method || 'GET').toUpperCase();",
@@ -190,6 +197,11 @@ const head = [
   "      if (!on && mineSet[id]) { delete mineSet[id]; if (love) r0.favs--; else r0.hates--; }",
   "      if (id === 'srv-5' && on && love) r0.favs = 50;",
   "      return answer(200, { id: id, mine: !!mine[id], hate: !!hated[id], favs: r0.favs, hates: r0.hates }, 300);",
+  "    }",
+  "    var tm = /^\\/api\\/gallery\\/([^/]+)\\/thumb$/.exec(path);",
+  "    if (tm && method === 'PUT') {",
+  "      window.__req[window.__req.length - 1].body = JSON.parse(opts.body);",
+  "      return answer(200, { id: tm[1], thumb_ver: 1, poster: '/thumbs/' + tm[1] + '-1.webp', clip: null });",
   "    }",
   "    if (path === '/api/auth/anon' && method === 'POST') return answer(200, { uid: 'anon-uid', token: 'anon-tok', expires: Date.now() + 90 * 86400000 });",
   "    if (path === '/api/me/gallery' && method === 'PUT') {",
@@ -240,7 +252,7 @@ const tail = [
   "  var lit = function (id) { var c = card(id), on = c.querySelectorAll('.gal-vote .on');",
   "    return on.length === 1 && on[0].getAttribute('aria-checked') === 'true' && c.querySelectorAll('.gal-vote [aria-checked=true]').length === 1 ? on[0].classList[0].slice(4) : 'BAD'; };",
   "  var reqs = function (re) { return window.__req.filter(function (r) { return re.test(r.m + ' ' + r.p); }); };",
-  "  var done = function () { console.log('DONE ' + CASE + ' fails=' + window.__fails()); if (CASE === 'case-lazy') setTimeout(function () { try { window.close(); } catch (e) {} }, 200); };",
+  "  var done = function () { console.log('DONE ' + CASE + ' fails=' + window.__fails()); if (CASE === 'case-lazy' || CASE === 'case-render') setTimeout(function () { try { window.close(); } catch (e) {} }, 200); };",
   "  var steps = [], at = 0;",
   "  function then(ms, f) { steps.push([ms, f]); }",
   "  function run() { if (at >= steps.length) return; var s = steps[at++]; setTimeout(function () { s[1](); run(); }, s[0]); }",
@@ -539,6 +551,48 @@ const tail = [
   "      done();",
   "    });",
   "  }",
+  // ================= a missing thumbnail is rendered here (REAL TIME) =================
+  "  if (CASE === 'case-render') {",
+  "    var msgs = [];",
+  "    addEventListener('message', function (e) { if (e.data && e.data.kt === 'thumb') msgs.push(e.data.kind + (e.data.kind === 'done' ? '=' + e.data.data : '')); });",
+  "    var puts = function () { return reqs(/^PUT \\/api\\/gallery\\/[^/]+\\/thumb$/); };",
+  "    then(1500, function () {",
+  "      window.__ls0 = localStorage.getItem('burnTheWeb.v1');",
+  "      var th = card('srv-1').querySelector('.gal-thumb'), frs = document.querySelectorAll('iframe.thumb-frame');",
+  "      ok('a card with no thumbnail in view starts a render', th.classList.contains('gal-rendering'), th.className);",
+  "      ok('...in ONE iframe, sandboxed to scripts only (no same-origin)', frs.length === 1 && frs[0].getAttribute('sandbox') === 'allow-scripts', frs.length + ' ' + (frs[0] && frs[0].getAttribute('sandbox')));",
+  "      var t0 = Date.now();",
+  "      (function wait() {",
+  "        if (!puts().length && document.querySelector('iframe.thumb-frame') && Date.now() - t0 < 90000) { setTimeout(wait, 500); return; }",
+  "        setTimeout(verdict, 2000);",
+  "      })();",
+  "    });",
+  "    function verdict() {",
+  "      var p = puts(), th = card('srv-1').querySelector('.gal-thumb'), img = th.querySelector('img');",
+  "      ok('the render is sent for srv-1, once, and for nothing else', p.length === 1 && p[0].p === '/api/gallery/srv-1/thumb', p.map(function (r) { return r.p; }).join(',') + ' msgs=' + msgs.join(','));",
+  "      var b = p[0] && p[0].body, raw = b ? atob(b.poster.slice(0, 64)) : '';",
+  "      var u16 = function (o) { return raw.charCodeAt(o) | (raw.charCodeAt(o + 1) << 8); };",
+  "      ok('...as a poster only', !!b && Object.keys(b).join() === 'poster', b && Object.keys(b).join());",
+  "      var u24 = function (o) { return u16(o) | (raw.charCodeAt(o + 2) << 16); }, kind = raw.slice(12, 16);",
+  "      var dim = kind === 'VP8 ' ? [u16(26) & 0x3fff, u16(28) & 0x3fff] : kind === 'VP8X' ? [u24(24) + 1, u24(27) + 1] : [0, 0];",
+  "      ok('...a WebP of 480x270', raw.slice(0, 4) === 'RIFF' && raw.slice(8, 12) === 'WEBP' && dim[0] === 480 && dim[1] === 270, kind + ' ' + dim.join('x'));",
+  "      ok('the card shows it at once', !!img && /^data:image\\/webp;base64,/.test(img.src) && !th.classList.contains('gal-ph') && !th.classList.contains('gal-rendering'), th.className);",
+  "      ok('the iframe is gone', !document.querySelector('iframe.thumb-frame'));",
+  "      ok('this page\\'s library is untouched by the copy', localStorage.getItem('burnTheWeb.v1') === window.__ls0);",
+  "      if (!img) { done(); return; }",
+  "      var im = new Image();",
+  "      im.onload = function () {",
+  "        var c = document.createElement('canvas'); c.width = 48; c.height = 27;",
+  "        var g = c.getContext('2d'); g.drawImage(im, 0, 0, 48, 27);",
+  "        var d = g.getImageData(0, 0, 48, 27).data, sum = 0, lit = 0;",
+  "        for (var i = 0; i < d.length; i += 4) { var v = d[i] + d[i + 1] + d[i + 2]; sum += v; if (v > 60) lit++; }",
+  "        ok('...and it is a picture, not a black frame', lit > 48 * 27 * 0.1, 'mean ' + Math.round(sum / (48 * 27 * 3)) + ', lit ' + lit);",
+  "        done();",
+  "      };",
+  "      im.onerror = function () { ok('the poster decodes', false); done(); };",
+  "      im.src = img.src;",
+  "    }",
+  "  }",
   // ================= signed out =================
   "  if (CASE === 'case-out') {",
   "    then(600, function () {",
@@ -653,6 +707,8 @@ const tail = [
   "    });",
   "    then(400, function () {",
   "      // ---- a built-in card on TOUCH: first tap previews, second loads ----",
+  "      // srv-1 has no thumbnail, so this visit already fetched its scene to render one: forget it",
+  "      sessionStorage.removeItem('galchk-fetch');",
   "      var nr = card('builtin:neon-reef');",
   "      pe(nr, 'pointerdown', 'touch'); nr.focus(); nr.click();",
   "      ok('the first tap previews', nr.classList.contains('previewing') && !!nr.querySelector('video'));",
@@ -769,10 +825,12 @@ const tail = [
 function build(c) {
   let html = app.split("<head>").join("<head>" + head.replace("<script>", "<script data-c=\"" + c + "\">"));
   html = html.split("</body>").join(tail.replace("<script>", "<script data-c=\"" + c + "\">") + "</body>");
+  // case-render: the page's own HTML for the stub to serve (fetch cannot read file://).
+  if (c === "case-render") html = html.split("<head>").join("<head><script>window.__PAGE = " + JSON.stringify(app).split("<").join("\\u003c") + ";<" + "/script>");
   fs.writeFileSync(path.join(outDir, c + ".html"), html);
   console.log("wrote " + c + ".html");
 }
-const CASES = { "case-out": "", "case-in": "", "case-lazy": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
+const CASES = { "case-out": "", "case-in": "", "case-lazy": "", "case-render": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
   "case-cred-new": "", "case-cred-recent": "", "case-cred-old": "", "case-cred-hook": "?credits=4",
   "case-sync-anon": "?api=http://127.0.0.1:9", "case-sync-in": "?api=http://127.0.0.1:9", "case-sync-off": "" };
 for (const c in CASES) build(c);
@@ -780,6 +838,6 @@ const abs = path.resolve(outDir).split(path.sep).join("/");
 console.log(NL + "run each with:");
 for (const c in CASES) {
   console.log('  msedge --headless=new --disable-extensions --enable-logging=stderr --v=0'
-    + (c === "case-lazy" ? "" : /^case-sync-/.test(c) ? ' --virtual-time-budget=35000' : ' --virtual-time-budget=20000') + ' --user-data-dir="' + abs + '/ud-' + c + '"'
+    + (c === "case-lazy" || c === "case-render" ? "" : /^case-sync-/.test(c) ? ' --virtual-time-budget=35000' : ' --virtual-time-budget=20000') + ' --user-data-dir="' + abs + '/ud-' + c + '"'
     + ' "file:///' + abs + '/' + c + '.html' + CASES[c] + '" 2>&1 | grep -oE ' + Q + '"(PASS|FAIL|DONE)[^"]*"' + Q);
 }

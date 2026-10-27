@@ -133,7 +133,8 @@
   // exactly while muted. Kept separate rather than clearing `audio.on`, because `audio.on`
   // is what the Capture/Mic buttons, the resume-on-gesture path and fullSnapshot's
   // last-live-source all read, and none of those should think the source went away.
-  const audioLive = () => audio.on && !audio.muted;
+  // A thumbnail render has no audio: its synthetic beat (thumbBeat) stands in.
+  const audioLive = () => THUMB ? !!THUMB.beat : audio.on && !audio.muted;
   const meterBars = panel.querySelectorAll(".meter i");
   function computeBins() {
     const hz = audio.ctx.sampleRate / audio.analyser.fftSize;   // Hz per bin

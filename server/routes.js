@@ -20,6 +20,7 @@ const CAP = {
   favsPerUser: 5000,
   hatesPerUser: 5000,
   poster: 1 << 20,          // 1 MB
+  viewerPoster: 256 << 10,  // a visitor's browser render: 480x270 WebP, ~20-60 KB in practice
   clip: 6 << 20,            // 6 MB
 };
 const BODY = {
@@ -27,6 +28,7 @@ const BODY = {
   profile: 400 << 10,
   scene: 300 << 10,
   thumbs: 12 << 20,
+  poster: 360 << 10,        // viewerPoster as base64, plus room
   import: 32 << 20,
 };
 const LIMIT = {   // [max, windowMs]
@@ -38,6 +40,7 @@ const LIMIT = {   // [max, windowMs]
   fav: [300, 3600000],
   anon: [5, 86400000],      // anonymous accounts minted per IP per day
   sync: [600, 3600000],     // library pushes per account per hour (the page sends each edit within seconds)
+  thumb: [30, 3600000],     // visitor-rendered posters per IP per hour
 };
 
 const ID_RE = /^[A-Za-z0-9]{10,40}$/;
@@ -47,6 +50,21 @@ const BUILTIN_RE = /^builtin:[a-z0-9-]{1,40}$/;
 const THUMB_RE = /^([A-Za-z0-9]{10,40})-(\d{1,9})\.(webp|mp4)$/;
 
 // ---- validation --------------------------------------------------------------------------
+const isWebp = b => b.length > 30 && b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WEBP";
+// A WebP's canvas size from its first chunk: VP8 (lossy), VP8L (lossless) or VP8X (extended,
+// which is what an encoder writes when the picture has alpha). null = not one of those.
+function webpSize(b) {
+  const kind = b.toString("latin1", 12, 16);
+  if (kind === "VP8 " && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) {
+    return { w: b.readUInt16LE(26) & 0x3fff, h: b.readUInt16LE(28) & 0x3fff };
+  }
+  if (kind === "VP8L" && b[20] === 0x2f) {
+    const v = b.readUInt32LE(21);
+    return { w: (v & 0x3fff) + 1, h: ((v >>> 14) & 0x3fff) + 1 };
+  }
+  if (kind === "VP8X") return { w: b.readUIntLE(24, 3) + 1, h: b.readUIntLE(27, 3) + 1 };
+  return null;
+}
 const clean = s => s.replace(/[\u0000-\u001f\u007f]/g, "");
 function vName(v, max, field) {
   if (typeof v !== "string") throw new HttpError(400, field + " must be a string");
@@ -76,8 +94,9 @@ function vTime(v) {
   return Number.isFinite(t) && t > 0 ? Math.round(t) : Date.now();
 }
 
-function thumbUrls(id, ver) {
-  return ver > 0 ? { poster: "/thumbs/" + id + "-" + ver + ".webp", clip: "/thumbs/" + id + "-" + ver + ".mp4" }
+// clip 0 = a visitor's poster with no clip (thumb_clip).
+function thumbUrls(id, ver, clip) {
+  return ver > 0 ? { poster: "/thumbs/" + id + "-" + ver + ".webp", clip: clip === 0 ? null : "/thumbs/" + id + "-" + ver + ".mp4" }
     : { poster: null, clip: null };
 }
 
@@ -128,7 +147,7 @@ function makeRoutes(ctx) {
     galGet: q("select g.*, " + AUTHOR + ", (select count(*) from favs f where f.scene_id = g.id) favs, "
       + "(select count(*) from hates h where h.scene_id = g.id) hates "
       + "from gallery g join users u on u.uid = g.owner where g.id = ?"),
-    galRow: q("select id, owner, thumb_ver, skey, payload, gone from gallery where id = ?"),
+    galRow: q("select id, owner, thumb_ver, thumb_at, pub_at, skey, payload, gone from gallery where id = ?"),
     galOwnedBy: q("select id, skey, name, thumb_ver from gallery where owner = ?"),
     galMove: q("update gallery set owner = ? where id = ?"),
     userInsAnon: q("insert into users (uid, google_sub, firebase_uid, name, created, anon) values (?, ?, null, '', ?, 1)"),
@@ -137,11 +156,11 @@ function makeRoutes(ctx) {
     galCount: q("select count(*) n from gallery where owner = ?"),
     galOwnedIds: q("select id, thumb_ver from gallery where owner = ?"),
     // To render: a public card with no thumbnail, or whose public version changed since its
-    // thumbnail was made (a promoted edit).
+    // thumbnail was made (a promoted edit), or whose thumbnail is a visitor's poster.
     galTodo: q("select id, name, payload, thumb_ver from gallery where payload != '' "
-      + "and (thumb_ver = 0 or thumb_at < pub_at) order by created"),
+      + "and (thumb_ver = 0 or thumb_at < pub_at or thumb_clip = 0) order by created"),
     galAll: q("select id, name, payload, thumb_ver from gallery where payload != '' order by created"),
-    galThumb: q("update gallery set thumb_ver = ?, thumb_at = ? where id = ?"),
+    galThumb: q("update gallery set thumb_ver = ?, thumb_at = ?, thumb_clip = ? where id = ?"),
     galBuiltinFavs: q("select scene_id, count(*) n from favs where scene_id like 'builtin:%' group by scene_id"),
     galBuiltinHates: q("select scene_id, count(*) n from hates where scene_id like 'builtin:%' group by scene_id"),
 
@@ -429,7 +448,8 @@ function makeRoutes(ctx) {
     const order = sort === "new" ? "order by g.created desc, g.id"
       : sort === "name" ? "order by g.name collate nocase, g.id"
       : "order by favs - hates desc, favs desc, g.created desc, g.id";   // Most loved: the SCORE
-    const rows = q("select g.id, g.name, g.pend_name, g.owner, g.created, g.thumb_ver, g.edited, g.skey, "
+    const rows = q("select g.id, g.name, g.pend_name, g.owner, g.created, g.thumb_ver, g.thumb_clip, g.edited, g.skey, "
+      + "g.payload != '' and g.thumb_ver > 0 and g.thumb_at < g.pub_at stale, "
       + "g.pend is not null pending, g.payload != '' live, " + AUTHOR + ", "
       + "(select count(*) from favs f where f.scene_id = g.id) favs, "
       + "(select count(*) from hates h where h.scene_id = g.id) hates "
@@ -445,7 +465,8 @@ function makeRoutes(ctx) {
     sendJson(r.res, 200, {
       total, offset: off, sort, builtin, builtinHates,
       items: rows.map(g => ({ id: g.id, name: ownOf && g.pend_name ? g.pend_name : g.name, author: g.author,
-        owner: g.owner, created: g.created, favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver),
+        owner: g.owner, created: g.created, favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver, g.thumb_clip),
+        ...(g.stale ? { stale: true } : {}),   // the thumbnail shows an older public version
         ...(g.skey ? { synced: true } : {}),   // follows a scene in its owner's library: no ✕
         ...(ownOf ? { live: !!g.live, ...(g.pending ? { pending: g.edited + cfg.pendingMs } : {}) } : {}) })),
     }, { "Cache-Control": favOf || ownOf ? "private, no-store" : "public, max-age=30" });
@@ -461,7 +482,7 @@ function makeRoutes(ctx) {
     if (!g || (!own && (g.payload === "" || g.gone))) throw new HttpError(404, "no such scene");
     sendJson(r.res, 200, { id: g.id, name: own && g.pend_name ? g.pend_name : g.name, author: g.author, owner: g.owner,
       payload: own && g.pend ? g.pend : g.payload,
-      created: g.created, favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver) });
+      created: g.created, favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver, g.thumb_clip) });
   });
   on("POST", "/api/gallery", async r => {
     const u = account(r);
@@ -564,6 +585,36 @@ function makeRoutes(ctx) {
     return { id, mine, hate, favs: S.favCount.get(id).n, hates: S.hateCount.get(id).n };
   }
 
+  // A card's thumbnail as rendered by the FIRST VISITOR who opens the gallery while it has none
+  // (the page renders it in a hidden copy of itself; there is no GPU on the server). Anyone may
+  // send one, so it is accepted only while the card needs one -- none yet, or one of an older
+  // public version -- and only as a 480x270 WebP; the first wins (409 after). It is a POSTER
+  // ONLY (thumb_clip 0), and tools/thumbs.js --server re-renders every such card for real,
+  // which is also what replaces a bad one.
+  on("PUT", "/api/gallery/([^/]+)/thumb", async r => {
+    limit(r.ip, "thumb");
+    const id = decodeURIComponent(r.m[1]);
+    if (!cfg.thumbDir) throw new HttpError(503, "thumbnail storage is not configured");
+    const body = await readJson(r.req, BODY.poster);
+    onlyKeys(body, ["poster"]);
+    const poster = Buffer.from(String(body.poster || ""), "base64");
+    if (!isWebp(poster) || poster.length > CAP.viewerPoster) throw new HttpError(400, "poster must be a WebP of at most 256 KB");
+    const dim = webpSize(poster);
+    if (!dim || dim.w !== 480 || dim.h !== 270) throw new HttpError(400, "poster must be 480x270");
+    // Checked AFTER the body is read: two visitors racing both pass a check made before it.
+    gsync.promote();
+    const g = ID_RE.test(id) && S.galRow.get(id);
+    if (!g || g.payload === "" || g.gone) throw new HttpError(404, "no such scene");
+    if (g.thumb_ver > 0 && g.thumb_at >= g.pub_at) throw new HttpError(409, "this scene has a thumbnail");
+    const ver = g.thumb_ver + 1;
+    fs.mkdirSync(cfg.thumbDir, { recursive: true });
+    const file = path.join(cfg.thumbDir, id + "-" + ver + ".webp");
+    fs.writeFileSync(file + ".tmp", poster);
+    fs.renameSync(file + ".tmp", file);
+    S.galThumb.run(ver, Date.now(), 0, id);
+    removeThumbs(id, g.thumb_ver);
+    sendJson(r.res, 200, { id, thumb_ver: ver, ...thumbUrls(id, ver, 0) });
+  });
   // -- admin: thumbnails (tools/thumbs.js) and the one-time Firebase import
   on("GET", "/api/admin/thumbs/todo", r => {
     admin(r);
@@ -581,7 +632,6 @@ function makeRoutes(ctx) {
     onlyKeys(body, ["poster", "clip"]);
     const poster = Buffer.from(String(body.poster || ""), "base64");
     const clip = Buffer.from(String(body.clip || ""), "base64");
-    const isWebp = b => b.length > 12 && b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WEBP";
     const isMp4 = b => b.length > 12 && b.toString("latin1", 4, 8) === "ftyp";
     if (!isWebp(poster) || poster.length > CAP.poster) throw new HttpError(400, "poster must be a WebP of at most 1 MB");
     if (!isMp4(clip) || clip.length > CAP.clip) throw new HttpError(400, "clip must be an MP4 of at most 6 MB");
@@ -592,7 +642,7 @@ function makeRoutes(ctx) {
       fs.writeFileSync(file + ".tmp", buf);
       fs.renameSync(file + ".tmp", file);
     }
-    S.galThumb.run(ver, Date.now(), id);
+    S.galThumb.run(ver, Date.now(), 1, id);
     removeThumbs(id, g.thumb_ver);
     sendJson(r.res, 200, { id, thumb_ver: ver, ...thumbUrls(id, ver) });
   });

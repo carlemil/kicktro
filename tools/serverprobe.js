@@ -340,6 +340,16 @@ async function main() {
     && r.json.items.length === 3 && r.json.items[0].payload === PAY, r.text);
   const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBPVP8 "), crypto.randomBytes(200)]);
   const mp4 = Buffer.concat([Buffer.alloc(4), Buffer.from("ftypisom"), crypto.randomBytes(5000)]);
+  // A WebP header carrying a canvas size, in each of the three first-chunk layouts.
+  function webpOf(kind, w, h, len = 400) {
+    const b = crypto.randomBytes(len);
+    b.write("RIFF", 0, "latin1"); b.writeUInt32LE(len - 8, 4); b.write("WEBP" + kind, 8, "latin1");
+    b.writeUInt32LE(len - 20, 16);
+    if (kind === "VP8 ") { b[23] = 0x9d; b[24] = 0x01; b[25] = 0x2a; b.writeUInt16LE(w, 26); b.writeUInt16LE(h, 28); }
+    if (kind === "VP8L") { b[20] = 0x2f; b.writeUInt32LE(((w - 1) | ((h - 1) << 14)) >>> 0, 21); }
+    if (kind === "VP8X") { b.writeUIntLE(w - 1, 24, 3); b.writeUIntLE(h - 1, 27, 3); }
+    return b;
+  }
   r = await call("PUT", "/api/admin/thumbs/" + a1, { token: ADMIN, body: { poster: mp4.toString("base64"), clip: mp4.toString("base64") } });
   ok("thumbs: a poster that is not WebP is 400", r.status === 400, r.text);
   r = await call("PUT", "/api/admin/thumbs/" + a1, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64") } });
@@ -363,6 +373,43 @@ async function main() {
     && (await call("GET", "/thumbs/" + a1 + "-2.webp")).status === 200);
   r = await call("GET", "/thumbs/..%2F..%2Fkt.db");
   ok("thumbs: path traversal is 404", r.status === 404, r.status);
+
+  // ---- a visitor's poster (the first browser to open a card with no thumbnail renders it) ----
+  r = await call("PUT", "/api/gallery/" + a2 + "/thumb", { body: { poster: mp4.toString("base64") } });
+  ok("viewer thumb: not a WebP is 400", r.status === 400, r.text);
+  r = await call("PUT", "/api/gallery/" + a2 + "/thumb", { body: { poster: webp.toString("base64") } });
+  ok("viewer thumb: a WebP with no readable size is 400", r.status === 400, r.text);
+  for (const [kind, w, h] of [["VP8 ", 480, 271], ["VP8L", 640, 270], ["VP8X", 960, 540]]) {
+    r = await call("PUT", "/api/gallery/" + a2 + "/thumb", { body: { poster: webpOf(kind, w, h).toString("base64") } });
+    ok("viewer thumb: " + kind.trim() + " " + w + "x" + h + " is the wrong size, 400", r.status === 400, r.text);
+  }
+  r = await call("PUT", "/api/gallery/" + a2 + "/thumb", { body: { poster: webpOf("VP8X", 480, 270, 300 << 10).toString("base64") } });
+  ok("viewer thumb: over 256 KB is refused", r.status === 400 || r.status === 413, r.status);
+  r = await call("PUT", "/api/gallery/" + a2 + "/thumb", { body: { poster: webpOf("VP8X", 480, 270).toString("base64"), clip: "x" } });
+  ok("viewer thumb: only a poster may be sent", r.status === 400, r.text);
+  r = await call("PUT", "/api/gallery/nosuchcard01/thumb", { body: { poster: webpOf("VP8 ", 480, 270).toString("base64") } });
+  ok("viewer thumb: an unknown card is 404", r.status === 404, r.text);
+  const vp = webpOf("VP8 ", 480, 270);
+  r = await call("PUT", "/api/gallery/" + a2 + "/thumb", { body: { poster: vp.toString("base64") } });
+  ok("viewer thumb: a 480x270 poster on a card with none is taken, signed out, as a poster only",
+    r.status === 200 && r.json.thumb_ver === 1 && r.json.clip === null && r.json.poster === "/thumbs/" + a2 + "-1.webp", r.text);
+  ok("viewer thumb: ...served back byte for byte",
+    Buffer.from(await (await fetch(base + "/thumbs/" + a2 + "-1.webp")).arrayBuffer()).equals(vp));
+  r = await call("GET", "/api/gallery?sort=new");
+  let c2 = r.json.items.find(x => x.id === a2);
+  ok("viewer thumb: the listing has the poster and no clip", c2.poster === "/thumbs/" + a2 + "-1.webp" && c2.clip === null
+    && !("stale" in c2), JSON.stringify(c2));
+  r = await call("PUT", "/api/gallery/" + a2 + "/thumb", { body: { poster: webpOf("VP8L", 480, 270).toString("base64") } });
+  ok("viewer thumb: the first one wins (409 after)", r.status === 409, r.text);
+  r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
+  ok("viewer thumb: a visitor's poster stays on the admin todo list", r.json.items.some(x => x.id === a2), r.text);
+  await call("PUT", "/api/admin/thumbs/" + a2, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64") } });
+  r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
+  c2 = (await call("GET", "/api/gallery/" + a2)).json;
+  ok("viewer thumb: ...until a real render replaces it, clip and all", !r.json.items.some(x => x.id === a2)
+    && c2.poster === "/thumbs/" + a2 + "-2.webp" && c2.clip === "/thumbs/" + a2 + "-2.mp4", r.text + " " + JSON.stringify(c2));
+  r = await call("PUT", "/api/gallery/" + a2 + "/thumb", { body: { poster: vp.toString("base64") } });
+  ok("viewer thumb: a card with a real render refuses a visitor's poster", r.status === 409, r.text);
 
   // ---- gallery delete takes its favourites ----------------------------------------------
   r = await call("DELETE", "/api/gallery/" + a1, { token: A.token });
@@ -555,6 +602,12 @@ async function main() {
     speedOf((await call("GET", "/api/gallery/" + reef.id)).json.payload) === 6);
   r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
   ok("thumbs: a promoted edit is re-rendered", r.json.items.some(x => x.id === reef.id), r.text);
+  r = await publicNamed("Reef One");
+  ok("thumbs: ...and the listing says its thumbnail is stale", r.items[0].stale === true, JSON.stringify(r.items));
+  r = await call("PUT", "/api/gallery/" + reef.id + "/thumb", { body: { poster: webpOf("VP8X", 480, 270).toString("base64") } });
+  ok("viewer thumb: a stale card takes a visitor's poster", r.status === 200 && r.json.clip === null, r.text);
+  r = await publicNamed("Reef One");
+  ok("viewer thumb: ...and is no longer stale", !("stale" in r.items[0]) && r.items[0].clip === null, JSON.stringify(r.items));
   await push(N1.token, [scene("Reef One", 7, { sid: "sidReefOne01", edited: Date.now() }), glory0, stockEdited]);
   r = await push(N1.token, [scene("Reef One", 6, { sid: "sidReefOne01", edited: Date.now() }), glory0, stockEdited]);
   mine = await cardsOf(N1.token, "Reef");

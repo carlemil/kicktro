@@ -1,4 +1,7 @@
   const canvas = document.getElementById("fire");
+  // THUMBNAIL MODE: this page is a hidden copy rendering one scene's gallery thumbnail
+  // (thumbPrelude in gallery-thumbs.js set this before the app ran). null on every real page.
+  const THUMB = window.__ktThumb || null;
 
   // Max effects in one stack. Declared up here (far above the stack code that owns it)
   // because initGL() — called during startup, long before the stack block — allocates
@@ -280,7 +283,7 @@
   // measures. `?frontdoor` turns it on anywhere -- the dev hook gallery-check uses.
   // Function declarations: restore() (audio-tuning-data) and later slices both ask.
   function frontDoorOn() {
-    return /^https?:$/.test(location.protocol) || /[?&]frontdoor\b/.test(location.search);
+    return !THUMB && /^https?:$/.test(location.protocol) || /[?&]frontdoor\b/.test(location.search);
   }
   // The BASE address: nothing in the fragment, nothing in the query but the two dev hooks.
   // A share link, #g=, #gallery and ?z= are all somewhere else.

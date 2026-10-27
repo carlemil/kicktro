@@ -134,6 +134,7 @@
     // empty bars — and there is no latch left to clear.
     if (audioLive()) { updateMeter(); flashChips(); }
     beatBpmTick();
+    if (THUMB && THUMB.beat) thumbBeat();   // a thumbnail render's synthetic beat, latched
     updateAnims(now, dt);             // drive the ranged sliders' erratic values
     // ...and the OUTGOING scene, if one is still blending out. After the live pass: each
     // fresh drift segment draws twice from Math.random, so this order leaves the live
