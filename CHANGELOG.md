@@ -15,6 +15,21 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.95.0] — 2026-10-27
+
+### Added
+- **A button for everything, no menu**: the ☰ dropdown is gone. The top-left row now reads **▦** Gallery, fullscreen, **♪** Audio, **⚙** scene editor, **profile** (sign-in and your cloud profile), **©** Credits, **i** Tutorial and **?** Help. ♪, profile and © open a small box under the button; click the button again, press Escape or click anywhere else to close it, or click another button to go straight there.
+- **Pause the reaction (S)** in the Audio box: stops the beats driving the sliders while the music source stays connected (Kicktro never plays sound, it only listens). The S key still toggles it.
+
+### Changed
+- **The fullscreen button shows which way it goes**: an expand icon in a window, a shrink icon in fullscreen.
+- **♪ opens Audio** instead of muting.
+- **Gone with the menu**: Resolution (a resolution you already chose still applies), Controls panel (use ⚙ or M), Fullscreen (its button or F) and Hide all UI (the H key).
+- **In the Scene box, everything below Auto-cycle follows it**: with Auto-cycle off, Show author, Scene TTL, Transition and Choose transitions are greyed out. **New** sits above Auto-cycle and always works.
+
+### Internal
+- `tools/toprow-check.js`: the top row, its popovers, pass-through clicks, Escape and focus, the Pause tick and the fullscreen icon (with a negative control). `gallery-check` opens the gallery through ▦; `foldcycle-check` pins the Scene box gate.
+
 ## [1.94.0] — 2026-10-27
 
 ### Added
