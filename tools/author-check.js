@@ -39,8 +39,9 @@ const body = [
   "var chk=document.getElementById('sceneTitleOn');",
   "var ban=document.getElementById('scenebanner');",
   "ok('the tick and the banner both exist', !!chk && !!ban);",
-  "function pick(){ var rows=[].slice.call(document.querySelectorAll('.pl-scene'));",
-  "  if(rows.length) rows[0].click(); return ban.textContent.trim(); }",
+  // The visible scene list is gone (card 827): a pick is a change on the hidden #preset store.
+  "function pick(){ var ps0=document.getElementById('preset'); ps0.value='0';",
+  "  ps0.dispatchEvent(new Event('change',{bubbles:true})); return ban.textContent.trim(); }",
   // ---- ON: the author is appended -------------------------------------------------------
   "chk.checked=true; chk.dispatchEvent(new Event('change',{bubbles:true}));",
   "var onText=ban.textContent.trim();",

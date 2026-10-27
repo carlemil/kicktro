@@ -141,32 +141,19 @@
        live here too; it moved down to Effects, next to the sliders it drives. -->
   <details class="box" open>
   <summary class="box-t">Scene</summary>
-  <!-- Scenes: choose / manage saved scenes, and auto-cycle between them. The ids below still
-       say "preset" — that is the storage/wire name, unchanged so every saved scene, backup
-       and link keeps loading. Only the wording the user reads is "scene". -->
-  <label class="lbl-row"><span>Scenes</span></label><button type="button" id="preset-help-btn" class="lbl-help" title="What a scene saves — its data structure" aria-label="What a scene saves — its data structure">?</button>
-  <!-- #preset is HIDDEN and remains the VALUE STORE, exactly the arrangement #palette has
-       behind its swatches: applyPreset writes .value, applyBlob validates against it, and
-       every pick in the list below dispatches its `change`. The visible control is
-       #presetlist, a foldable list grouped by COLLECTION — a <select> cannot collapse an
-       <optgroup>, which is the whole point of the grouping. Keep the select in the DOM: a
-       JS failure leaves the native dropdown usable. -->
-  <select id="preset"></select>
-  <div id="presetlist"><!-- collapsible per-collection scene list, built in JS --></div>
+  <!-- The ids below still say "preset" — that is the storage/wire name, unchanged so every
+       saved scene, backup and link keeps loading. Only the wording the user reads is "scene".
+       #preset is HIDDEN and remains the VALUE STORE, exactly the arrangement #palette has
+       behind its swatches: applyPreset writes .value, applyBlob validates against it, and a
+       scene change dispatches its `change`. There is no visible scene list any more (the
+       gallery is how scenes are browsed) and no Rename / Delete / Share. -->
+  <select id="preset" style="display:none"></select>
   <div class="presetrow">
     <button id="newpreset" class="audbtn" type="button" title="Save what is on screen as a new scene">New</button>
-    <button id="renamepreset" class="audbtn" type="button" title="Rename the selected scene">Rename</button>
   </div>
-  <div class="presetrow">
-    <button id="delpreset" class="audbtn" type="button" title="Delete the selected scene">Delete</button>
-    <button id="sharepreset" class="audbtn" type="button" title="Copy a link to this scene — short via your cloud profile when signed in, self-contained otherwise">Share</button>
-  </div>
-  <!-- Every scene of your own is a gallery card (gsyncPush); there is nothing to press, so
-       this says what happens instead. Shown only when the cloud is configured (cloudInit). -->
-  <p class="hint" id="gsyncrow" style="display:none">Your scenes are public in the gallery. A change shows there an hour after you last touch the scene, so polish away.</p>
   <!-- Auto-cycle / Scene TTL / Transition defaults come from CONFIG.scene (set in JS at startup),
        not from value=/checked here — so they live in one place. -->
-  <label class="check" title="Switch scene on the TTL timer, whether or not this panel is open."><input type="checkbox" id="cycle"> Auto-cycle favourites</label>
+  <label class="check" title="Switch scene on the TTL timer, whether or not this panel is open."><input type="checkbox" id="cycle"> Auto-cycle</label>
   <!-- The on-screen banner naming each scene as you land on it. It sits HERE, under
        Auto-cycle, because that is when you see it most — every cycle tick draws one — even
        though it is drawn by the credits overlay and remembered per browser like the credits
@@ -193,8 +180,7 @@
       <input type="range" id="tdur-lo" min="0" max="3" step="any">
       <input type="range" id="tdur-hi" min="0" max="3" step="any"></div>
     <!-- Which transitions the auto-pick may draw from — same idea as the palette strip's +
-         tile and the tick beside each scene: the catalogue lives in a dialog, and what you
-         tick is what the show uses. -->
+         tile: the catalogue lives in a dialog, and what you tick is what the show uses. -->
     <button id="transpick-open" type="button" class="filter-add">+ Choose transitions</button>
   </div>
 

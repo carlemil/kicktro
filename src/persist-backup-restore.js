@@ -379,10 +379,9 @@
   // DECODES was touched, which is the standing rule — every `?z=`, `#zp=`/`#sp=` and `#c=`
   // link ever generated still opens, and still lands in the Restore dialog below.
   //
-  // Since then ONE sender came back by request: the Scene box's Share button
-  // (#sharepreset, wired in persist-presets.js) calls `cloudShareScene` — the short
-  // Firestore `#c=` link, ?z= fallback. `libraryUrl` and `shortenUrl` remain unreachable
-  // from the UI, kept as pure probe-pinned builders.
+  // The Scene box's Share button (#sharepreset) went too (card 827): `cloudShareScene`,
+  // `libraryUrl` and `shortenUrl` remain unreachable from the UI, kept as pure
+  // probe-pinned builders.
   //
   // Recipient side of a preset-bundle link (#zp=/#sp=), called (deferred) from applyShared:
   // decode → validate → the Restore dialog. `parsed` carries only presets (no states/ranges/
@@ -444,9 +443,8 @@
     const coll = (collection || "").trim();
     // Record the follow HERE, after validation has passed — not in galLoad before the call.
     // A source whose scenes ALL fail validatePresetList installs nothing, and a follow noted
-    // for it would be a phantom: uploaded with every save, "Fetching…" on every load, and —
-    // because dropCollection is only reachable from a collection group that exists in the
-    // scene list — impossible to remove from the UI. Still BEFORE applyRestore, whose
+    // for it would be a phantom: uploaded with every save, "Fetching…" on every load, and
+    // impossible to remove. Still BEFORE applyRestore, whose
     // fullSnapshot() is what carries collectionsHeld into the blob it writes and reloads on.
     if (coll) noteCollection(coll, collectionUid);
     pendingRestore = { parsed: parsed.parsed, valid: parsed.valid, hasSettings: false, hasRanges: false, hasBeat: false,
@@ -494,7 +492,6 @@
     const src = parsed.parsed.presets, sel = src && src[parsed.parsed.curPreset];
     const hit = sel ? at.find(i => presets[i].name === sel.name) : undefined;
     curPreset = hit !== undefined ? hit : at[0];
-    openCollections.add(SHARED_COLLECTION);    // opened, or the scene you just picked is hidden
     stopCycling();                             // ...and it stays on screen
     applyPreset(curPreset);
     rebuildPresetOptions();

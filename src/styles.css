@@ -187,62 +187,6 @@
   .mb-adopt { padding: 4px 6px 2px; min-width: 240px; }
   .mb-adopt > label:first-child { margin-top: 0; }
 
-  /* ---- Scenes list: collections, foldable, collapsed by default ------------------
-     Replaces the <select> as the visible control (#preset stays as the value store).
-     A collection is a <div class="pl-grp">: a header button that folds it, an optional ✕
-     to drop the whole set, and a body of scene buttons shown only while .open. */
-  #presetlist { margin: 0 0 6px; }
-  .pl-grp { position: relative; margin-top: 3px; }
-  .pl-head {
-    width: 100%; display: flex; align-items: center; gap: 6px;
-    padding: 5px 8px 5px 20px; text-align: left; cursor: pointer;
-    background: rgba(255, 140, 40, 0.09); border: 1px solid rgba(255, 140, 40, 0.28);
-    border-radius: 5px; color: #ffcf87; font: 12px/1.25 inherit; letter-spacing: .2px;
-  }
-  .pl-head:hover { background: rgba(255, 122, 26, 0.2); }
-  /* Chevron, rotated when open — same idiom as the .box-t sections above. */
-  .pl-head::before {
-    /* 2x the old 10px. Every chevron in the app is doubled; each pins line-height so the
-       bigger glyph cannot grow the row it sits in. */
-    content: "▸"; position: absolute; left: 4px; font-size: 20px; line-height: 1; color: #ffb15a;
-    transition: transform .12s;
-  }
-  .pl-grp.open > .pl-head::before { transform: rotate(90deg); }
-  .pl-nm { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pl-ct { flex: 0 0 auto; opacity: .6; font-variant-numeric: tabular-nums; }
-  .pl-drop {
-    position: absolute; right: 4px; top: 3px; width: 20px; height: 20px; padding: 0;
-    background: none; border: 0; color: #ffb15a; opacity: .45; cursor: pointer; font-size: 12px;
-  }
-  .pl-drop:hover { opacity: 1; color: #ff9a4a; }
-  .pl-grp .pl-head { padding-right: 46px; }         /* room for the count + ✕ */
-  .pl-body { display: none; padding: 3px 0 2px 10px; }
-  .pl-grp.open > .pl-body { display: block; }
-  .pl-empty { padding: 4px 8px; font-size: 11px; opacity: .45; }
-  /* A scene is a row: the auto-cycle tick, then the name button. The checkbox is a SIBLING
-     of the button rather than inside it — nested interactive content is invalid and the tick
-     would fight the button for the click. */
-  .pl-row { display: flex; align-items: center; gap: 6px; }
-  .pl-cyc {
-    flex: 0 0 auto; width: 13px; height: 13px; margin: 0; cursor: pointer;
-    accent-color: #ff9a4a;
-  }
-  /* Out of the rotation reads as "still here, just not in the show" — the name dims, it is
-     never hidden or disabled, because an unticked scene is still selectable by hand. */
-  .pl-cyc:not(:checked) + .pl-scene { opacity: .5; }
-  .pl-scene {
-    display: block; flex: 1 1 auto; min-width: 0; text-align: left; margin: 2px 0; padding: 5px 8px;
-    background: rgba(255, 255, 255, 0.04); border: 1px solid transparent; border-radius: 5px;
-    color: #ffdcb0; font: 12px/1.25 inherit; cursor: pointer;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .pl-scene:hover { background: rgba(255, 122, 26, 0.22); }
-  .pl-scene.on { border-color: #ffcf87; background: rgba(255, 122, 26, 0.28); color: #fff; }
-  .pl-cyc:not(:checked) + .pl-scene.on { opacity: .8; }   /* selected still reads as selected */
-  .pl-head:focus-visible, .pl-scene:focus-visible, .pl-drop:focus-visible,
-  .pl-cyc:focus-visible {
-    outline: 2px solid #ffb15a; outline-offset: 1px;
-  }
   #panel .check, #menubar .check, #breakout .lyr-box .check {
     display: flex;
     align-items: center;
@@ -252,7 +196,7 @@
     opacity: .9;
   }
   #panel .check input, #menubar .check input, #breakout .lyr-box .check input { accent-color: #ff7a1a; width: 15px; height: 15px; cursor: pointer; }
-  /* Under "Auto-cycle favourites": the cycler is gated on the panel being hidden, and this is the
+  /* Under "Auto-cycle": the cycler is gated on the panel being hidden, and this is the
      one line that says so. Indented to the checkbox's label text (15px box + 8px gap). */
   #panel.hidden { opacity: 0; transform: translateX(-12px); pointer-events: none; visibility: hidden; }
   #toggle, #galbtn, #fs, #mute, #panelbtn {
@@ -1531,14 +1475,6 @@
   #panel .lbl-eye, #breakout .lyr-box .lbl-eye { width: 17px; height: 17px; font-size: 10px; opacity: .68; display: inline-flex; align-items: center; justify-content: center; }
   #panel .lbl-eye > svg, #breakout .lyr-box .lbl-eye > svg { display: block; }
   #panel .lbl-eye:hover, #breakout .lyr-box .lbl-eye:hover { opacity: 1; }
-  /* Data-structure tree inside the help modal. */
-  #help .help-tree {
-    margin: 4px 0 12px; padding: 11px 13px; overflow-x: auto;
-    background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 140, 40, 0.22); border-radius: 8px;
-    font: 11px/1.65 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: #e8ddd0; white-space: pre;
-  }
-  #help .help-tree b { color: #ffcf87; font-weight: 600; }
-  #help .help-tree i { color: #9a8a70; font-style: normal; }
   #help {
     /* Sit the box in the space to the RIGHT of the menu (14–264px) and the pop-out column
        (298–542px), so it never covers them; the backdrop is light so the menu stays readable. */

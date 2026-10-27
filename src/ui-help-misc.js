@@ -6,11 +6,11 @@
     // (see the EFFECTS registry). "all" shows on every effect; "band" on every
     // shader effect with a Banding slider; the rest are per-effect tags.
     sliders: [
-      { n: "Scenes", w: "all", t: "A saved scene is a named full snapshot — the effect plus every setting. Pick one to load it; from then on any change you make is auto-saved straight back into it. New saves what is on screen as a fresh scene, selects it and turns auto-cycle off so it stays up; Rename renames the selected one; Delete removes it and moves you to the one beside it. One scene is always selected, so every change you make is always being saved into something — if you want to experiment without touching a scene you like, press New first and work on the copy. Open a link somebody sent you and that scene is kept too, in a “Shared with you” group of its own, so it can never overwrite a scene of yours; drop the whole group with its ✕ when you are done with it. Your whole library can be kept against a Google account in the Cloud profile box, and published there for other people to load." },
-      { n: "Auto-cycle favourites", w: "all", t: "When on, a random saved scene is applied every so often (see Scene TTL) — it cycles whole scenes, not effects, though a scene switch can change the effect too. Turn off to stay put. Needs at least two saved scenes. Creating a scene or restoring a backup switches it off, so the one you just chose stays on screen." },
+      { n: "New", w: "all", t: "A saved scene is a named full snapshot — the effect plus every setting. From the moment one is selected, any change you make is auto-saved straight back into it. New saves what is on screen as a fresh scene, selects it and turns auto-cycle off so it stays up. One scene is always selected, so every change you make is always being saved into something — if you want to experiment without touching a scene you like, press New first and work on the copy. Scenes are browsed and loaded from the Gallery; a scene you load there is kept in a “Shared with you” group of its own, so it can never overwrite a scene of yours." },
+      { n: "Auto-cycle", w: "all", t: "When on, a random saved scene is applied every so often (see Scene TTL) — it cycles whole scenes, not effects, though a scene switch can change the effect too. Turn off to stay put. Needs at least two saved scenes. Creating a scene or restoring a backup switches it off, so the one you just chose stays on screen." },
       { n: "Scene TTL", w: "all", t: "How long auto-cycle holds each scene: a random time in this range (seconds) before applying a random other one." },
       { n: "Transition", w: "all", t: "How long a scene change takes to blend, as a range in seconds — each switch draws a length from it. A suitable transition is chosen automatically for the two scenes involved: a crossfade between two full-screen effects, something that breaks the picture up (pixelate, blur, wipe) when a sparse point cloud meets a dense field, a dip or flash when the palettes jump, and often nothing at all when the scenes already dissolve on their own through Fire or Fade pixel. Collapse both thumbs to 0 to cut straight over instead." },
-      { n: "Effect", w: "all", t: "Which visual is running — the chooser at the top of the Effects section, directly above that effect's own sliders. Switching keeps the scene you have selected and folds the change into it, like any other edit — so you carry on working on your scene. The scene keeps its name, so rename it if it no longer suits. Part of a saved scene, so auto-cycle can switch it for you." },
+      { n: "Effect", w: "all", t: "Which visual is running — the chooser at the top of the Effects section, directly above that effect's own sliders. Switching keeps the scene you have selected and folds the change into it, like any other edit — so you carry on working on your scene. The scene keeps its name. Part of a saved scene, so auto-cycle can switch it for you." },
       { n: "Palette", w: "all", t: "The colour ramp this layer's heat is mapped through — click a swatch to pick it. Per-layer, so stacked effects can each carry their own colours (blended together in perceptual OKLab space when they overlap)." },
       { n: "Reverse colours", w: "all", t: "Runs this layer's palette the other way round — the dark (background) end stays black, so only the lit ramp is flipped. Per-layer." },
       { n: "Background", w: "all", t: "What this layer's unlit pixels (heat 0) show: Black (default), White, or the palette's own colour 0. In a multi-layer scene it's per-layer, so a background layer can wash the scene while the ones above keep a black backdrop." },
@@ -317,39 +317,6 @@
     showHelp();
   }
   el("help-btn").addEventListener("click", openHelp);
-  // The Scenes ? — what a saved scene actually stores. It is a COMPLETE snapshot
-  // (snapshotScene / stackItemOut) nesting three scopes: scene-wide, the per-layer stack,
-  // and a selected-effect copy that also serves single-layer scenes. Reuses the help modal.
-  function openPresetHelp() {
-    const tree =
-      "<b>scene</b>                     <i>everything on screen — snapshotScene()</i>\n" +
-      "├─ name\n" +
-      "├─ effect                  <i>the SELECTED layer's effect (a stable name)</i>\n" +
-      "├─ state·beat·pulse·plen   <i>selected effect's copy (single-layer fallback)</i>\n" +
-      "├─ extra                   <i>…its palette / seed / filters</i>\n" +
-      "├─ <b>beatTune</b>  { fluxK, floor, refract, bands }\n" +
-      "├─ <b>ranges</b>    { slider min/max/step }   <i>scene-wide bounds</i>\n" +
-      "└─ <b>layers[ ]</b>                 <i>the stack, draw order (omitted if 1 layer)</i>\n" +
-      "   └─ layer  { effect, state, beat, pulse, plen,\n" +
-      "               <b>cam</b> { zoom, camrx, camry, camrz },\n" +
-      "               palette, paletteRev, paletteBg,\n" +
-      "               seedPath, seedRide, seedPts,\n" +
-      "               ranges, filters, blend, gain, mute }";
-    let html = HELP_HEAD;
-    html += '<h2 id="help-title">What a scene saves</h2>';
-    html += "<p>A saved scene is a <b>complete snapshot of what is on screen</b> — the effect stack plus every setting — portable enough to hand to someone else. It nests three scopes of state.</p>";
-    html += '<pre class="help-tree">' + tree + "</pre>";
-    html += "<dl>";
-    html += "<dt>Scene-wide — one per scene</dt><dd>The beat-detector tuning and the scene-wide slider bounds.</dd>";
-    html += "<dt>Per-layer — the stack</dt><dd>Each layer keeps its own effect, slider values, beat wiring, <b>camera</b> (zoom + X/Y/Z, in its own <code>cam</code>), palette, cardioid orbit, its <em>own</em> slider bounds, filters, and how it blends into the stack (blend / gain / mute).</dd>";
-    html += "<dt>Selected-effect copy</dt><dd>The top-level effect and its values describe the selected layer — the whole story for a one-layer scene (its camera rides inside that <code>state</code>), and a fallback for a stack (which a one-layer scene omits entirely, so it stays byte-identical to how scenes were stored before stacking).</dd>";
-    html += "</dl>";
-    html += '<p class="help-intro">Effects are stored as stable names, not positions, so reordering or removing one never corrupts a saved scene. Deliberately <b>not</b> saved: the render resolution, audio on/off, and the running animation phase — a saved scene is the same <em>configuration</em>, not the same <em>frame</em>. Your cloud profile carries the whole library of them; a share link carries just the one.</p>';
-    html += "</div>";
-    helpEl.innerHTML = html;
-    showHelp();
-  }
-  el("preset-help-btn").addEventListener("click", openPresetHelp);
   helpEl.addEventListener("click", e => { if (e.target === helpEl || e.target.classList.contains("help-close")) closeHelp(); });
 
   // ---- version + release-notes link (panel footer) ----

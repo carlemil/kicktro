@@ -1231,7 +1231,7 @@
     btns.className = "gal-btns";
     const b = document.createElement("button");
     b.type = "button"; b.className = "audbtn"; b.textContent = "Load scenes";
-    b.title = "Add these as a “" + p.name + "” collection in your scene list — your own scenes are untouched";
+    b.title = "Add these as a “" + p.name + "” collection in your scenes — your own scenes are untouched";
     b.addEventListener("click", () => galLoad(p));
     btns.appendChild(b);
     row.append(nm, meta, btns);
@@ -1529,7 +1529,7 @@
   }
   function cloudNameCommit() {
     const inp = el("cloud-name");
-    setProfileName(inp ? inp.value : "");   // trims, caches, and relabels the scene list
+    setProfileName(inp ? inp.value : "");   // trims, caches, and relabels your collection
     cloudNameShow();
   }
 
@@ -1608,10 +1608,9 @@
     if (!cloudOn()) return;              // feature off ⇒ the row stays hidden, nothing loads
     const row = el("cloudrow");
     if (row) row.classList.remove("hidden");
-    if (el("gsyncrow")) el("gsyncrow").style.display = "";
     cloudLoadSess();
     // Seed the field from the cached name BEFORE any request, so the box shows who you are
-    // straight away and the scene list's heading (already reading the same cache) agrees.
+    // straight away.
     const cached = storedProfileName();
     if (cached && el("cloud-name") && !el("cloud-name").value) el("cloud-name").value = cached;
     cloudNameShow();

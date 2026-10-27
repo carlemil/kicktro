@@ -507,7 +507,11 @@ full-screen overlay; every rule an adopted block needs must name it, including t
 
 **Panel layout**: header + four `.box` `<details>` (Scene, Scene filters, Beat tuning, hidden Layer
 effect & filters) + `#lyrsec`. `buildControls` routes by `host`. `#scenenow` is filled by
-`syncSceneTitle()` from `buildPresetList()`.
+`syncSceneTitle()` from `rebuildPresetOptions`/`applyPreset`. **The Scene box is TRIMMED (card 827):**
+New, Auto-cycle, Show author, Scene TTL, Transition, + Choose transitions — nothing else. There is
+no scene list, no Rename/Delete/Share, no per-scene cycle tick, no collection ✕, no publish hint;
+don't bring them back without the owner. `#preset` is hidden (`display:none` in the template) and
+stays the value store; a probe picks a scene by writing it and dispatching `change`.
 
 ### One control block PER LAYER
 A `.lyrblock` cloned from `<template id="lyrblock">`, `STACK_MAX` of them, living in a BOX IN THE
@@ -665,15 +669,14 @@ drops retired ids, clamps gain, defaults blend, runs every per-item map through 
 A preset carries an optional `collection` beside `name` (not in `snapshotScene`); **must be listed
 in `validatePresetList`** or it is dropped on every cloud load. The gallery installs a collection:
 `applySharedLibrary(raw, replace, collection)` → `applyRestore`'s third branch (drop every preset of
-that collection, append the incoming). `#preset` is the hidden store; `#presetlist` is built by
-`buildPresetList()` from `rebuildPresetOptions`, `applyPreset` and the `change` handler's `-1`
-branch. `openCollections` is a transient Set. `myProfileName()` reads `#cloud-name` then
+that collection, append the incoming). `#preset` is the hidden store (no visible list since card
+827). `myProfileName()` reads `#cloud-name` then
 `PROFILE_NAME_KEY` synchronously; `setProfileName(v)` is the one setter. `myCollectionLabel()` =
 `myProfileName() || "Kicktro"`.
 
-**`p.rotate`** — per-scene auto-cycle; `inRotation(p)` is `!(p.rotate === false)`; `setRotation`
-deletes the key rather than writing `true`; must be in `validatePresetList`. Nothing ticked ⇒ the
-cycler idles.
+**`p.rotate`** — per-scene auto-cycle; `inRotation(p)` is `!(p.rotate === false)`; must be in
+`validatePresetList`. The tick that set it is GONE from the UI (card 827) but a stored
+`rotate:false` is still honoured and still decodes. Nothing in rotation ⇒ the cycler idles.
 
 **`autosavePreset` must carry every field beside `name`** — adding one means editing
 `autosavePreset`, `validatePresetList`, and the setter. Third such field: `origin` (original author,
@@ -711,8 +714,8 @@ Creating a preset, adopting a shared scene and restoring a backup all `stopCycli
 
 **Something is ALWAYS selected**: `ensureSelection()` is the single choke point; `curPreset = -1`
 survives only in the bootstrap declaration and `applyBlob`'s empty-library fallback. Selection and
-live state must AGREE — Delete and `dropCollection` call `applyPreset`. Deleting the last scene
-re-seeds the library. A shared link is kept as a scene in `"Shared with you"`
+live state must AGREE. The panel has no Delete (card 827); a path that removes the selected scene
+must `applyPreset` the neighbour. An emptied library re-seeds. A shared link is kept as a scene in `"Shared with you"`
 (`SHARED_COLLECTION`): `installShared` parks `pendingShared` (it runs synchronously mid-slice);
 `adoptSharedScene()` does the library write, idempotent, from the startup epilogue and the
 `?z=`/`#c=` handlers. `bumpName` only when the name is taken.
@@ -751,9 +754,9 @@ Presets are local; `onEdit` → `autosavePreset()`. All four of `applyPreset`'s 
   probe-pinned. Restore takes multiple files; `normalizeBackup()` runs before `deserializeBlob`;
   `applyRestore()` starts from `fullSnapshot()`, writes `localStorage`, reloads.
 
-Backup/Restore buttons are gone from the menu; builders are kept, probe-pinned. **Share is
-`#sharepreset`** in the Scene box: `cloudShareScene()` → `#c=` link, `?z=` fallback; copy via
-`ClipboardItem`'s promise form, then `writeText`, then `prompt()`.
+Backup/Restore buttons are gone from the menu; builders are kept, probe-pinned. **The Scene box's
+Share button is gone too (card 827)**; `cloudShareScene()` (→ `#c=` link, `?z=` fallback) stays as
+a builder.
 
 ### Cloud profiles (the Kicktro API, since M2 of card 825)
 `src/cloud-profile.js` is the client of `server/` (next section), which is the whole security
@@ -792,7 +795,7 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
   `cloudSave` refuses only with no scenes AND no follows.
 - `collectionsHeld` is declared in `audio-tuning-data.js`, filled from `persist-presets.js`
   (function declarations). The follow is noted INSIDE `applySharedLibrary` after validation;
-  `delpreset` calls `forgetCollection` when a delete empties a collection.
+  `forgetCollection` has NO caller since the panel lost Delete and the collection ✕ (card 827): a follow can no longer be removed from the UI.
 - `refollowCollections(raw)` runs INSIDE `cloudApplyPayload`: appended never prepended, re-stamped
   with the followed key, present collections not re-fetched, missing sources skipped and named
   (`{raw, missed}`), uid-less entries resolved by NAME against `galList()` and healed back into
