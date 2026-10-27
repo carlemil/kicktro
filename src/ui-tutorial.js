@@ -1,5 +1,5 @@
   // ---- First-run tutorial -------------------------------------------------------------
-  // An eight-step tour of what the app is, shown ONCE ever and then living in the ☰ menu
+  // An eight-step tour of what the app is, shown ONCE ever and then living on the top row's i
   // so it can be re-read. It exists because #help is a REFERENCE — a per-effect blurb list
   // keyed off helpTags — and never opens by itself, so a first-time visitor met a running
   // four-layer scene, a dense panel, and thirty seconds later a popup asking to capture
@@ -37,8 +37,8 @@
       '<svg viewBox="0 0 200 86" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">'
       + '<rect x="10" y="8" width="58" height="70" rx="6"/>'
       + '<path d="M20 24h38M20 36h38M20 48h26M20 60h32" opacity=".55"/>'
-      + '<rect x="160" y="8" width="30" height="24" rx="6"/>'
-      + '<path d="M167 16h16M167 20h16M167 24h16"/>'
+      + '<rect x="96" y="8" width="20" height="20" rx="5"/><rect x="120" y="8" width="20" height="20" rx="5"/>'
+      + '<rect x="144" y="8" width="20" height="20" rx="5"/><rect x="168" y="8" width="20" height="20" rx="5"/>'
       + '<rect x="120" y="40" width="70" height="38" rx="6" opacity=".55"/>'
       + '<path d="M130 52h50M130 62h34" opacity=".45"/>'
       + '</svg>',
@@ -112,7 +112,7 @@
     // call to action, so this step deliberately explains rather than asks.
     { head: "It reacts to your music", art: TUT_ART.music,
       body: "The thing to know first: Kicktro <b>pulses in time with whatever you are listening "
-        + "to</b>. Turn on an audio source from <b>☰ → Audio</b> — <b>Capture</b> shares the sound of a "
+        + "to</b>. Turn on an audio source from <b>♪</b> — <b>Capture</b> shares the sound of a "
         + "tab (Spotify, YouTube), or use the <b>microphone</b> — and it is split into low, mid and high "
         + "beats. Any slider can then be armed with its <b>L / M / H</b> chips (a couple of steps from "
         + "now): it stops drifting, rests at its low end and snaps to its high end on every beat in that "
@@ -125,15 +125,16 @@
         // nothing is armed: the audio dialog follows this tour instead (openRequiredAudio).
         + (frontDoorOn()
           ? "<br><br>So that it just works: <b>after this tour Kicktro asks for an audio source</b> — "
-            + "Capture or Mic. Pick one and the music drives the visual; you can switch any time from ☰ → Audio."
+            + "Capture or Mic. Pick one and the music drives the visual; you can switch any time from ♪."
           : "<br><br>So that it just works: <b>your first click after this tour will ask to use the "
             + "microphone</b>. Allow it and the room drives the visual; refuse, and it is never asked "
-            + "again — you can still start either source yourself from ☰ → Audio.") },
-    { head: "Two menus", art: TUT_ART.menus,
+            + "again — you can still start either source yourself from ♪.") },
+    { head: "The editor and the buttons", art: TUT_ART.menus,
       body: "<span class=\"tut-keys\">M</span> opens the <b>scene editor</b> down the left — everything "
         + "that is part of what you are looking at. While it is open the scenes stop auto-cycling, so "
-        + "nothing changes under you while you work. The <b>☰</b> top-right is everything else: audio, render resolution, "
-        + "fullscreen, your cloud profile, other people's scenes, the help reference — and this tutorial. "
+        + "nothing changes under you while you work. The <b>buttons along the top</b> are everything else: "
+        + "other people's scenes, fullscreen, audio, your cloud profile, the credits, this tutorial and the "
+        + "help reference. "
         + "<span class=\"tut-keys\">M</span> hides it again, <span class=\"tut-keys\">F</span> "
         + "goes fullscreen and <span class=\"tut-keys\">H</span> strips every last bit of chrome." },
     { head: "Scenes", art: TUT_ART.scenes,
@@ -173,8 +174,8 @@
         + "change to it, so polish it first: there everyone's scenes play as you hover them and "
         + "<b>❤️</b> sorts the best to the top. "
         + "<b>Share</b> copies a link to the one scene you "
-        + "have open.<br><br>That is the tour. <b>☰ → Help</b> explains every single control, and "
-        + "<b>☰ → Tutorial</b> brings this back whenever you want it." },
+        + "have open.<br><br>That is the tour. <b>?</b> explains every single control, and "
+        + "<b><i>i</i></b> brings this back whenever you want it." },
   ];
 
   const tutDlg = el("tutdlg");

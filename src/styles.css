@@ -145,15 +145,15 @@
   }
   .palsw.active { border-color: #ffcf87; box-shadow: 0 0 0 1px #ffcf87, 0 0 7px rgba(255, 207, 135, 0.55); }
   .palsw:focus-visible { outline: 2px solid #ffb15a; outline-offset: 1px; }
-  /* ---- ☰ fold-out menubar --------------------------------------------------------
-     Panels are position:fixed children of #menubar and are positioned in JS (measured
-     after insertion so a submenu can flip left rather than run off the edge). Above the
-     panel (z 10) but below the modal-ish dialogs. */
+  /* ---- top-row popovers (#menubar keeps its id: every adopted-block rule names it) ----
+     The one .mb-panel is a position:fixed child of #menubar, placed in JS under the button
+     that opened it (measured after insertion, clamped on screen). Above the top row (z 10)
+     but below the modal-ish dialogs. */
   /* The overlay deliberately CATCHES pointer events while open: it is the click-outside
-     closer, and without it a click meant to dismiss the menu would fall through to the
+     closer, and without it a click meant to dismiss the popover would fall through to the
      canvas and pause the animation. Hidden ⇒ display:none, so it never interferes closed. */
   /* The font lives on #panel, not on body, so an adopted block dropped in here would fall
-     back to the browser's serif default — set the same face on the menubar. */
+     back to the browser's serif default — set the same face on the popover layer. */
   #menubar {
     position: fixed; inset: 0; z-index: 12;
     color: #ffdcb0; font: 12px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -199,11 +199,16 @@
   /* Under "Auto-cycle": the cycler is gated on the panel being hidden, and this is the
      one line that says so. Indented to the checkbox's label text (15px box + 8px gap). */
   #panel.hidden { opacity: 0; transform: translateX(-12px); pointer-events: none; visibility: hidden; }
-  #toggle, #galbtn, #fs, #mute, #panelbtn {
-    position: fixed;
-    top: 14px;
-    left: 14px;
-    z-index: 10;
+  /* The top row is a FLEX row: a button hidden with no API (▦, the profile) closes its gap,
+     and the scene banner is its last child, so it always follows the last button. */
+  #toprow {
+    position: fixed; top: 14px; left: 14px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    max-width: calc(100vw - 28px);
+    pointer-events: none;                 /* only the buttons take clicks, never the gaps */
+  }
+  #toprow > button {
+    flex: 0 0 auto; pointer-events: auto;
     width: 34px; height: 34px;
     padding: 0; appearance: none; -webkit-appearance: none;
     display: flex;
@@ -218,20 +223,18 @@
     -webkit-backdrop-filter: blur(6px);
     transition: background .15s;
   }
-  #galbtn { left: 54px; font-size: 18px; }   /* the gallery, right of the menu */
-  #galbtn.hidden { display: none; }
-  #fs { left: 94px; }                     /* fullscreen button, right of the gallery */
-  #mute { left: 134px; font-size: 18px; } /* mute the music reaction, right of fullscreen */
-  #panelbtn { left: 174px; font-size: 17px; }  /* controls panel open/closed, right of mute */
-  #panelbtn.on { background: rgba(255, 122, 26, 0.3); }
+  #toprow > button.hidden { display: none; }
+  #galbtn, #mute { font-size: 18px; }
+  #panelbtn { font-size: 17px; }
+  #tourbtn { font: italic 17px/1 Georgia, "Times New Roman", serif; }
+  #panelbtn.on, #toprow > button[aria-expanded="true"] { background: rgba(255, 122, 26, 0.3); }
   /* The scene banner, continuing that row. It used to be drawn into the frame at ~1/26 of the
      viewport width; as chrome it can be small and quiet, because it no longer has to survive
      being composited under a bloom. Not a button — no border or background, so it reads as a
      caption on the row rather than a fourth control you could press. */
   #scenebanner {
-    position: fixed; top: 14px; left: 214px; z-index: 10;
-    height: 34px; display: flex; align-items: center;
-    max-width: calc(100vw - 240px);
+    flex: 0 1 auto; min-width: 0; margin-left: 6px;
+    height: 34px; line-height: 34px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     color: #ffcf87; font: 12px/1 ui-monospace, Consolas, monospace; letter-spacing: .03em;
     text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
@@ -242,12 +245,11 @@
   /* Muted reads as a struck-through note — same glyph, so the button never changes width or
      baseline as you toggle it, and it stays monochrome with its two neighbours. */
   #mute.muted { color: #8a6a52; text-decoration: line-through; }
-  /* No source running: nothing to mute, so the button is visibly inert (a click only
-     surfaces the hint in the menu's audio line — see toggleMute). */
-  #mute.off { opacity: .38; cursor: default; }
-  #toggle:hover, #galbtn:hover, #fs:hover, #panelbtn:hover, #mute:not(.off):hover { background: rgba(255, 122, 26, 0.3); }
+  /* No source running: dimmed, but LIVE — it opens the Audio box, which is where you start one. */
+  #mute.off { opacity: .55; }
+  #toprow > button:hover { background: rgba(255, 122, 26, 0.3); }
   /* keyboard focus rings (a11y) */
-  #panel button:focus-visible, #menubar button:focus-visible, #toggle:focus-visible, #galbtn:focus-visible, #fs:focus-visible, #mute:focus-visible, #panelbtn:focus-visible,
+  #panel button:focus-visible, #menubar button:focus-visible, #toprow > button:focus-visible,
   #panel select:focus-visible, #panel input:focus-visible, #menubar select:focus-visible, #menubar input:focus-visible { outline: 2px solid #ffb15a; outline-offset: 2px; }
   /* REDUCED MOTION covers the CHROME, not the visual. The old rule named seven elements and so
      reached only about half the UI's own movement — the two keyframe animations, the chevron
@@ -257,7 +259,7 @@
      would leave a black rectangle that reads as a broken app rather than a respected preference;
      the canvas already has a pause (click it) and Hide all UI for anyone who wants stillness. */
   @media (prefers-reduced-motion: reduce) {
-    #panel, #menubar, #breakout, #help, #syncpop, #toggle, #galbtn, #fs, #mute, #panelbtn, #uihint, #tutdlg,
+    #panel, #menubar, #breakout, #help, #syncpop, #toprow > button, #scenebanner, #uihint, #tutdlg,
     #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg, #signindlg,
     #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg *, #signindlg * {
       transition: none !important;
@@ -289,8 +291,7 @@
      further down and #help and #restoredlg had none at all, so "hide all UI" left the help
      panel and the restore dialog sitting on the capture. One list, so there is one place to
      add the tenth dialog; tools/uiprobe.js asserts none is missing. */
-  body.ui-hidden #toggle, body.ui-hidden #galbtn, body.ui-hidden #fs, body.ui-hidden #mute, body.ui-hidden #panelbtn, body.ui-hidden #frames,
-  body.ui-hidden #scenebanner,
+  body.ui-hidden #toprow, body.ui-hidden #frames,
   body.ui-hidden #menubar,
   body.ui-hidden #panel, body.ui-hidden #breakout, body.ui-hidden #syncpop,
   body.ui-hidden #carddlg, body.ui-hidden #paldlg, body.ui-hidden #paledlg,

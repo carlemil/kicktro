@@ -29,22 +29,19 @@
   <!-- Title + subtitle are HIDDEN, not deleted (see the `#panel h1` rule in the CSS): the
        panel opens straight onto the scene controls. Both nodes stay because they are still
        wired — `sub` is written by setEffect on every effect change, and #help-btn opens the
-       help panel — and the same help is reachable from the ☰ menu ("What the controls do…").
+       help panel — and the same help is reachable from the top row's ? button.
        Deleting them would mean null-guarding both call sites for no gain. -->
   <h1>Kicktro <button id="help-btn" type="button" title="What the controls do" aria-label="What the controls do">?</button></h1>
   <p class="sub" id="sub">Sierpiński triangle · classic fire</p>
 
-  <!-- System / Cloud profile / Credits are NOT boxes any more: their contents are ADOPTED
-       into the ☰ fold-out menubar at startup (buildMenubar), which moves these very nodes
-       rather than rebuilding them — so every listener, id and sync path already wired to
-       them keeps working untouched. They stay here in the markup because this is where they
-       are authored and where the wiring code looks them up by id; the wrappers below are
-       hidden and emptied by the move. Do not "tidy" them into the menubar markup: the audio
-       buttons, the resolution select, #cloudrow (which Google renders its sign-in button
-       into) and the credits list are all wired by id from other slices. -->
-  <!-- System is TWO adopt hosts, not one: the menubar opens Audio and Resolution as separate
-       submenus, so each needs its own home element for returnAdopted to put its children back
-       into. They were one #sysbox ("Audio & resolution") until the split. -->
+  <!-- Audio / Cloud profile / Credits are NOT boxes: their contents are ADOPTED into a
+       top-row POPOVER (ui-menubar.js — ♪, the profile button, ©), which moves these very
+       nodes rather than rebuilding them — so every listener, id and sync path already wired
+       to them keeps working untouched. They stay here in the markup because this is where
+       they are authored and where the wiring code looks them up by id; the wrappers below are
+       hidden and emptied by the move. Do not "tidy" them into the popover code: the audio
+       buttons, #cloudrow (which Google renders its sign-in button into) and the credits list
+       are all wired by id from other slices. -->
   <div id="audiobox" hidden>
   <!-- Music reactivity: pick a source, watch the three-band meter -->
   <label>React to music <span class="val" id="vAudio">off</span></label>
@@ -54,9 +51,15 @@
     <button id="audStop" class="audbtn" type="button" title="Stop">Stop</button>
     <div class="meter" title="low · mid · high"><i></i><i></i><i></i></div>
   </div>
+  <!-- The ♪ button opens this box, so the mute it used to be lives here. It never stops the
+       stream (setMuted): the beats just stop driving the sliders. Not persisted (transient,
+       like audio.muted itself); the S key flips the same state. -->
+  <label class="check" data-nopersist title="Stop the beats driving the sliders; the source keeps running, so turning it back on asks for nothing (also the S key)"><input type="checkbox" id="audPause"> Pause the reaction (S)</label>
   <p id="audMsg" class="hint"></p>
   </div>
 
+  <!-- NOT SHOWN ANYWHERE since the ☰ menu went (by request): the stored resolution still
+       applies, there is just no control for it. Kept because the wiring looks the select up. -->
   <div id="resbox" hidden>
   <!-- The global render resolution — a device setting, deliberately not part of a scene -->
   <label>Resolution</label>
@@ -314,8 +317,8 @@
   </details>
 
   <!-- Credits. Generated from CREDITS in the script — the same array the startup burn-in
-       rasterises, so the two can no longer drift apart. Adopted into the ☰ menubar, like
-       System and Cloud profile above. -->
+       rasterises, so the two can no longer drift apart. Adopted into the © popover, like
+       Audio and Cloud profile above. -->
   <div id="creditbox" hidden>
   <div id="creditlist"></div>
   <!-- data-nopersist for the same reason as "Show author": a per-browser preference authored
@@ -326,7 +329,7 @@
        typography but has its own preference and key. -->
   </div>
 
-  <p class="hint">Click canvas to pause · <b>☰</b>/<b>⛶</b>/<b>♪</b> or <b>M</b>/<b>F</b>/<b>S</b> toggle panel/fullscreen/mute · <b>H</b> hides all UI</p>
+  <p class="hint">Click canvas to pause · <b>M</b>/<b>F</b>/<b>S</b> toggle panel/fullscreen/the music reaction · <b>H</b> hides all UI</p>
   <!-- Version + release notes, the conventional place for an "about" line: the very foot of
        the panel, below every box. The text is filled in from CONFIG.version at startup so the
        version lives in exactly one place; the link goes to the rendered CHANGELOG.md rather
@@ -336,29 +339,37 @@
   <p class="hint verline"><a id="verlink" href="#" target="_blank" rel="noopener"
      title="What changed in this and previous releases"><span class="ver-t">Release notes ↗</span><span class="ver-v" id="vernum">·</span></a></p>
 </div>
-<button id="toggle" type="button" aria-label="Open the menu" aria-haspopup="menu" aria-expanded="false">☰</button>
-<!-- The fold-out application menu the ☰ opens: a traditional multi-level menubar. Its
-     structure is built in JS (buildMenubar) and its leaf panels are filled by MOVING the
-     #audiobox / #resbox / #cloudbox / #creditbox contents in, so nothing has to be re-wired. -->
-<div id="menubar" class="hidden" role="menu" aria-label="Main menu"></div>
-<!-- The gallery, one click from anywhere: the same galOpen the ☰ item calls. Hidden by
-     cloudInit when there is no API to browse (the ☰ item is gated the same way). -->
+<!-- THE TOP ROW: every bit of chrome that is not scene data, one button each. The ☰
+     fold-out menu that held them as rows is GONE (by request); Resolution, Controls panel,
+     Fullscreen and Hide all UI went with it (the stored resolution still applies; M, F and H
+     still work). A FLEX row, so a button hidden with no API (▦, the profile) closes its gap
+     and the scene banner always follows the last one. ♪, the profile and © open a POPOVER
+     (ui-menubar.js) that MOVES the #audiobox / #cloudbox / #creditbox contents in, so nothing
+     has to be re-wired. -->
+<div id="toprow">
+<!-- The gallery, one click from anywhere. Hidden by cloudInit when there is no API. -->
 <button id="galbtn" type="button" aria-label="Open the gallery" title="Gallery">▦</button>
-<button id="fs" type="button" aria-label="Toggle fullscreen">⛶</button>
-<!-- Mute the music reaction. It does NOT stop the stream (see setMuted) — a browser cannot
-     silently re-grab tab/screen audio, so stopping would cost a fresh picker dialog to come
-     back, which is not what a mute button means. The glyph is the same ♪ either way; the
-     .muted class strikes it through, so this stays monochrome beside ☰ and ⛶ instead of
-     swapping in a colour emoji. -->
-<button id="mute" type="button" aria-label="Mute the music reaction (S)" aria-pressed="false">♪</button>
-<!-- Show/hide the controls panel: the same setPanel the M key and the ☰ entry call, but a
-     button a first-time visitor can actually find. syncPanelBtn mirrors its state. -->
+<!-- Its icon is drawn by syncFsUI: corners pointing OUT to enter, IN to leave. -->
+<button id="fs" type="button" aria-label="Enter fullscreen (F)"></button>
+<!-- Opens the Audio box (source, meter, Pause the reaction). The .muted class strikes the ♪
+     through while the reaction is paused, so the state stays readable with the box shut. -->
+<button id="mute" type="button" aria-label="Audio" aria-haspopup="dialog" aria-expanded="false">♪</button>
+<!-- Show/hide the controls panel: the same setPanel the M key calls. syncPanelBtn mirrors it. -->
 <button id="panelbtn" type="button" aria-label="Show or hide the controls (M)" aria-pressed="false">⚙</button>
+<!-- Sign in, your profile name, sign out, Delete profile. Hidden with no API, like ▦. -->
+<button id="profbtn" type="button" class="hidden" aria-label="Cloud profile" aria-haspopup="dialog" aria-expanded="false" title="Cloud profile — sign in, your name, sign out"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></button>
+<button id="credbtn" type="button" aria-label="Credits" aria-haspopup="dialog" aria-expanded="false" title="Credits">©</button>
+<button id="tourbtn" type="button" aria-label="Tutorial" title="The eight-step tour of what everything here does">i</button>
+<!-- Not #help-btn: that one is the hidden ? in the panel title. -->
+<button id="helpbtn" type="button" aria-label="Help" title="What the controls do — the full help panel">?</button>
 <!-- Which scene just came up, and who made it. Sits in the top button row rather than being
      drawn into the frame: it is chrome, so it belongs with the chrome — immune to the filters
      and the camera for free, readable at any resolution, and it costs the render nothing.
      Filled and faded by showSceneTitle/sceneBannerTick; aria-live so it is announced. -->
 <div id="scenebanner" class="hidden" aria-live="polite"></div>
+</div>
+<!-- The popover layer: a full-screen click-outside closer holding one .mb-panel at a time. -->
+<div id="menubar" class="hidden"></div>
 <div id="frames">0</div>
 <div id="paused" class="hidden">⏸ paused · click to resume</div>
 <!-- The only thing on screen after "Hide all UI" — which otherwise strips the very hint line

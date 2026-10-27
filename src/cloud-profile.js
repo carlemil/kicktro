@@ -794,7 +794,7 @@
       gal.done = true; gal.pend = []; galSyncMore();
       galHint(gal.tab === "own"
         ? "Every scene you make shows up here, and in the gallery an hour after your last change to it."
-        : "Favourites belong to an account — sign in under ☰ → Cloud profile, then press ❤️ on any scene.");
+        : "Favourites belong to an account — sign in under the profile button, then press ❤️ on any scene.");
       return;
     }
     gal.pend = gal.tab === "own" ? []
@@ -1048,7 +1048,7 @@
   // ONE vote per person: ❤️ and 💔 each clear the other, as the server does in one transaction.
   function galVote(c, want) {
     if (!cloudSess) {
-      galHint("Votes belong to an account — sign in under ☰ → Cloud profile.");
+      galHint("Votes belong to an account — sign in under the profile button.");
       signInAsk("Voting ❤️ / 💔 is for signed-in users only.");
       return;
     }
@@ -1316,7 +1316,7 @@
 
   // ---- the sign-in dialog ----------------------------------------------------------------
   // A signed-out press on something that needs an account opens THIS, over the gallery, rather
-  // than only pointing at ☰ → Cloud profile (which sits UNDER the gallery: z 12 against 20).
+  // than only pointing at the profile popover (which sits UNDER the gallery: z 12 against 20).
   // Google draws a second button into #signin-gsi (renderButton may draw any number); the
   // sign-in itself is the one callback cloudInit registered, and landing closes this.
   function signInOpen() { const d = el("signindlg"); return !!d && !d.classList.contains("hidden"); }
@@ -1686,14 +1686,14 @@
       else if (e.key === "Escape") { e.preventDefault(); cloudNameCommit(); }
     });
   }
-  // No #cloud-browse listener: the gallery is opened from the ☰ root item "Gallery",
-  // which calls galOpen(true) directly (see ui-menubar.js).
   if (el("gal-close")) el("gal-close").addEventListener("click", () => galOpen(false));
   if (el("signin-close")) el("signin-close").addEventListener("click", closeSignIn);
   if (el("signindlg")) el("signindlg").addEventListener("click", e => { if (e.target === el("signindlg")) closeSignIn(); });
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
   if (el("gal-more")) el("gal-more").addEventListener("click", galMore);
   if (el("gal-link")) el("gal-link").addEventListener("click", e => galCopyLink(null, e.currentTarget));
+  // The profile button is gated like ▦: with no API there is nothing to sign in to.
+  if (el("profbtn")) el("profbtn").classList.toggle("hidden", !cloudOn());
   if (el("galbtn")) {
     el("galbtn").classList.toggle("hidden", !cloudOn());
     el("galbtn").addEventListener("click", () => galOpen(el("galdlg").classList.contains("hidden")));

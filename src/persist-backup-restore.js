@@ -563,25 +563,25 @@
   }
   if (el("panelbtn")) el("panelbtn").addEventListener("click", () => setPanel(!panel.classList.contains("hidden")));
   syncPanelBtn();                       // restore() ran two slices ago; paint the stored state
-  // The ☰ hamburger opens the fold-out MENUBAR (ui-menubar.js), not the controls panel —
-  // it is the app's application menu now, holding System / Cloud profile / Credits and a
-  // Controls panel toggle. The "m" key still toggles the panel directly, so the fastest
-  // route to the sliders is unchanged. `menubarToggle` is a function declaration in a later
-  // slice, hence safe to reference here (it only runs on click).
-  toggle.addEventListener("click", e => { e.stopPropagation(); menubarToggle(); });
   // Fullscreen toggle (works on mobile too, where F11 doesn't exist; also the "f" key).
   function toggleFullscreen() {
     if (document.fullscreenElement) document.exitFullscreen && document.exitFullscreen();
     else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
   }
   el("fs").addEventListener("click", toggleFullscreen);
-  // Same treatment the ♪ gets (setAudioUI): a toggle has to SAY which state it is in, and the
-  // glyph alone does not — ⛶ looks identical either way. Driven off `fullscreenchange` rather
-  // than off the click, so it also tracks F11, the Esc that leaves fullscreen, and a request
-  // the browser refuses; the request is async, so reading it back after the click would lie.
+  // A toggle has to SAY which state it is in: corners pointing OUT to enter, IN to leave
+  // (the old ⛶ looked identical either way). Driven off `fullscreenchange` rather than off
+  // the click, so it also tracks F11, the Esc that leaves fullscreen, and a request the
+  // browser refuses; the request is async, so reading it back after the click would lie.
+  const FS_SVG = d => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"'
+    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';
+  const FS_ENTER = FS_SVG("M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5");
+  const FS_LEAVE = FS_SVG("M9 4v5H4M15 4v5h5M15 20v-5h5M9 20v-5H4");
   function syncFsUI() {
     const on = !!document.fullscreenElement;
     const b = el("fs"); if (!b) return;
+    b.innerHTML = on ? FS_LEAVE : FS_ENTER;
+    b.dataset.fs = on ? "leave" : "enter";
     b.setAttribute("aria-pressed", on ? "true" : "false");
     b.setAttribute("aria-label", on ? "Exit fullscreen (F)" : "Enter fullscreen (F)");
     b.title = on ? "Leave fullscreen (F)" : "Fill the screen (F)";

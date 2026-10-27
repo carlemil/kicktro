@@ -10,13 +10,13 @@
   el("diagTrace").checked = dbg.on;
   el("diagTrace").addEventListener("change", e => dbgToggle(e.target.checked));
 
-  // Hide-all-UI mode: strip every button, the fps counter and the whole menu for a clean
+  // Hide-all-UI mode: strip every button, the fps counter and every popover for a clean
   // capture — from ?hideui in the URL, or the "h" key. Transient (never persisted); the menu's
   // own open/closed state is untouched, so bringing the UI back restores it exactly.
   // `quiet` suppresses the way-back hint. Hiding the UI removes the panel footer that names
   // the H key, so an interactive hide has to say how to undo itself or it reads as a crash —
   // but ?hideui exists for headless screenshots, where anything drawn over the visual is the
-  // bug. Hence: hint on H and on the menu item, silence on the URL.
+  // bug. Hence: hint on H, silence on the URL.
   const uiHint = el("uihint");
   var uiHintTimer = 0;
   var uiHintBack = "";        // the shipped "Press H…" markup, captured on first use

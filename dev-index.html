@@ -163,15 +163,15 @@
   }
   .palsw.active { border-color: #ffcf87; box-shadow: 0 0 0 1px #ffcf87, 0 0 7px rgba(255, 207, 135, 0.55); }
   .palsw:focus-visible { outline: 2px solid #ffb15a; outline-offset: 1px; }
-  /* ---- ☰ fold-out menubar --------------------------------------------------------
-     Panels are position:fixed children of #menubar and are positioned in JS (measured
-     after insertion so a submenu can flip left rather than run off the edge). Above the
-     panel (z 10) but below the modal-ish dialogs. */
+  /* ---- top-row popovers (#menubar keeps its id: every adopted-block rule names it) ----
+     The one .mb-panel is a position:fixed child of #menubar, placed in JS under the button
+     that opened it (measured after insertion, clamped on screen). Above the top row (z 10)
+     but below the modal-ish dialogs. */
   /* The overlay deliberately CATCHES pointer events while open: it is the click-outside
-     closer, and without it a click meant to dismiss the menu would fall through to the
+     closer, and without it a click meant to dismiss the popover would fall through to the
      canvas and pause the animation. Hidden ⇒ display:none, so it never interferes closed. */
   /* The font lives on #panel, not on body, so an adopted block dropped in here would fall
-     back to the browser's serif default — set the same face on the menubar. */
+     back to the browser's serif default — set the same face on the popover layer. */
   #menubar {
     position: fixed; inset: 0; z-index: 12;
     color: #ffdcb0; font: 12px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -217,11 +217,16 @@
   /* Under "Auto-cycle": the cycler is gated on the panel being hidden, and this is the
      one line that says so. Indented to the checkbox's label text (15px box + 8px gap). */
   #panel.hidden { opacity: 0; transform: translateX(-12px); pointer-events: none; visibility: hidden; }
-  #toggle, #galbtn, #fs, #mute, #panelbtn {
-    position: fixed;
-    top: 14px;
-    left: 14px;
-    z-index: 10;
+  /* The top row is a FLEX row: a button hidden with no API (▦, the profile) closes its gap,
+     and the scene banner is its last child, so it always follows the last button. */
+  #toprow {
+    position: fixed; top: 14px; left: 14px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    max-width: calc(100vw - 28px);
+    pointer-events: none;                 /* only the buttons take clicks, never the gaps */
+  }
+  #toprow > button {
+    flex: 0 0 auto; pointer-events: auto;
     width: 34px; height: 34px;
     padding: 0; appearance: none; -webkit-appearance: none;
     display: flex;
@@ -236,20 +241,18 @@
     -webkit-backdrop-filter: blur(6px);
     transition: background .15s;
   }
-  #galbtn { left: 54px; font-size: 18px; }   /* the gallery, right of the menu */
-  #galbtn.hidden { display: none; }
-  #fs { left: 94px; }                     /* fullscreen button, right of the gallery */
-  #mute { left: 134px; font-size: 18px; } /* mute the music reaction, right of fullscreen */
-  #panelbtn { left: 174px; font-size: 17px; }  /* controls panel open/closed, right of mute */
-  #panelbtn.on { background: rgba(255, 122, 26, 0.3); }
+  #toprow > button.hidden { display: none; }
+  #galbtn, #mute { font-size: 18px; }
+  #panelbtn { font-size: 17px; }
+  #tourbtn { font: italic 17px/1 Georgia, "Times New Roman", serif; }
+  #panelbtn.on, #toprow > button[aria-expanded="true"] { background: rgba(255, 122, 26, 0.3); }
   /* The scene banner, continuing that row. It used to be drawn into the frame at ~1/26 of the
      viewport width; as chrome it can be small and quiet, because it no longer has to survive
      being composited under a bloom. Not a button — no border or background, so it reads as a
      caption on the row rather than a fourth control you could press. */
   #scenebanner {
-    position: fixed; top: 14px; left: 214px; z-index: 10;
-    height: 34px; display: flex; align-items: center;
-    max-width: calc(100vw - 240px);
+    flex: 0 1 auto; min-width: 0; margin-left: 6px;
+    height: 34px; line-height: 34px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     color: #ffcf87; font: 12px/1 ui-monospace, Consolas, monospace; letter-spacing: .03em;
     text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
@@ -260,12 +263,11 @@
   /* Muted reads as a struck-through note — same glyph, so the button never changes width or
      baseline as you toggle it, and it stays monochrome with its two neighbours. */
   #mute.muted { color: #8a6a52; text-decoration: line-through; }
-  /* No source running: nothing to mute, so the button is visibly inert (a click only
-     surfaces the hint in the menu's audio line — see toggleMute). */
-  #mute.off { opacity: .38; cursor: default; }
-  #toggle:hover, #galbtn:hover, #fs:hover, #panelbtn:hover, #mute:not(.off):hover { background: rgba(255, 122, 26, 0.3); }
+  /* No source running: dimmed, but LIVE — it opens the Audio box, which is where you start one. */
+  #mute.off { opacity: .55; }
+  #toprow > button:hover { background: rgba(255, 122, 26, 0.3); }
   /* keyboard focus rings (a11y) */
-  #panel button:focus-visible, #menubar button:focus-visible, #toggle:focus-visible, #galbtn:focus-visible, #fs:focus-visible, #mute:focus-visible, #panelbtn:focus-visible,
+  #panel button:focus-visible, #menubar button:focus-visible, #toprow > button:focus-visible,
   #panel select:focus-visible, #panel input:focus-visible, #menubar select:focus-visible, #menubar input:focus-visible { outline: 2px solid #ffb15a; outline-offset: 2px; }
   /* REDUCED MOTION covers the CHROME, not the visual. The old rule named seven elements and so
      reached only about half the UI's own movement — the two keyframe animations, the chevron
@@ -275,7 +277,7 @@
      would leave a black rectangle that reads as a broken app rather than a respected preference;
      the canvas already has a pause (click it) and Hide all UI for anyone who wants stillness. */
   @media (prefers-reduced-motion: reduce) {
-    #panel, #menubar, #breakout, #help, #syncpop, #toggle, #galbtn, #fs, #mute, #panelbtn, #uihint, #tutdlg,
+    #panel, #menubar, #breakout, #help, #syncpop, #toprow > button, #scenebanner, #uihint, #tutdlg,
     #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg, #signindlg,
     #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg *, #signindlg * {
       transition: none !important;
@@ -307,8 +309,7 @@
      further down and #help and #restoredlg had none at all, so "hide all UI" left the help
      panel and the restore dialog sitting on the capture. One list, so there is one place to
      add the tenth dialog; tools/uiprobe.js asserts none is missing. */
-  body.ui-hidden #toggle, body.ui-hidden #galbtn, body.ui-hidden #fs, body.ui-hidden #mute, body.ui-hidden #panelbtn, body.ui-hidden #frames,
-  body.ui-hidden #scenebanner,
+  body.ui-hidden #toprow, body.ui-hidden #frames,
   body.ui-hidden #menubar,
   body.ui-hidden #panel, body.ui-hidden #breakout, body.ui-hidden #syncpop,
   body.ui-hidden #carddlg, body.ui-hidden #paldlg, body.ui-hidden #paledlg,
@@ -1984,22 +1985,19 @@
   <!-- Title + subtitle are HIDDEN, not deleted (see the `#panel h1` rule in the CSS): the
        panel opens straight onto the scene controls. Both nodes stay because they are still
        wired — `sub` is written by setEffect on every effect change, and #help-btn opens the
-       help panel — and the same help is reachable from the ☰ menu ("What the controls do…").
+       help panel — and the same help is reachable from the top row's ? button.
        Deleting them would mean null-guarding both call sites for no gain. -->
   <h1>Kicktro <button id="help-btn" type="button" title="What the controls do" aria-label="What the controls do">?</button></h1>
   <p class="sub" id="sub">Sierpiński triangle · classic fire</p>
 
-  <!-- System / Cloud profile / Credits are NOT boxes any more: their contents are ADOPTED
-       into the ☰ fold-out menubar at startup (buildMenubar), which moves these very nodes
-       rather than rebuilding them — so every listener, id and sync path already wired to
-       them keeps working untouched. They stay here in the markup because this is where they
-       are authored and where the wiring code looks them up by id; the wrappers below are
-       hidden and emptied by the move. Do not "tidy" them into the menubar markup: the audio
-       buttons, the resolution select, #cloudrow (which Google renders its sign-in button
-       into) and the credits list are all wired by id from other slices. -->
-  <!-- System is TWO adopt hosts, not one: the menubar opens Audio and Resolution as separate
-       submenus, so each needs its own home element for returnAdopted to put its children back
-       into. They were one #sysbox ("Audio & resolution") until the split. -->
+  <!-- Audio / Cloud profile / Credits are NOT boxes: their contents are ADOPTED into a
+       top-row POPOVER (ui-menubar.js — ♪, the profile button, ©), which moves these very
+       nodes rather than rebuilding them — so every listener, id and sync path already wired
+       to them keeps working untouched. They stay here in the markup because this is where
+       they are authored and where the wiring code looks them up by id; the wrappers below are
+       hidden and emptied by the move. Do not "tidy" them into the popover code: the audio
+       buttons, #cloudrow (which Google renders its sign-in button into) and the credits list
+       are all wired by id from other slices. -->
   <div id="audiobox" hidden>
   <!-- Music reactivity: pick a source, watch the three-band meter -->
   <label>React to music <span class="val" id="vAudio">off</span></label>
@@ -2009,9 +2007,15 @@
     <button id="audStop" class="audbtn" type="button" title="Stop">Stop</button>
     <div class="meter" title="low · mid · high"><i></i><i></i><i></i></div>
   </div>
+  <!-- The ♪ button opens this box, so the mute it used to be lives here. It never stops the
+       stream (setMuted): the beats just stop driving the sliders. Not persisted (transient,
+       like audio.muted itself); the S key flips the same state. -->
+  <label class="check" data-nopersist title="Stop the beats driving the sliders; the source keeps running, so turning it back on asks for nothing (also the S key)"><input type="checkbox" id="audPause"> Pause the reaction (S)</label>
   <p id="audMsg" class="hint"></p>
   </div>
 
+  <!-- NOT SHOWN ANYWHERE since the ☰ menu went (by request): the stored resolution still
+       applies, there is just no control for it. Kept because the wiring looks the select up. -->
   <div id="resbox" hidden>
   <!-- The global render resolution — a device setting, deliberately not part of a scene -->
   <label>Resolution</label>
@@ -2269,8 +2273,8 @@
   </details>
 
   <!-- Credits. Generated from CREDITS in the script — the same array the startup burn-in
-       rasterises, so the two can no longer drift apart. Adopted into the ☰ menubar, like
-       System and Cloud profile above. -->
+       rasterises, so the two can no longer drift apart. Adopted into the © popover, like
+       Audio and Cloud profile above. -->
   <div id="creditbox" hidden>
   <div id="creditlist"></div>
   <!-- data-nopersist for the same reason as "Show author": a per-browser preference authored
@@ -2281,7 +2285,7 @@
        typography but has its own preference and key. -->
   </div>
 
-  <p class="hint">Click canvas to pause · <b>☰</b>/<b>⛶</b>/<b>♪</b> or <b>M</b>/<b>F</b>/<b>S</b> toggle panel/fullscreen/mute · <b>H</b> hides all UI</p>
+  <p class="hint">Click canvas to pause · <b>M</b>/<b>F</b>/<b>S</b> toggle panel/fullscreen/the music reaction · <b>H</b> hides all UI</p>
   <!-- Version + release notes, the conventional place for an "about" line: the very foot of
        the panel, below every box. The text is filled in from CONFIG.version at startup so the
        version lives in exactly one place; the link goes to the rendered CHANGELOG.md rather
@@ -2291,29 +2295,37 @@
   <p class="hint verline"><a id="verlink" href="#" target="_blank" rel="noopener"
      title="What changed in this and previous releases"><span class="ver-t">Release notes ↗</span><span class="ver-v" id="vernum">·</span></a></p>
 </div>
-<button id="toggle" type="button" aria-label="Open the menu" aria-haspopup="menu" aria-expanded="false">☰</button>
-<!-- The fold-out application menu the ☰ opens: a traditional multi-level menubar. Its
-     structure is built in JS (buildMenubar) and its leaf panels are filled by MOVING the
-     #audiobox / #resbox / #cloudbox / #creditbox contents in, so nothing has to be re-wired. -->
-<div id="menubar" class="hidden" role="menu" aria-label="Main menu"></div>
-<!-- The gallery, one click from anywhere: the same galOpen the ☰ item calls. Hidden by
-     cloudInit when there is no API to browse (the ☰ item is gated the same way). -->
+<!-- THE TOP ROW: every bit of chrome that is not scene data, one button each. The ☰
+     fold-out menu that held them as rows is GONE (by request); Resolution, Controls panel,
+     Fullscreen and Hide all UI went with it (the stored resolution still applies; M, F and H
+     still work). A FLEX row, so a button hidden with no API (▦, the profile) closes its gap
+     and the scene banner always follows the last one. ♪, the profile and © open a POPOVER
+     (ui-menubar.js) that MOVES the #audiobox / #cloudbox / #creditbox contents in, so nothing
+     has to be re-wired. -->
+<div id="toprow">
+<!-- The gallery, one click from anywhere. Hidden by cloudInit when there is no API. -->
 <button id="galbtn" type="button" aria-label="Open the gallery" title="Gallery">▦</button>
-<button id="fs" type="button" aria-label="Toggle fullscreen">⛶</button>
-<!-- Mute the music reaction. It does NOT stop the stream (see setMuted) — a browser cannot
-     silently re-grab tab/screen audio, so stopping would cost a fresh picker dialog to come
-     back, which is not what a mute button means. The glyph is the same ♪ either way; the
-     .muted class strikes it through, so this stays monochrome beside ☰ and ⛶ instead of
-     swapping in a colour emoji. -->
-<button id="mute" type="button" aria-label="Mute the music reaction (S)" aria-pressed="false">♪</button>
-<!-- Show/hide the controls panel: the same setPanel the M key and the ☰ entry call, but a
-     button a first-time visitor can actually find. syncPanelBtn mirrors its state. -->
+<!-- Its icon is drawn by syncFsUI: corners pointing OUT to enter, IN to leave. -->
+<button id="fs" type="button" aria-label="Enter fullscreen (F)"></button>
+<!-- Opens the Audio box (source, meter, Pause the reaction). The .muted class strikes the ♪
+     through while the reaction is paused, so the state stays readable with the box shut. -->
+<button id="mute" type="button" aria-label="Audio" aria-haspopup="dialog" aria-expanded="false">♪</button>
+<!-- Show/hide the controls panel: the same setPanel the M key calls. syncPanelBtn mirrors it. -->
 <button id="panelbtn" type="button" aria-label="Show or hide the controls (M)" aria-pressed="false">⚙</button>
+<!-- Sign in, your profile name, sign out, Delete profile. Hidden with no API, like ▦. -->
+<button id="profbtn" type="button" class="hidden" aria-label="Cloud profile" aria-haspopup="dialog" aria-expanded="false" title="Cloud profile — sign in, your name, sign out"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></button>
+<button id="credbtn" type="button" aria-label="Credits" aria-haspopup="dialog" aria-expanded="false" title="Credits">©</button>
+<button id="tourbtn" type="button" aria-label="Tutorial" title="The eight-step tour of what everything here does">i</button>
+<!-- Not #help-btn: that one is the hidden ? in the panel title. -->
+<button id="helpbtn" type="button" aria-label="Help" title="What the controls do — the full help panel">?</button>
 <!-- Which scene just came up, and who made it. Sits in the top button row rather than being
      drawn into the frame: it is chrome, so it belongs with the chrome — immune to the filters
      and the camera for free, readable at any resolution, and it costs the render nothing.
      Filled and faded by showSceneTitle/sceneBannerTick; aria-live so it is announced. -->
 <div id="scenebanner" class="hidden" aria-live="polite"></div>
+</div>
+<!-- The popover layer: a full-screen click-outside closer holding one .mb-panel at a time. -->
+<div id="menubar" class="hidden"></div>
 <div id="frames">0</div>
 <div id="paused" class="hidden">⏸ paused · click to resume</div>
 <!-- The only thing on screen after "Hide all UI" — which otherwise strips the very hint line
@@ -14822,7 +14834,6 @@
 
   // ---- controls ----
   const panel = document.getElementById("panel");
-  const toggle = document.getElementById("toggle");
   const el = id => document.getElementById(id);
 
   // ---- music beat reactivity ----
@@ -14993,12 +15004,14 @@
     if (mb) {
       mb.classList.toggle("muted", audio.muted);
       mb.classList.toggle("off", !audio.on);          // nothing to mute
-      mb.setAttribute("aria-pressed", audio.muted ? "true" : "false");
-      mb.setAttribute("aria-label", audio.muted ? "Unmute the music reaction (S)" : "Mute the music reaction (S)");
-      mb.title = !audio.on ? "No audio source — start Capture or Mic in the menu"
-        : audio.muted ? "Muted — the source is still running (S)"
-        : "Mute the music reaction, keeping the source running (S)";
+      mb.setAttribute("aria-label", audio.muted ? "Audio — the reaction is paused" : "Audio");
+      mb.title = !audio.on ? "Audio — start Capture or Mic"
+        : audio.muted ? "Audio — the reaction is paused (S resumes it)"
+        : "Audio — " + audio.src;
     }
+    // The mute that used to be the ♪ itself: a tick in the Audio box, live only with a source.
+    const pz = el("audPause");
+    if (pz) { pz.checked = audio.muted; pz.disabled = !audio.on; }
   }
   // Mute WITHOUT touching the stream. stopAudio() would be wrong here: a browser cannot
   // silently re-grab tab/screen audio, so coming back would cost a fresh picker dialog —
@@ -15032,7 +15045,7 @@
       // works with the panel closed and the UI hidden, which is exactly when the S key
       // gets pressed.
       if (document.body.classList.contains("ui-hidden") || !openAudioDialog("Nothing to mute yet — pick an audio source and the visual starts reacting."))
-        flashUiHint("No audio yet — <b>☰ → Audio</b> to start Capture or Mic");
+        flashUiHint("No audio yet — <b>♪</b> to start Capture or Mic");
       return;
     }
     setMuted(!audio.muted);
@@ -15583,9 +15596,9 @@
     document.addEventListener("keydown", resume, true);
   }
   el("audStop").addEventListener("click", stopAudio);
-  // The floating ♪ beside ☰ and ⛶. Wired here rather than with the other chrome buttons so
-  // it sits next to the state it owns; the S key in the keydown handler calls the same fn.
-  el("mute").addEventListener("click", toggleMute);
+  // The ♪ itself opens the Audio box (ui-menubar.js); the pause lives in there, beside the
+  // state it owns. The S key in the keydown handler calls toggleMute, which flips the same.
+  el("audPause").addEventListener("change", e => { if (audio.on) { setMuted(e.target.checked); audioMsg(""); } else setAudioUI(); });
   setAudioUI();                 // paint the button's initial (no source ⇒ inert) state
   setAudioUI();
 
@@ -25431,25 +25444,25 @@
   }
   if (el("panelbtn")) el("panelbtn").addEventListener("click", () => setPanel(!panel.classList.contains("hidden")));
   syncPanelBtn();                       // restore() ran two slices ago; paint the stored state
-  // The ☰ hamburger opens the fold-out MENUBAR (ui-menubar.js), not the controls panel —
-  // it is the app's application menu now, holding System / Cloud profile / Credits and a
-  // Controls panel toggle. The "m" key still toggles the panel directly, so the fastest
-  // route to the sliders is unchanged. `menubarToggle` is a function declaration in a later
-  // slice, hence safe to reference here (it only runs on click).
-  toggle.addEventListener("click", e => { e.stopPropagation(); menubarToggle(); });
   // Fullscreen toggle (works on mobile too, where F11 doesn't exist; also the "f" key).
   function toggleFullscreen() {
     if (document.fullscreenElement) document.exitFullscreen && document.exitFullscreen();
     else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
   }
   el("fs").addEventListener("click", toggleFullscreen);
-  // Same treatment the ♪ gets (setAudioUI): a toggle has to SAY which state it is in, and the
-  // glyph alone does not — ⛶ looks identical either way. Driven off `fullscreenchange` rather
-  // than off the click, so it also tracks F11, the Esc that leaves fullscreen, and a request
-  // the browser refuses; the request is async, so reading it back after the click would lie.
+  // A toggle has to SAY which state it is in: corners pointing OUT to enter, IN to leave
+  // (the old ⛶ looked identical either way). Driven off `fullscreenchange` rather than off
+  // the click, so it also tracks F11, the Esc that leaves fullscreen, and a request the
+  // browser refuses; the request is async, so reading it back after the click would lie.
+  const FS_SVG = d => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"'
+    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';
+  const FS_ENTER = FS_SVG("M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5");
+  const FS_LEAVE = FS_SVG("M9 4v5H4M15 4v5h5M15 20v-5h5M9 20v-5H4");
   function syncFsUI() {
     const on = !!document.fullscreenElement;
     const b = el("fs"); if (!b) return;
+    b.innerHTML = on ? FS_LEAVE : FS_ENTER;
+    b.dataset.fs = on ? "leave" : "enter";
     b.setAttribute("aria-pressed", on ? "true" : "false");
     b.setAttribute("aria-label", on ? "Exit fullscreen (F)" : "Enter fullscreen (F)");
     b.title = on ? "Leave fullscreen (F)" : "Fill the screen (F)";
@@ -26298,7 +26311,7 @@
       gal.done = true; gal.pend = []; galSyncMore();
       galHint(gal.tab === "own"
         ? "Every scene you make shows up here, and in the gallery an hour after your last change to it."
-        : "Favourites belong to an account — sign in under ☰ → Cloud profile, then press ❤️ on any scene.");
+        : "Favourites belong to an account — sign in under the profile button, then press ❤️ on any scene.");
       return;
     }
     gal.pend = gal.tab === "own" ? []
@@ -26552,7 +26565,7 @@
   // ONE vote per person: ❤️ and 💔 each clear the other, as the server does in one transaction.
   function galVote(c, want) {
     if (!cloudSess) {
-      galHint("Votes belong to an account — sign in under ☰ → Cloud profile.");
+      galHint("Votes belong to an account — sign in under the profile button.");
       signInAsk("Voting ❤️ / 💔 is for signed-in users only.");
       return;
     }
@@ -26820,7 +26833,7 @@
 
   // ---- the sign-in dialog ----------------------------------------------------------------
   // A signed-out press on something that needs an account opens THIS, over the gallery, rather
-  // than only pointing at ☰ → Cloud profile (which sits UNDER the gallery: z 12 against 20).
+  // than only pointing at the profile popover (which sits UNDER the gallery: z 12 against 20).
   // Google draws a second button into #signin-gsi (renderButton may draw any number); the
   // sign-in itself is the one callback cloudInit registered, and landing closes this.
   function signInOpen() { const d = el("signindlg"); return !!d && !d.classList.contains("hidden"); }
@@ -27190,14 +27203,14 @@
       else if (e.key === "Escape") { e.preventDefault(); cloudNameCommit(); }
     });
   }
-  // No #cloud-browse listener: the gallery is opened from the ☰ root item "Gallery",
-  // which calls galOpen(true) directly (see ui-menubar.js).
   if (el("gal-close")) el("gal-close").addEventListener("click", () => galOpen(false));
   if (el("signin-close")) el("signin-close").addEventListener("click", closeSignIn);
   if (el("signindlg")) el("signindlg").addEventListener("click", e => { if (e.target === el("signindlg")) closeSignIn(); });
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
   if (el("gal-more")) el("gal-more").addEventListener("click", galMore);
   if (el("gal-link")) el("gal-link").addEventListener("click", e => galCopyLink(null, e.currentTarget));
+  // The profile button is gated like ▦: with no API there is nothing to sign in to.
+  if (el("profbtn")) el("profbtn").classList.toggle("hidden", !cloudOn());
   if (el("galbtn")) {
     el("galbtn").classList.toggle("hidden", !cloudOn());
     el("galbtn").addEventListener("click", () => galOpen(el("galdlg").classList.contains("hidden")));
@@ -28034,13 +28047,13 @@
   el("diagTrace").checked = dbg.on;
   el("diagTrace").addEventListener("change", e => dbgToggle(e.target.checked));
 
-  // Hide-all-UI mode: strip every button, the fps counter and the whole menu for a clean
+  // Hide-all-UI mode: strip every button, the fps counter and every popover for a clean
   // capture — from ?hideui in the URL, or the "h" key. Transient (never persisted); the menu's
   // own open/closed state is untouched, so bringing the UI back restores it exactly.
   // `quiet` suppresses the way-back hint. Hiding the UI removes the panel footer that names
   // the H key, so an interactive hide has to say how to undo itself or it reads as a crash —
   // but ?hideui exists for headless screenshots, where anything drawn over the visual is the
-  // bug. Hence: hint on H and on the menu item, silence on the URL.
+  // bug. Hence: hint on H, silence on the URL.
   const uiHint = el("uihint");
   var uiHintTimer = 0;
   var uiHintBack = "";        // the shipped "Press H…" markup, captured on first use
@@ -28660,7 +28673,7 @@
     }, 1000);
   }
   // ---- First-run tutorial -------------------------------------------------------------
-  // An eight-step tour of what the app is, shown ONCE ever and then living in the ☰ menu
+  // An eight-step tour of what the app is, shown ONCE ever and then living on the top row's i
   // so it can be re-read. It exists because #help is a REFERENCE — a per-effect blurb list
   // keyed off helpTags — and never opens by itself, so a first-time visitor met a running
   // four-layer scene, a dense panel, and thirty seconds later a popup asking to capture
@@ -28698,8 +28711,8 @@
       '<svg viewBox="0 0 200 86" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">'
       + '<rect x="10" y="8" width="58" height="70" rx="6"/>'
       + '<path d="M20 24h38M20 36h38M20 48h26M20 60h32" opacity=".55"/>'
-      + '<rect x="160" y="8" width="30" height="24" rx="6"/>'
-      + '<path d="M167 16h16M167 20h16M167 24h16"/>'
+      + '<rect x="96" y="8" width="20" height="20" rx="5"/><rect x="120" y="8" width="20" height="20" rx="5"/>'
+      + '<rect x="144" y="8" width="20" height="20" rx="5"/><rect x="168" y="8" width="20" height="20" rx="5"/>'
       + '<rect x="120" y="40" width="70" height="38" rx="6" opacity=".55"/>'
       + '<path d="M130 52h50M130 62h34" opacity=".45"/>'
       + '</svg>',
@@ -28773,7 +28786,7 @@
     // call to action, so this step deliberately explains rather than asks.
     { head: "It reacts to your music", art: TUT_ART.music,
       body: "The thing to know first: Kicktro <b>pulses in time with whatever you are listening "
-        + "to</b>. Turn on an audio source from <b>☰ → Audio</b> — <b>Capture</b> shares the sound of a "
+        + "to</b>. Turn on an audio source from <b>♪</b> — <b>Capture</b> shares the sound of a "
         + "tab (Spotify, YouTube), or use the <b>microphone</b> — and it is split into low, mid and high "
         + "beats. Any slider can then be armed with its <b>L / M / H</b> chips (a couple of steps from "
         + "now): it stops drifting, rests at its low end and snaps to its high end on every beat in that "
@@ -28786,15 +28799,16 @@
         // nothing is armed: the audio dialog follows this tour instead (openRequiredAudio).
         + (frontDoorOn()
           ? "<br><br>So that it just works: <b>after this tour Kicktro asks for an audio source</b> — "
-            + "Capture or Mic. Pick one and the music drives the visual; you can switch any time from ☰ → Audio."
+            + "Capture or Mic. Pick one and the music drives the visual; you can switch any time from ♪."
           : "<br><br>So that it just works: <b>your first click after this tour will ask to use the "
             + "microphone</b>. Allow it and the room drives the visual; refuse, and it is never asked "
-            + "again — you can still start either source yourself from ☰ → Audio.") },
-    { head: "Two menus", art: TUT_ART.menus,
+            + "again — you can still start either source yourself from ♪.") },
+    { head: "The editor and the buttons", art: TUT_ART.menus,
       body: "<span class=\"tut-keys\">M</span> opens the <b>scene editor</b> down the left — everything "
         + "that is part of what you are looking at. While it is open the scenes stop auto-cycling, so "
-        + "nothing changes under you while you work. The <b>☰</b> top-right is everything else: audio, render resolution, "
-        + "fullscreen, your cloud profile, other people's scenes, the help reference — and this tutorial. "
+        + "nothing changes under you while you work. The <b>buttons along the top</b> are everything else: "
+        + "other people's scenes, fullscreen, audio, your cloud profile, the credits, this tutorial and the "
+        + "help reference. "
         + "<span class=\"tut-keys\">M</span> hides it again, <span class=\"tut-keys\">F</span> "
         + "goes fullscreen and <span class=\"tut-keys\">H</span> strips every last bit of chrome." },
     { head: "Scenes", art: TUT_ART.scenes,
@@ -28834,8 +28848,8 @@
         + "change to it, so polish it first: there everyone's scenes play as you hover them and "
         + "<b>❤️</b> sorts the best to the top. "
         + "<b>Share</b> copies a link to the one scene you "
-        + "have open.<br><br>That is the tour. <b>☰ → Help</b> explains every single control, and "
-        + "<b>☰ → Tutorial</b> brings this back whenever you want it." },
+        + "have open.<br><br>That is the tour. <b>?</b> explains every single control, and "
+        + "<b><i>i</i></b> brings this back whenever you want it." },
   ];
 
   const tutDlg = el("tutdlg");
@@ -28952,39 +28966,33 @@
       }, 250);
     }
   }
-  // ---- ☰ fold-out menubar ------------------------------------------------------------
-  // A traditional multi-level menu: the ☰ opens a root list, items with a ▸ open a submenu
-  // beside it, and those can nest again (Audio ▸ Capture). It holds what used to be
-  // the panel's Audio, Resolution, Cloud profile and Credits boxes, plus the Controls panel toggle —
-  // the ☰ no longer toggles the panel itself, so this is where that lives (the "m" key still
-  // does it directly, which is the fast route).
+  // ---- top-row popovers -------------------------------------------------------------
+  // The ☰ fold-out menubar is GONE (by request): every item it held is a button in #toprow.
+  // Three of those open a POPOVER from here — ♪ the Audio box, the profile button the Cloud
+  // profile box, © the credits — and two act directly (Tutorial, Help). Resolution, Controls
+  // panel, Fullscreen and Hide all UI went with the menu: ⚙ and ⛶ were already buttons, and
+  // M / F / H still work.
   //
-  // THE LEAF PANELS ADOPT THE EXISTING NODES rather than rebuilding them. `#audiobox`,
-  // `#resbox`, `#cloudbox` and `#creditbox` are authored in the panel markup and moved in here,
-  // which is the same trick buildFilterUI uses to pull `#ctl-<key>` into a filter body. That
-  // is not laziness — it is what keeps every listener, every `el(id)` lookup and every sync
-  // path (setAudioUI, cloudSync, the Google sign-in button rendered into #cloud-signin)
-  // working with no changes at all. Rebuilding this markup here would mean re-wiring the
-  // whole cloud module.
+  // A POPOVER ADOPTS THE EXISTING NODES rather than rebuilding them. `#audiobox`, `#cloudbox`
+  // and `#creditbox` are authored in the panel markup and moved in here, which is the same
+  // trick buildFilterUI uses to pull `#ctl-<key>` into a filter body. That is not laziness —
+  // it is what keeps every listener, every `el(id)` lookup and every sync path (setAudioUI,
+  // cloudSync, the Google sign-in button rendered into #cloud-signin) working with no
+  // changes at all. Rebuilding this markup here would mean re-wiring the whole cloud module.
   //
   // Runs LAST in the manifest: by the time it moves anything, every other slice has already
   // found its elements and attached its listeners. Moving a node never detaches a listener,
   // so the order only matters for code that looks nodes up at startup.
 
+  // #menubar keeps its id although it holds no menu any more: every rule that styles an
+  // adopted block names it ("#panel …, #breakout …, #menubar …").
   const menubar = el("menubar");
+  let pop = null;                     // {el, btn} while a popover is open
 
-  // One open path, from the root down: menuPath[0] is the root panel, [1] its open submenu,
-  // and so on. Opening an item at depth d closes everything at depth > d, which is what
-  // makes hovering across siblings behave like a real menu.
-  let menuPath = [];
-
-  function menubarOpen() { return !menubar.classList.contains("hidden"); }
-
-  // Put every adopted block back where it came from before its panel is destroyed.
-  // WITHOUT THIS, closing the menu deletes the real audio buttons, the resolution select,
-  // #cloudrow and the credits list from the document — they are MOVED here, not copied, so
-  // discarding the panel discards them and nothing that looks them up by id works again.
-  // (Caught by the probe reopening the menu and finding an empty panel.)
+  // Put the adopted block back where it came from before its popover is destroyed.
+  // WITHOUT THIS, closing deletes the real audio buttons, #cloudrow and the credits list
+  // from the document — they are MOVED here, not copied, so discarding the popover discards
+  // them and nothing that looks them up by id works again.
   function returnAdopted(root) {
     for (const box of root.querySelectorAll(".mb-adopt")) {
       const home = el(box.dataset.adopt);
@@ -28994,271 +29002,72 @@
     }
   }
 
-  function menuCloseFrom(depth) {
-    while (menuPath.length > depth) {
-      const p = menuPath.pop();
-      returnAdopted(p.el);
-      p.el.remove();
-      if (p.owner) p.owner.classList.remove("open");
-    }
-  }
-
-  function menubarClose() {
-    // Where focus is has to be read BEFORE the panels are torn out from under it, or the
+  function popClose() {
+    if (!pop) return null;
+    // Where focus is has to be read BEFORE the popover is torn out from under it, or the
     // node it is on is already detached and document.activeElement has fallen back to <body>.
     const hadFocus = menubar.contains(document.activeElement);
-    menuCloseFrom(0);
+    const { el: p, btn } = pop;
+    pop = null;
+    returnAdopted(p);
+    p.remove();
     menubar.classList.add("hidden");
-    returnAdopted(menubar);        // belt and braces: nothing should be left, but if a panel
-    menubar.textContent = "";      // ever escapes menuPath this stops it taking the DOM with it
-    el("toggle").setAttribute("aria-expanded", "false");
-    el("toggle").setAttribute("aria-label", "Open the menu");
-    if (hadFocus) el("toggle").focus();     // ...back to the button that opened it
+    menubar.textContent = "";
+    btn.setAttribute("aria-expanded", "false");
+    if (hadFocus) btn.focus();          // ...back to the button that opened it
+    return btn;
   }
 
-  // Build one panel of items and place it. `anchor` is the element it hangs off: the ☰ for
-  // the root, the parent item for a submenu.
-  function menuPanel(items, anchor, depth) {
-    menuCloseFrom(depth);
+  // Open `adopt`'s block under `btn`; a second press on the same button closes it.
+  function popOpen(btn, adopt, label) {
+    if (popClose() === btn) return;
+    menubar.classList.remove("hidden");
     const p = document.createElement("div");
     p.className = "mb-panel";
-    // GROUP, not a nested menu. role="menu" permits only menuitem/group/separator children,
-    // and these panels host adopted blocks -- the audio buttons, the resolution <select>, the
-    // whole cloud form -- which are none of those. Declaring "menu" made the tree invalid and
-    // told assistive tech to expect items it would never find. A group carries the same
-    // labelling and imposes no such contract.
-    p.setAttribute("role", "group");
-    items.forEach(it => p.appendChild(menuItem(it, p, depth)));
+    p.setAttribute("role", "dialog");
+    p.setAttribute("aria-label", label);
+    const box = document.createElement("div");
+    box.className = "mb-adopt";
+    box.dataset.adopt = adopt;          // returnAdopted needs to know where home is
+    const src = el(adopt);
+    if (src) { src.hidden = false; while (src.firstChild) box.appendChild(src.firstChild); }
+    // Opening IS the moment anything time-dependent inside gets refreshed — the cloud box
+    // reports how long ago the last save was, and a minute-old number is what you would read.
+    if (adopt === "cloudbox" && typeof autoSaveSyncInfo === "function") autoSaveSyncInfo();
+    p.appendChild(box);
+    // Clicks inside are the block's own business: they must not reach the closer below.
+    p.addEventListener("click", e => e.stopPropagation());
     menubar.appendChild(p);
-
-    // Position: the root drops below the ☰, a submenu opens to the right of its parent item.
-    // Measured after insertion, then flipped/clamped so a deep submenu cannot run off screen.
-    const a = anchor.getBoundingClientRect();
-    const w = p.offsetWidth, h = p.offsetHeight;
-    let left = depth === 0 ? a.left : a.right - 4;
-    let top = depth === 0 ? a.bottom + 6 : a.top;
-    if (left + w > innerWidth - 8) left = depth === 0 ? Math.max(8, innerWidth - w - 8) : Math.max(8, a.left - w + 4);
-    if (top + h > innerHeight - 8) top = Math.max(8, innerHeight - h - 8);
-    p.style.left = left + "px";
-    p.style.top = top + "px";
-
-    menuPath.push({ el: p, owner: depth === 0 ? null : anchor });
-    return p;
+    // Under the button, clamped so it never runs off screen.
+    const a = btn.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight;
+    p.style.left = Math.max(8, Math.min(a.left, innerWidth - w - 8)) + "px";
+    p.style.top = Math.max(8, Math.min(a.bottom + 6, innerHeight - h - 8)) + "px";
+    pop = { el: p, btn };
+    btn.setAttribute("aria-expanded", "true");
+    // Step in, or a keyboard user opens the box and is left standing outside it.
+    const first = box.querySelector('button:not([disabled]), select, input:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    if (first) first.focus({ preventScroll: true });
   }
 
-  // An item is one of:
-  //   {label, sub: [...]}        — opens a submenu
-  //   {label, run: fn}           — an action; closes the menu unless `keep` is set
-  //   {label, check: () => bool, run: fn}  — a tick that stays open
-  //   {adopt: "elementId"}       — moves that element's CHILDREN in as the panel body
-  //   {sep: true}                — a rule
-  function menuItem(it, panel, depth) {
-    if (it.sep) {
-      const s = document.createElement("div");
-      s.className = "mb-sep";
-      return s;
-    }
-    if (it.adopt) {
-      // The adopted block is menu CONTENT, not a menu item: it keeps its own controls and
-      // its own event handling, so clicks inside must not close the menu or open a sibling.
-      const box = document.createElement("div");
-      box.className = "mb-adopt";
-      box.dataset.adopt = it.adopt;          // returnAdopted needs to know where home is
-      const src = el(it.adopt);
-      if (src) { src.hidden = false; while (src.firstChild) box.appendChild(src.firstChild); }
-      // Building this panel IS the moment it is opened, so it is where anything time-dependent
-      // inside it gets refreshed -- the cloud box reports how long ago the last save was, and
-      // a minute-old number is exactly what you would be reading.
-      if (it.adopt === "cloudbox" && typeof autoSaveSyncInfo === "function") autoSaveSyncInfo();
-      box.addEventListener("click", e => e.stopPropagation());
-      return box;
-    }
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "mb-item" + (it.sub ? " mb-sub" : "");
-    // menuitemCHECKBOX for the ones that toggle, plain menuitem for the ones that act.
-    // A tick drawn as a text span is visible but says nothing to a screen reader -- the state
-    // has to be aria-checked on a role that admits it, and role="menuitem" does not.
-    b.setAttribute("role", it.check ? "menuitemcheckbox" : "menuitem");
-    if (it.check) b.setAttribute("aria-checked", it.check() ? "true" : "false");
-    if (it.title) b.title = it.title;
-    const lab = document.createElement("span");
-    lab.className = "mb-lab";
-    lab.textContent = it.label;
-    b.appendChild(lab);
-    if (it.check) {
-      const t = document.createElement("span");
-      t.className = "mb-tick";
-      t.textContent = it.check() ? "✓" : "";
-      b.setAttribute("aria-checked", it.check() ? "true" : "false");
-      b.appendChild(t);
-    }
-    if (it.sub) {
-      const c = document.createElement("span");
-      c.className = "mb-chev";
-      c.textContent = "▸";
-      b.appendChild(c);
-      // Open on hover as well as click — the hover is what makes it feel like a menubar,
-      // and the click is what makes it work on a touchscreen.
-      // `focusFirst` separates the two: a hover must NOT move focus (the pointer is doing the
-      // navigating), while a click or an Enter/▸ press must, or a keyboard user opens a
-      // submenu and is left standing outside it. It is applied whether or not the panel was
-      // already open, so ▸ on an open submenu still steps into it.
-      const open = focusFirst => {
-        if (!b.classList.contains("open")) {
-          [...panel.querySelectorAll(".mb-item.open")].forEach(o => o.classList.remove("open"));
-          b.classList.add("open");
-          menuPanel(typeof it.sub === "function" ? it.sub() : it.sub, b, depth + 1);
-        }
-        if (!focusFirst) return;
-        // A panel built at depth d lives at menuPath[d] — menuPanel closes back to d, then
-        // pushes. The first focusable is a menu item, or the first control of an adopted
-        // block for a leaf like Audio.
-        const p = menuPath[depth + 1];
-        const first = p && p.el.querySelector('.mb-item, button, select, input, [tabindex]:not([tabindex="-1"])');
-        if (first) first.focus();
-      };
-      b.addEventListener("mouseenter", () => open(false));
-      b.addEventListener("click", e => { e.stopPropagation(); open(true); });
-    } else {
-      // A leaf closes everything deeper on hover, so moving from an open submenu onto a
-      // plain sibling collapses it rather than leaving two panels open at once.
-      b.addEventListener("mouseenter", () => {
-        [...panel.querySelectorAll(".mb-item.open")].forEach(o => o.classList.remove("open"));
-        menuCloseFrom(depth + 1);
-      });
-      b.addEventListener("click", e => {
-        e.stopPropagation();
-        if (it.run) it.run();
-        if (it.check) {
-          const on = it.check();
-          b.querySelector(".mb-tick").textContent = on ? "✓" : "";
-          b.setAttribute("aria-checked", on ? "true" : "false");   // the tick alone is mute
-        }
-        else if (!it.keep) menubarClose();
-      });
-    }
-    return b;
-  }
-
-  // The menu itself. `sub` may be a function so a submenu is built fresh each time it opens
-  // — the cloud entries in particular depend on whether you are signed in right now.
-  function menuModel() {
-    return [
-      { label: "Controls panel", title: "Show or hide the sliders (also the M key)",
-        check: () => !panel.classList.contains("hidden"),
-        run: () => setPanel(!panel.classList.contains("hidden")) },
-      { label: "Fullscreen", title: "Toggle fullscreen (also the F key)",
-        check: () => !!document.fullscreenElement, run: () => toggleFullscreen() },
-      // Through setUiHidden, not a bare classList.add: that route also raises the "press H to
-      // bring the UI back" hint, and this menu item is the one place you can strip the chrome
-      // without already knowing the key — the menu is the first thing to disappear.
-      { label: "Hide all UI", title: "Strip every button and the menu for a clean capture (also the H key)",
-        run: () => setUiHidden(true) },
-      { sep: true },
-      // Audio and Resolution are ROOT items. They were under a "System" parent, which bought
-      // one more hover to reach the two settings anyone actually opens this menu for, and
-      // grouped them under a word that describes neither. Each still needs its own adopt host
-      // (#audiobox, #resbox) — that never depended on the parent.
-      { label: "Audio", sub: [{ adopt: "audiobox" }] },
-      { label: "Resolution", sub: [{ adopt: "resbox" }] },
-      { label: "Cloud profile", sub: [{ adopt: "cloudbox" }] },
-      // A ROOT item, not a row inside Cloud profile: the gallery is readable signed out
-      // (GET /api/profiles needs no account), so filing it under a sign-in box implied an
-      // account was needed. Gated on cloudOn() for the same reason #cloudrow is — with no
-      // apiBase there is nothing to browse. Calls galOpen directly; the app is one
-      // IIFE and this slice runs last, so the function is simply in scope.
-      ...(cloudOn() ? [{ label: "Gallery", title: "Browse the scenes other people have published, and load them",
-        run: () => galOpen(true) }] : []),
-      { label: "Credits", sub: [{ adopt: "creditbox" }] },
-      { sep: true },
-      // Above Help deliberately: the tour is the thing you want when you do not yet know
-      // what to look up, and Help is the reference you reach for once you do.
-      //
-      // Opened in a MICROTASK, not inline. A leaf's click handler runs `run()` and *then*
-      // menubarClose(), which destroys the panel this button lives in — so opening a modal
-      // inline has dlgModal record a menu item that is detached a moment later as the place
-      // to put focus back. dlgRelease skips a disconnected node, and Escape then leaves
-      // focus nowhere. Deferring lets the menu tear down first, so focus is already back on
-      // the ☰ when the trap arms and Escape returns it there.
-      { label: "Tutorial", title: "The eight-step tour of what everything here does",
-        run: () => Promise.resolve().then(() => openTutorial(false)) },
-      { label: "Help", title: "What the controls do — the full help panel", run: () => openHelp() },
-    ];
-  }
-
-  function menubarToggle() {
-    if (menubarOpen()) { menubarClose(); return; }
-    menubar.classList.remove("hidden");
-    menubar.textContent = "";
-    menuPath = [];
-    const root = menuPanel(menuModel(), el("toggle"), 0);
-    el("toggle").setAttribute("aria-expanded", "true");
-    el("toggle").setAttribute("aria-label", "Close the menu");
-    // Step into the menu. Without this the ☰ is openable from the keyboard but its contents
-    // are not reachable without tabbing past everything behind it.
-    const first = root.querySelector(".mb-item");
-    if (first) first.focus();
-  }
-
-  // Arrow-key navigation. The root declares role="menu" and its items menuitem /
-  // menuitemcheckbox, so it has to
-  // behave like one — announcing a menu widget that only responds to the mouse is worse than
-  // not announcing it at all. Delegated on #menubar, because the panels are created and
-  // destroyed as you move between levels.
-  //
-  // Items are left in the natural tab order rather than given a roving tabindex: the leaf
-  // panels here are not menu items at all but whole adopted control blocks (the audio
-  // buttons, the resolution select, the cloud sign-in form), and those have to stay tabbable.
-  // Arrow keys are an addition to Tab here, not a replacement for it.
-  menubar.addEventListener("keydown", e => {
-    if (!e.target.closest) return;
-    const item = e.target.closest(".mb-item");
-    if (!item || !menubar.contains(item)) {
-      // Focus is inside an adopted block — the audio buttons, the resolution select, the
-      // cloud form. Those are ordinary controls and the arrow keys belong to THEM: ◂ and ▸
-      // move a select's option and a range's value, so hijacking them here would break the
-      // resolution picker. The one exception is ◂ off a plain button, which is the only way
-      // back up a level; Escape otherwise closes the whole menu and loses your place.
-      if (e.key !== "ArrowLeft") return;
-      if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
-      const host = e.target.closest(".mb-panel");
-      const hd = menuPath.findIndex(p => p.el === host);
-      if (hd <= 0) return;
-      e.preventDefault();
-      const back = menuPath[hd].owner;
-      menuCloseFrom(hd);
-      if (back) back.focus();
-      return;
-    }
-    const panelEl = item.parentElement;
-    const items = [...panelEl.querySelectorAll(":scope > .mb-item")];
-    const i = items.indexOf(item);
-    const go = j => { const t = items[(j + items.length) % items.length]; if (t) t.focus(); };
-    if (e.key === "ArrowDown") { e.preventDefault(); go(i + 1); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); go(i - 1); }
-    else if (e.key === "Home") { e.preventDefault(); go(0); }
-    else if (e.key === "End") { e.preventDefault(); go(items.length - 1); }
-    else if (e.key === "ArrowRight") {
-      if (!item.classList.contains("mb-sub")) return;
-      e.preventDefault();
-      item.click();                                  // the same open(true) the mouse uses
-    } else if (e.key === "ArrowLeft") {
-      const d = menuPath.findIndex(p => p.el === panelEl);
-      if (d <= 0) return;                            // already at the root: nothing to go back to
-      e.preventDefault();
-      const owner = menuPath[d].owner;
-      menuCloseFrom(d);
-      if (owner) owner.focus();
-    }
-  });
+  el("mute").addEventListener("click", () => popOpen(el("mute"), "audiobox", "Audio"));
+  el("profbtn").addEventListener("click", () => popOpen(el("profbtn"), "cloudbox", "Cloud profile"));
+  el("credbtn").addEventListener("click", () => popOpen(el("credbtn"), "creditbox", "Credits"));
+  el("tourbtn").addEventListener("click", () => openTutorial(false));
+  el("helpbtn").addEventListener("click", () => openHelp());
 
   // #menubar is a full-screen overlay that CATCHES clicks while open, so clicking away
-  // closes the menu instead of falling through to the canvas and pausing the animation.
-  // Panels stopPropagation, so a click on an item never reaches this.
-  menubar.addEventListener("click", () => menubarClose());
+  // closes the popover instead of falling through to the canvas and pausing the animation.
+  // It also covers the top row (z 12 against 10), so a press on ANOTHER top-row button is
+  // handed on to it: one click moves from ♪ to ©. The button that opened this one is not —
+  // pressing it again only closes.
+  menubar.addEventListener("click", e => {
+    const was = popClose();
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    const b = under && under.closest ? under.closest("#toprow > button") : null;
+    if (b && b !== was) b.click();
+  });
   window.addEventListener("keydown", e => {
-    if (e.key === "Escape" && menubarOpen()) menubarClose();
+    if (e.key === "Escape" && pop) popClose();
   });
  }
 

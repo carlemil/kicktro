@@ -1,6 +1,5 @@
   // ---- controls ----
   const panel = document.getElementById("panel");
-  const toggle = document.getElementById("toggle");
   const el = id => document.getElementById(id);
 
   // ---- music beat reactivity ----
@@ -171,12 +170,14 @@
     if (mb) {
       mb.classList.toggle("muted", audio.muted);
       mb.classList.toggle("off", !audio.on);          // nothing to mute
-      mb.setAttribute("aria-pressed", audio.muted ? "true" : "false");
-      mb.setAttribute("aria-label", audio.muted ? "Unmute the music reaction (S)" : "Mute the music reaction (S)");
-      mb.title = !audio.on ? "No audio source — start Capture or Mic in the menu"
-        : audio.muted ? "Muted — the source is still running (S)"
-        : "Mute the music reaction, keeping the source running (S)";
+      mb.setAttribute("aria-label", audio.muted ? "Audio — the reaction is paused" : "Audio");
+      mb.title = !audio.on ? "Audio — start Capture or Mic"
+        : audio.muted ? "Audio — the reaction is paused (S resumes it)"
+        : "Audio — " + audio.src;
     }
+    // The mute that used to be the ♪ itself: a tick in the Audio box, live only with a source.
+    const pz = el("audPause");
+    if (pz) { pz.checked = audio.muted; pz.disabled = !audio.on; }
   }
   // Mute WITHOUT touching the stream. stopAudio() would be wrong here: a browser cannot
   // silently re-grab tab/screen audio, so coming back would cost a fresh picker dialog —
@@ -210,7 +211,7 @@
       // works with the panel closed and the UI hidden, which is exactly when the S key
       // gets pressed.
       if (document.body.classList.contains("ui-hidden") || !openAudioDialog("Nothing to mute yet — pick an audio source and the visual starts reacting."))
-        flashUiHint("No audio yet — <b>☰ → Audio</b> to start Capture or Mic");
+        flashUiHint("No audio yet — <b>♪</b> to start Capture or Mic");
       return;
     }
     setMuted(!audio.muted);
@@ -761,9 +762,9 @@
     document.addEventListener("keydown", resume, true);
   }
   el("audStop").addEventListener("click", stopAudio);
-  // The floating ♪ beside ☰ and ⛶. Wired here rather than with the other chrome buttons so
-  // it sits next to the state it owns; the S key in the keydown handler calls the same fn.
-  el("mute").addEventListener("click", toggleMute);
+  // The ♪ itself opens the Audio box (ui-menubar.js); the pause lives in there, beside the
+  // state it owns. The S key in the keydown handler calls toggleMute, which flips the same.
+  el("audPause").addEventListener("change", e => { if (audio.on) { setMuted(e.target.checked); audioMsg(""); } else setAudioUI(); });
   setAudioUI();                 // paint the button's initial (no source ⇒ inert) state
   setAudioUI();
 

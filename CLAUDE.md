@@ -468,14 +468,21 @@ dropped by design.
 **Camera on CPU**: mirrors call `camPix(x, y)` per pixel; per-row hoists stay inside the x loop.
 Copper Bars gates its row fast path on `camOn()`.
 
-### UI: two menus
-☰ opens the **menubar** (`src/ui-menubar.js`) — everything that is not scene data. `#panel` is only
-the scene editor; `m` toggles it, ☰ does not. Audio and Resolution are ROOT items, each with its own
-adopt host (`#audiobox`, `#resbox`).
+### UI: the top row (no dropdown menu)
+`#toprow` is ONE flex row of buttons, by request: ▦ gallery, fullscreen, ♪ Audio, ⚙ panel, profile,
+© credits, i tutorial, ? Help, then `#scenebanner` as its last child (hidden buttons collapse, so
+never position them by `left`). The ☰ dropdown is GONE, and so are its Resolution, Controls panel,
+Fullscreen and Hide all UI rows (F and H keys still work; a stored resolution still applies, it has
+no control). `#panel` is only the scene editor; `m` and ⚙ toggle it.
 
-**The menubar ADOPTS nodes** (`#audiobox`, `#resbox`, `#cloudbox`, `#creditbox` authored hidden in
-the panel; `{adopt: "id"}` moves their children). `ui-menubar.js` is last in the manifest.
-**`returnAdopted()` is load-bearing** — panels are destroyed on close.
+**♪, profile and © open a POPOVER that ADOPTS nodes** (`src/ui-menubar.js`, last in the manifest;
+`popOpen(btn, hostId, label)`): the children of `#audiobox`/`#cloudbox`/`#creditbox` (authored
+hidden in the panel) move into a `.mb-panel` inside `#menubar`, which keeps that id because the
+adopted-block CSS names it. **`returnAdopted()` is load-bearing** — the panel is destroyed on
+close. `#menubar` is a full-screen overlay: a press on it closes, and a press that lands on another
+top-row button goes THROUGH to it (`elementFromPoint` after the close). A second press, Escape or
+the overlay closes and hands focus back. `#resbox` is unused. `#profbtn` follows `cloudOn()`.
+The fullscreen button draws `FS_ENTER`/`FS_LEAVE` (`syncFsUI`, `data-fs`). `tools/toprow-check.js`.
 
 **Every dialog's title + close button are STICKY**: first two children = the close button then an
 `<h2>`. **Every dialog appears in FOUR lists** and `tools/uiprobe.js` asserts all from one table:
@@ -496,7 +503,7 @@ the Escape branch, the single `body.ui-hidden` selector, the sticky-header selec
 `#breakout` a bottom sheet. Probe asserts WIDTH, not just position.
 
 **`setOff(node, off)`** is the one way to switch a control off (`.off` + `disabled` +
-`aria-disabled`); `pointer-events: none` blocks the mouse only. `#mute` is dimmed but live.
+`aria-disabled`); `pointer-events: none` blocks the mouse only. `#mute` (♪) is dimmed while muted but opens Audio.
 
 **`#uihint`** is the way out of "Hide all UI" (times itself out); `setUiHidden(h, quiet)` passes
 `quiet` on `?hideui`.
@@ -854,15 +861,15 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   so it is synchronous and works signed out. `applyShared` defers to `galOpenLink`, which installs
   through `galSceneOf` + `applyGalleryScene` (author from the API ANSWER, not the link); a 404 opens
   the gallery with `gal.note` (cleared on close). Its `replaceState` keeps the QUERY (`?api=` is
-  read by a later slice). The ☰ item and dialog are named **Gallery**.
+  read by a later slice). The ▦ button and dialog are named **Gallery**.
 - **THE OPEN GALLERY HOLDS THE SCENE**: `frame()` takes the paused branch while `galHolds()`
   (a declaration: frame-loop is an earlier slice), never touching `paused` or `#paused`, and not
   before the first rendered frame (the front door would open over black). case-home pins it.
 - **`#gallery` is the gallery's own link** (`GAL_HASH`): `galOpen` writes it into the address
   bar on show and drops it on close (`galMarkUrl`, `replaceState`); `#gal-link` copies it;
   startup and a `hashchange` open the dialog. It is deliberately NOT one of the reload-on-hashchange
-  fragments (`g|c|zp|sp=`) — it installs nothing. `#galbtn` (▦) sits right of ☰, hidden with no
-  API; the fixed row is ☰ 14 / ▦ 54 / fullscreen 94 / mute 134 / panel 174, banner at 214.
+  fragments (`g|c|zp|sp=`) — it installs nothing. `#galbtn` (▦) leads `#toprow`, hidden with no
+  API.
 - **THE FRONT DOOR** (boot-globals): `frontDoorOn()` = http(s) or `?frontdoor` (the dev hook) —
   NEVER file://, which every headless tool loads. There, `frontDoorUrl()` (no hash, no query but
   `frontdoor`/`api`) opens the gallery at startup, except when `scenePicked`: the one-shot
@@ -948,8 +955,8 @@ the card click and its prompt landed on the reload). The
 stored `audio` field has THREE states: a source name, `"off"` (user settled it; `audio.settled`,
 which `applyBlob` reads back), null (never asked).
 
-**Mute is `audio.muted`, split from `audio.on`.** `♪` / `S` key → `toggleMute` → `setMuted` (never
-touches the stream). `audioLive() = audio.on && !audio.muted` at four sites (`stepAnim`'s `armed`,
+**Mute is `audio.muted`, split from `audio.on`.** `S` key → `toggleMute`, and Audio's "Pause the reaction"
+tick (`#audPause`, off with no source) → `setMuted` (never touches the stream); ♪ only opens Audio. `audioLive() = audio.on && !audio.muted` at four sites (`stepAnim`'s `armed`,
 `flashChips`, `frame()`, the `audio-off` class). `setMuted` zeroes `pulse`/`energy`/`beatNow`;
 `audio.muted` is transient.
 
@@ -1008,8 +1015,8 @@ A separate, additive layer at the END of `audioTick`: `audio.tempo = {period, bp
   `"off"` is NOT an answer. `audioMsg` mirrors into `#sync-why` while it is up.
   `track(name, params)` is provider-agnostic; GA4 is live
   (`GA_MEASUREMENT_ID`; `""` makes it inert).
-- **Tutorial** `#tutdlg` (`src/ui-tutorial.js`, before `ui-menubar.js`): `TUT_STEPS`; also ☰ →
-  Tutorial. **Music is step TWO on purpose.** Own key `burnTheWeb.tutorial.v1`, written when it
+- **Tutorial** `#tutdlg` (`src/ui-tutorial.js`, before `ui-menubar.js`): `TUT_STEPS`; also the i button
+  (`#tourbtn`). **Music is step TWO on purpose.** Own key `burnTheWeb.tutorial.v1`, written when it
   OPENS. Opens after the credits (`creditLeft <= 0`, `TUT_MAX_WAIT` 20s backstop). Holds the sync
   nudge (interval returns early on `tutorialOpen()`, `showSyncPopup` refuses; `closeTutorial`
   calls `syncResetDelay()`). `armAudioResume`'s listener skips it without `cleanup()`.
