@@ -332,8 +332,8 @@
      the canvas already has a pause (click it) and Hide all UI for anyone who wants stillness. */
   @media (prefers-reduced-motion: reduce) {
     #panel, #menubar, #breakout, #help, #syncpop, #toggle, #galbtn, #fs, #mute, #panelbtn, #uihint, #tutdlg,
-    #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg,
-    #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg * {
+    #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg, #signindlg,
+    #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg *, #signindlg * {
       transition: none !important;
       animation: none !important;
       scroll-behavior: auto !important;
@@ -369,7 +369,7 @@
   body.ui-hidden #panel, body.ui-hidden #breakout, body.ui-hidden #syncpop,
   body.ui-hidden #carddlg, body.ui-hidden #paldlg, body.ui-hidden #paledlg,
   body.ui-hidden #fltdlg, body.ui-hidden #palpickdlg,
-  body.ui-hidden #transpickdlg, body.ui-hidden #galdlg,
+  body.ui-hidden #transpickdlg, body.ui-hidden #galdlg, body.ui-hidden #signindlg,
   body.ui-hidden #help, body.ui-hidden #restoredlg,
   body.ui-hidden #tutdlg { display: none !important; }
   #paused {
@@ -1625,7 +1625,7 @@
   #galdlg .gal-box > h2, #paldlg .pal-box > h2, #paledlg .pale-box > h2,
   #fltdlg .flt-box > h2, #palpickdlg .flt-box > h2, #transpickdlg .flt-box > h2,
   #help .help-box > h2, #syncpop .sync-box > h2, #tutdlg .tut-box > h2,
-  #restoredlg .rst-box > h2 {
+  #restoredlg .rst-box > h2, #signindlg .sign-box > h2 {
     position: sticky; top: 0; z-index: 2; padding: 18px 0 9px;
     /* Near-opaque AND backdrop-blurred: at 0.97 alone the line of text passing underneath
        still ghosted through legibly. The blur matches the box's own, so the header reads as
@@ -1799,6 +1799,27 @@
   }
   #syncpop .sync-actions button:hover { background: rgba(255, 122, 26, 0.3); }
   #syncpop .sync-actions #sync-capture { background: rgba(255, 110, 30, 0.34); color: #fff2e6; }
+  /* Sign in: #syncpop's shape, one step above it -- it opens over the gallery (z 20). */
+  #signindlg {
+    position: fixed; inset: 0; z-index: 26; display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  }
+  #signindlg.hidden { display: none; }
+  #signindlg .sign-box {
+    position: relative; max-width: 400px; max-height: 82vh; overflow-y: auto; margin: 16px;
+    padding: 20px 22px; background: rgba(14, 8, 5, 0.97);
+    border: 1px solid rgba(255, 140, 40, 0.45); border-radius: 12px;
+    color: #ffdcb0; font: 12.5px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    box-shadow: 0 0 40px rgba(255, 90, 20, 0.25);
+  }
+  #signindlg h2 { margin: 0 26px 10px 0; color: #ffb15a; font-size: 16px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.7); }
+  #signindlg p { margin: 0 0 10px; opacity: .9; }
+  #signindlg .sign-why {
+    padding: 8px 10px; border-radius: 8px; opacity: 1;
+    background: rgba(255, 122, 26, 0.14); border: 1px solid rgba(255, 140, 40, 0.4); color: #ffcf87;
+  }
+  #signindlg #signin-gsi { display: flex; justify-content: center; min-height: 44px; margin: 14px 0 8px; }
+  #signindlg .sign-note { opacity: .62; font-size: 11.5px; text-align: center; margin: 0; }
   #syncpop .sync-actions .ghost { flex: 0 0 auto; background: transparent; opacity: .75; }
 
   /* First-run tutorial — the eight-step tour (ui-tutorial.js).
@@ -1964,7 +1985,7 @@
   #galdlg .gal-box, #paldlg .pal-box, #paledlg .pale-box,
   #fltdlg .flt-box, #palpickdlg .flt-box, #transpickdlg .flt-box,
   #help .help-box, #syncpop .sync-box, #tutdlg .tut-box,
-  #carddlg, #restoredlg .rst-box { padding-top: 0; }
+  #carddlg, #restoredlg .rst-box, #signindlg .sign-box { padding-top: 0; }
 
   /* ---- NARROW VIEWPORTS — KEEP THIS LAST TOO ----------------------------------------
      Five dialogs dock top-left at the #breakout column's 298px line, and the column itself
@@ -2582,6 +2603,20 @@
       <button id="sync-mic" type="button">Use microphone</button>
       <button id="sync-later" type="button" class="ghost">Maybe later</button>
     </div>
+  </div>
+</div>
+
+<!-- Sign in, raised when a signed-out visitor presses something that needs an account (a vote,
+     My favourites) -- over the gallery, which stays open underneath. Google draws a second
+     sign-in button into #signin-gsi; signing in closes this by itself. -->
+<div id="signindlg" class="hidden">
+  <div class="sign-box" role="dialog" aria-modal="true" aria-labelledby="signin-title">
+    <button id="signin-close" class="pal-close" type="button" aria-label="Close">×</button>
+    <h2 id="signin-title">Sign in</h2>
+    <p id="signin-why" class="sign-why"></p>
+    <p>Sign in with your Google account to vote, keep favourites and pick your scenes up on another machine. Scenes you made signed out move to your account.</p>
+    <div id="signin-gsi"></div>
+    <p id="signin-msg" class="sign-note"></p>
   </div>
 </div>
 
@@ -25873,6 +25908,10 @@
         gsyncSoon();
         track("cloud_sign_in", {});
         cloudSyncUI();
+        if (signInOpen()) {
+          closeSignIn();
+          if (!el("galdlg").classList.contains("hidden")) galMineFetch().then(galReset);
+        }
         // ...and, if this account has no profile yet, put this machine's library into it.
         cloudFetchProfileMeta(true);      // pick up the profile name, if there is one already
         cloudLinksFetch();
@@ -26782,7 +26821,11 @@
   // back. Every cached listing is patched too, so switching tabs does not show the old count.
   // ONE vote per person: ❤️ and 💔 each clear the other, as the server does in one transaction.
   function galVote(c, want) {
-    if (!cloudSess) { galHint("Votes belong to an account — sign in under ☰ → Cloud profile."); return; }
+    if (!cloudSess) {
+      galHint("Votes belong to an account — sign in under ☰ → Cloud profile.");
+      signInAsk("Voting ❤️ / 💔 is for signed-in users only.");
+      return;
+    }
     const cur = galVoteOf(c);
     if (want === cur) return;
     const before = { v: cur, favs: c.favs || 0, hates: c.hates || 0 };
@@ -27021,6 +27064,56 @@
     if (t === gal.tab) return;
     gal.tab = t;
     galReset();
+    if (t === "mine" && !cloudSess) signInAsk("My favourites is for signed-in users only.");
+  }
+
+  // ---- the sign-in dialog ----------------------------------------------------------------
+  // A signed-out press on something that needs an account opens THIS, over the gallery, rather
+  // than only pointing at ☰ → Cloud profile (which sits UNDER the gallery: z 12 against 20).
+  // Google draws a second button into #signin-gsi (renderButton may draw any number); the
+  // sign-in itself is the one callback cloudInit registered, and landing closes this.
+  function signInOpen() { const d = el("signindlg"); return !!d && !d.classList.contains("hidden"); }
+  function signInAsk(why) {
+    const d = el("signindlg");
+    if (!d || !cloudOn() || cloudSess) return;
+    el("signin-why").textContent = why;
+    signInMsg("");
+    d.classList.remove("hidden");
+    dlgModal(d.querySelector(".sign-box"));      // takes the trap from the gallery's box
+    signInRender();
+    track("sign_in_ask", { why: why.split(" ")[0] });
+  }
+  // A declaration: the Escape branch (ui-diagnostics) calls it.
+  function closeSignIn() {
+    const d = el("signindlg");
+    if (!d || d.classList.contains("hidden")) return;
+    d.classList.add("hidden");
+    dlgRelease(d.querySelector(".sign-box"));
+    // ...and hand the keyboard back to the gallery, if that is what it was opened over
+    const g = el("galdlg");
+    if (g && !g.classList.contains("hidden")) dlgModal(g.querySelector(".gal-box"));
+  }
+  function signInMsg(s, bad) {
+    const m = el("signin-msg");
+    if (!m) return;
+    m.textContent = s || "";
+    m.style.color = bad ? "#ff8b6a" : "";
+  }
+  function signInRender() {
+    const host = el("signin-gsi");
+    if (!host || !signInOpen()) return;
+    if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+      signInMsg(CLOUD.clientId ? "Loading Google sign-in…" : "Sign-in is not configured for this build.", !CLOUD.clientId);
+      return;                                   // cloudInit's onload draws it once GIS is in
+    }
+    if (host.children.length) return;
+    try {
+      window.google.accounts.id.renderButton(host, {
+        theme: "filled_black", shape: "pill", size: "large",
+        text: "signin_with", logo_alignment: "left", width: 260,
+      });
+      signInMsg("");
+    } catch (e) { signInMsg("Google sign-in is unavailable right now.", true); }
   }
 
   // ---- share the running scene through the API ---------------------------------------
@@ -27296,8 +27389,11 @@
           client_id: CLOUD.clientId,
           callback: res => {
             if (!res || !res.credential) return;
-            cloudMsg("Signing in…");
-            cloudSignIn(res.credential).catch(e => cloudMsg("Sign-in failed: " + e.message, true));
+            cloudMsg("Signing in…"); signInMsg("Signing in…");
+            cloudSignIn(res.credential).catch(e => {
+              cloudMsg("Sign-in failed: " + e.message, true);
+              signInMsg("Sign-in failed: " + e.message, true);
+            });
           },
         });
         // Google renders this button itself, under its branding rules — its internals cannot
@@ -27311,6 +27407,7 @@
         // and any guess bakes in the wrong number. So render (or re-render) whenever the box
         // actually has a width: on open, and on any panel/window resize.
         if (window.ResizeObserver) new ResizeObserver(gsiRender).observe(el("cloud-signin"));
+        signInRender();                  // a sign-in dialog opened while GIS was loading
       } catch (e) { cloudMsg("Sign-in unavailable: " + e.message, true); }
     };
     s.onerror = () => cloudMsg("Could not reach Google sign-in.", true);
@@ -27346,6 +27443,8 @@
   // No #cloud-browse listener: the gallery is opened from the ☰ root item "Gallery",
   // which calls galOpen(true) directly (see ui-menubar.js).
   if (el("gal-close")) el("gal-close").addEventListener("click", () => galOpen(false));
+  if (el("signin-close")) el("signin-close").addEventListener("click", closeSignIn);
+  if (el("signindlg")) el("signindlg").addEventListener("click", e => { if (e.target === el("signindlg")) closeSignIn(); });
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
   if (el("gal-more")) el("gal-more").addEventListener("click", galMore);
   if (el("gal-link")) el("gal-link").addEventListener("click", e => galCopyLink(null, e.currentTarget));
@@ -28043,8 +28142,9 @@
     // release, closable by mouse only, which is the same way the .pal-close and ui-hidden
     // selector lists have each rotted. tools/uiprobe.js asserts every dialog id turns up here.
     if (e.key === "Escape") {
+      if (signInOpen()) { closeSignIn(); return; }   // over the gallery: only the top one goes
       closeHelp(); closeRestore(); closePalDetail(); closePalEditor(); closePalPick();
-      closeFilterPicker(); closeTransPick(); galOpen(false); dismissSyncIfOpen(); closeTutorial();
+      closeFilterPicker(); closeTransPick(); closeSignIn(); galOpen(false); dismissSyncIfOpen(); closeTutorial();
       cardWanted = false; cardOpen(false);
       return;
     }

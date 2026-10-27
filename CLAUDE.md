@@ -488,7 +488,7 @@ the Escape branch, the single `body.ui-hidden` selector, the sticky-header selec
   (`box-shadow: 0 -30px 0 30px` + `backdrop-filter`). Name the element the `<h2>` is really a child
   of (`#carddlg .card-box > h2`). **The `padding-top: 0` waiver is the LAST rule in `styles.css`.**
 - `role="dialog"` on the box; `aria-modal` + `dlgModal`/`dlgRelease` only on the four with a
-  backdrop (`#help`, `#restoredlg`, `#galdlg`, `#syncpop`). Floating tool panels must NEVER trap
+  backdrop (`#help`, `#restoredlg`, `#galdlg`, `#syncpop`, plus `#tutdlg` and `#signindlg`). Floating tool panels must NEVER trap
   focus. `dlgRelease(box)` is box-scoped.
 - A probe that opens a dialog by un-hiding it proves nothing — click the real opener.
 
@@ -866,7 +866,9 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   `favs`/`builtin` as its counts and must keep working. Optimistic (`galVote`: move, then
   `{mine, hate, favs, hates}` settles it; a failure moves back; an answer without `hates` — an
   older API — keeps the local count), patches every cached answer (`galPatchFavs`). Signed out
-  it only hints. Deploy the API BEFORE the site, or 💔 404s and moves back.
+  it hints AND opens `#signindlg` (`signInAsk(why)`, "… is for signed-in users only"; My favourites
+  too) — over the gallery (z 26), its own Google button, closed by landing; Escape closes only it.
+  Deploy the API BEFORE the site, or 💔 404s and moves back.
 - Answers are cached in MEMORY for `galleryTtlMs` (10 min, public answers only); `galBust()` on
   your own publish/remove/save. The once-a-day localStorage caches are deleted on load.
 - **Thumbnails: `tools/thumbs.js`** (abshot's harness, real GPU, real time; poster = frame 300,

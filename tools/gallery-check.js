@@ -12,7 +12,9 @@
 //   (sort=name, A to Z, built-ins placed by name); posters are NOT fetched below the fold; hover swaps in a muted
 //   looping <video preload=none> and leaving pauses it -- with the NEGATIVE CONTROL that a
 //   card with no clip never gets one and a 'playing' after leaving shows nothing; ♥ and 💔
-//   ask you to sign in and send nothing; My favourites says sign in. Then a built-in card
+//   ask you to sign in -- the Sign in dialog opens over the gallery, saying it is for
+//   signed-in users only; Escape / × close it and leave the gallery up -- and send nothing; My
+//   favourites says sign in and opens the dialog too. Then a built-in card
 //   on TOUCH: the first tap previews, the second loads it -- into "Shared with you", credited
 //   to its author, with NO gallery request, IN PLACE: no reload, no boot veil (a reload is
 //   caught by a sessionStorage marker the in-page verdict clears, and FAILS).
@@ -577,9 +579,18 @@ const tail = [
   "      var h3 = heart('srv-3'), n3 = score('srv-3'), before = window.__req.length;",
   "      h3.click();",
   "      ok('signed out, the heart says to sign in', /sign in/i.test($('gal-hint').textContent), $('gal-hint').textContent);",
+  "      var sd = $('signindlg');",
+  "      ok('...and opens the Sign in dialog over the gallery', !sd.classList.contains('hidden') && !$('galdlg').classList.contains('hidden') && +getComputedStyle(sd).zIndex > +getComputedStyle($('galdlg')).zIndex, getComputedStyle(sd).zIndex);",
+  "      ok('...saying voting is for signed-in users only', /Voting/.test($('signin-why').textContent) && /signed-in users only/.test($('signin-why').textContent), $('signin-why').textContent);",
+  "      ok('...with the keyboard inside it', sd.contains(document.activeElement), document.activeElement && document.activeElement.id);",
+  "      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));",
+  "      ok('Escape closes it and only it: the gallery stays up', sd.classList.contains('hidden') && !$('galdlg').classList.contains('hidden'));",
   "      $('gal-hint').textContent = '';",
   "      seg('srv-3', 'hate').click();",
   "      ok('...and so does the broken heart', /sign in/i.test($('gal-hint').textContent), $('gal-hint').textContent);",
+  "      ok('...which opens the dialog again', !sd.classList.contains('hidden'));",
+  "      $('signin-close').click();",
+  "      ok('× closes it and leaves the gallery up', sd.classList.contains('hidden') && !$('galdlg').classList.contains('hidden'));",
   "      ok('...and changes nothing', score('srv-3') === n3 && lit('srv-3') === 'score');",
   "      ok('...and sends nothing', reqs(/\\/fav$|\\/hate$|\\/me\\/favs/).length === 0 && window.__req.length === before, window.__req.slice(before).map(function (r) { return r.m + ' ' + r.p; }).join(' | '));",
   "      // ---- Load more: the rest of the server rows, then every remaining built-in ----",
@@ -627,6 +638,8 @@ const tail = [
   "      var before = reqs(/mine=favs/).length;",
   "      document.querySelector('.gal-tab[data-tab=mine]').click();",
   "      ok('My favourites signed out says to sign in', /sign in/i.test($('gal-hint').textContent) && cards().length === 0);",
+  "      ok('...and opens the Sign in dialog, saying it is for signed-in users only', !$('signindlg').classList.contains('hidden') && /My favourites is for signed-in users only/.test($('signin-why').textContent), $('signin-why').textContent);",
+  "      $('signin-close').click();",
   "      ok('...without asking the server', reqs(/mine=favs/).length === before);",
   "      document.querySelector('.gal-tab[data-tab=own]').click();",
   "      ok('My scenes with no scene of your own yet says how one gets there', /Every scene you make shows up here/.test($('gal-hint').textContent) && cards().length === 0, $('gal-hint').textContent);",
@@ -680,6 +693,7 @@ const tail = [
   "      var n5 = score('srv-5');",
   "      heart('srv-5').click();",
   "      ok('the heart lights AT ONCE (optimistic)', lit('srv-5') === 'heart' && score('srv-5') === n5 + 1, score('srv-5'));",
+  "      ok('NEGATIVE: signed in, a vote raises no Sign in dialog', $('signindlg').classList.contains('hidden'));",
   "      window.__n6 = score('srv-6'); window.__failFav['srv-6'] = true;",
   "      heart('srv-6').click();",
   "      ok('a second heart lights too', lit('srv-6') === 'heart' && score('srv-6') === window.__n6 + 1);",

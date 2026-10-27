@@ -118,6 +118,10 @@
         gsyncSoon();
         track("cloud_sign_in", {});
         cloudSyncUI();
+        if (signInOpen()) {
+          closeSignIn();
+          if (!el("galdlg").classList.contains("hidden")) galMineFetch().then(galReset);
+        }
         // ...and, if this account has no profile yet, put this machine's library into it.
         cloudFetchProfileMeta(true);      // pick up the profile name, if there is one already
         cloudLinksFetch();
@@ -1027,7 +1031,11 @@
   // back. Every cached listing is patched too, so switching tabs does not show the old count.
   // ONE vote per person: ❤️ and 💔 each clear the other, as the server does in one transaction.
   function galVote(c, want) {
-    if (!cloudSess) { galHint("Votes belong to an account — sign in under ☰ → Cloud profile."); return; }
+    if (!cloudSess) {
+      galHint("Votes belong to an account — sign in under ☰ → Cloud profile.");
+      signInAsk("Voting ❤️ / 💔 is for signed-in users only.");
+      return;
+    }
     const cur = galVoteOf(c);
     if (want === cur) return;
     const before = { v: cur, favs: c.favs || 0, hates: c.hates || 0 };
@@ -1266,6 +1274,56 @@
     if (t === gal.tab) return;
     gal.tab = t;
     galReset();
+    if (t === "mine" && !cloudSess) signInAsk("My favourites is for signed-in users only.");
+  }
+
+  // ---- the sign-in dialog ----------------------------------------------------------------
+  // A signed-out press on something that needs an account opens THIS, over the gallery, rather
+  // than only pointing at ☰ → Cloud profile (which sits UNDER the gallery: z 12 against 20).
+  // Google draws a second button into #signin-gsi (renderButton may draw any number); the
+  // sign-in itself is the one callback cloudInit registered, and landing closes this.
+  function signInOpen() { const d = el("signindlg"); return !!d && !d.classList.contains("hidden"); }
+  function signInAsk(why) {
+    const d = el("signindlg");
+    if (!d || !cloudOn() || cloudSess) return;
+    el("signin-why").textContent = why;
+    signInMsg("");
+    d.classList.remove("hidden");
+    dlgModal(d.querySelector(".sign-box"));      // takes the trap from the gallery's box
+    signInRender();
+    track("sign_in_ask", { why: why.split(" ")[0] });
+  }
+  // A declaration: the Escape branch (ui-diagnostics) calls it.
+  function closeSignIn() {
+    const d = el("signindlg");
+    if (!d || d.classList.contains("hidden")) return;
+    d.classList.add("hidden");
+    dlgRelease(d.querySelector(".sign-box"));
+    // ...and hand the keyboard back to the gallery, if that is what it was opened over
+    const g = el("galdlg");
+    if (g && !g.classList.contains("hidden")) dlgModal(g.querySelector(".gal-box"));
+  }
+  function signInMsg(s, bad) {
+    const m = el("signin-msg");
+    if (!m) return;
+    m.textContent = s || "";
+    m.style.color = bad ? "#ff8b6a" : "";
+  }
+  function signInRender() {
+    const host = el("signin-gsi");
+    if (!host || !signInOpen()) return;
+    if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+      signInMsg(CLOUD.clientId ? "Loading Google sign-in…" : "Sign-in is not configured for this build.", !CLOUD.clientId);
+      return;                                   // cloudInit's onload draws it once GIS is in
+    }
+    if (host.children.length) return;
+    try {
+      window.google.accounts.id.renderButton(host, {
+        theme: "filled_black", shape: "pill", size: "large",
+        text: "signin_with", logo_alignment: "left", width: 260,
+      });
+      signInMsg("");
+    } catch (e) { signInMsg("Google sign-in is unavailable right now.", true); }
   }
 
   // ---- share the running scene through the API ---------------------------------------
@@ -1541,8 +1599,11 @@
           client_id: CLOUD.clientId,
           callback: res => {
             if (!res || !res.credential) return;
-            cloudMsg("Signing in…");
-            cloudSignIn(res.credential).catch(e => cloudMsg("Sign-in failed: " + e.message, true));
+            cloudMsg("Signing in…"); signInMsg("Signing in…");
+            cloudSignIn(res.credential).catch(e => {
+              cloudMsg("Sign-in failed: " + e.message, true);
+              signInMsg("Sign-in failed: " + e.message, true);
+            });
           },
         });
         // Google renders this button itself, under its branding rules — its internals cannot
@@ -1556,6 +1617,7 @@
         // and any guess bakes in the wrong number. So render (or re-render) whenever the box
         // actually has a width: on open, and on any panel/window resize.
         if (window.ResizeObserver) new ResizeObserver(gsiRender).observe(el("cloud-signin"));
+        signInRender();                  // a sign-in dialog opened while GIS was loading
       } catch (e) { cloudMsg("Sign-in unavailable: " + e.message, true); }
     };
     s.onerror = () => cloudMsg("Could not reach Google sign-in.", true);
@@ -1591,6 +1653,8 @@
   // No #cloud-browse listener: the gallery is opened from the ☰ root item "Gallery",
   // which calls galOpen(true) directly (see ui-menubar.js).
   if (el("gal-close")) el("gal-close").addEventListener("click", () => galOpen(false));
+  if (el("signin-close")) el("signin-close").addEventListener("click", closeSignIn);
+  if (el("signindlg")) el("signindlg").addEventListener("click", e => { if (e.target === el("signindlg")) closeSignIn(); });
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
   if (el("gal-more")) el("gal-more").addEventListener("click", galMore);
   if (el("gal-link")) el("gal-link").addEventListener("click", e => galCopyLink(null, e.currentTarget));

@@ -83,8 +83,9 @@
     // release, closable by mouse only, which is the same way the .pal-close and ui-hidden
     // selector lists have each rotted. tools/uiprobe.js asserts every dialog id turns up here.
     if (e.key === "Escape") {
+      if (signInOpen()) { closeSignIn(); return; }   // over the gallery: only the top one goes
       closeHelp(); closeRestore(); closePalDetail(); closePalEditor(); closePalPick();
-      closeFilterPicker(); closeTransPick(); galOpen(false); dismissSyncIfOpen(); closeTutorial();
+      closeFilterPicker(); closeTransPick(); closeSignIn(); galOpen(false); dismissSyncIfOpen(); closeTutorial();
       cardWanted = false; cardOpen(false);
       return;
     }

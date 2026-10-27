@@ -314,8 +314,8 @@
      the canvas already has a pause (click it) and Hide all UI for anyone who wants stillness. */
   @media (prefers-reduced-motion: reduce) {
     #panel, #menubar, #breakout, #help, #syncpop, #toggle, #galbtn, #fs, #mute, #panelbtn, #uihint, #tutdlg,
-    #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg,
-    #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg * {
+    #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg, #signindlg,
+    #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg *, #signindlg * {
       transition: none !important;
       animation: none !important;
       scroll-behavior: auto !important;
@@ -351,7 +351,7 @@
   body.ui-hidden #panel, body.ui-hidden #breakout, body.ui-hidden #syncpop,
   body.ui-hidden #carddlg, body.ui-hidden #paldlg, body.ui-hidden #paledlg,
   body.ui-hidden #fltdlg, body.ui-hidden #palpickdlg,
-  body.ui-hidden #transpickdlg, body.ui-hidden #galdlg,
+  body.ui-hidden #transpickdlg, body.ui-hidden #galdlg, body.ui-hidden #signindlg,
   body.ui-hidden #help, body.ui-hidden #restoredlg,
   body.ui-hidden #tutdlg { display: none !important; }
   #paused {
@@ -1607,7 +1607,7 @@
   #galdlg .gal-box > h2, #paldlg .pal-box > h2, #paledlg .pale-box > h2,
   #fltdlg .flt-box > h2, #palpickdlg .flt-box > h2, #transpickdlg .flt-box > h2,
   #help .help-box > h2, #syncpop .sync-box > h2, #tutdlg .tut-box > h2,
-  #restoredlg .rst-box > h2 {
+  #restoredlg .rst-box > h2, #signindlg .sign-box > h2 {
     position: sticky; top: 0; z-index: 2; padding: 18px 0 9px;
     /* Near-opaque AND backdrop-blurred: at 0.97 alone the line of text passing underneath
        still ghosted through legibly. The blur matches the box's own, so the header reads as
@@ -1781,6 +1781,27 @@
   }
   #syncpop .sync-actions button:hover { background: rgba(255, 122, 26, 0.3); }
   #syncpop .sync-actions #sync-capture { background: rgba(255, 110, 30, 0.34); color: #fff2e6; }
+  /* Sign in: #syncpop's shape, one step above it -- it opens over the gallery (z 20). */
+  #signindlg {
+    position: fixed; inset: 0; z-index: 26; display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  }
+  #signindlg.hidden { display: none; }
+  #signindlg .sign-box {
+    position: relative; max-width: 400px; max-height: 82vh; overflow-y: auto; margin: 16px;
+    padding: 20px 22px; background: rgba(14, 8, 5, 0.97);
+    border: 1px solid rgba(255, 140, 40, 0.45); border-radius: 12px;
+    color: #ffdcb0; font: 12.5px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    box-shadow: 0 0 40px rgba(255, 90, 20, 0.25);
+  }
+  #signindlg h2 { margin: 0 26px 10px 0; color: #ffb15a; font-size: 16px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.7); }
+  #signindlg p { margin: 0 0 10px; opacity: .9; }
+  #signindlg .sign-why {
+    padding: 8px 10px; border-radius: 8px; opacity: 1;
+    background: rgba(255, 122, 26, 0.14); border: 1px solid rgba(255, 140, 40, 0.4); color: #ffcf87;
+  }
+  #signindlg #signin-gsi { display: flex; justify-content: center; min-height: 44px; margin: 14px 0 8px; }
+  #signindlg .sign-note { opacity: .62; font-size: 11.5px; text-align: center; margin: 0; }
   #syncpop .sync-actions .ghost { flex: 0 0 auto; background: transparent; opacity: .75; }
 
   /* First-run tutorial — the eight-step tour (ui-tutorial.js).
@@ -1946,7 +1967,7 @@
   #galdlg .gal-box, #paldlg .pal-box, #paledlg .pale-box,
   #fltdlg .flt-box, #palpickdlg .flt-box, #transpickdlg .flt-box,
   #help .help-box, #syncpop .sync-box, #tutdlg .tut-box,
-  #carddlg, #restoredlg .rst-box { padding-top: 0; }
+  #carddlg, #restoredlg .rst-box, #signindlg .sign-box { padding-top: 0; }
 
   /* ---- NARROW VIEWPORTS — KEEP THIS LAST TOO ----------------------------------------
      Five dialogs dock top-left at the #breakout column's 298px line, and the column itself
