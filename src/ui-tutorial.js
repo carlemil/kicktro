@@ -138,9 +138,9 @@
         + "goes fullscreen and <span class=\"tut-keys\">H</span> strips every last bit of chrome." },
     { head: "Scenes", art: TUT_ART.scenes,
       body: "A <b>scene</b> is a complete snapshot — the effects, the colours, the filters, every slider. "
-        + "Pick one from the list and it loads; from then on <b>every change you make is saved straight "
+        + "Pick one in the <b>Gallery</b> and it loads; from then on <b>every change you make is saved straight "
         + "back into it</b>, with no Save button. Press <b>New</b> first if you would rather work on a "
-        + "copy. <b>Auto-cycle</b> drifts through the scenes you have ticked, so you can leave it "
+        + "copy. <b>Auto-cycle</b> drifts through your scenes, so you can leave it "
         + "running — one scene <b>blends into the next</b> rather than cutting, and the "
         + "<b>Transition</b> slider sets how long that takes (pinch it to zero for a hard cut)." },
     { head: "Layers", art: TUT_ART.layers,

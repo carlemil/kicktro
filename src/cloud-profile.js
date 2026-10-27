@@ -1586,7 +1586,6 @@
     if (!cloudOn()) return;              // feature off ⇒ the row stays hidden, nothing loads
     const row = el("cloudrow");
     if (row) row.classList.remove("hidden");
-    if (el("gsyncrow")) el("gsyncrow").style.display = "";
     cloudLoadSess();
     // Seed the field from the cached name BEFORE any request, so the box shows who you are
     // straight away and the scene list's heading (already reading the same cache) agrees.

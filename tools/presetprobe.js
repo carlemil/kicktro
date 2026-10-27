@@ -224,11 +224,12 @@ const D = P.BEAT_DEFAULTS;
   ok(/function ensureSelection\(\)/.test(body), "ensureSelection() exists as the single choke point");
   ok(/presets\s*=\s*defaultPresets\(\)/.test(cut("function ensureSelection()", "function adoptSharedScene")),
      "...and re-seeds the library rather than allowing an empty one");
-  // The destructive case: both paths that remove the selected scene must APPLY what they pick.
-  const del = cut('el("delpreset").addEventListener', "presetSel.addEventListener");
-  ok(/applyPreset\(/.test(del), "Delete applies the neighbour it selects, it does not just highlight it");
-  const drop = cut("function dropCollection(", "function mergeState(");
-  ok(/applyPreset\(/.test(drop), "...and so does dropping the collection holding the selection");
+  // Card 827 removed the panel's Rename / Delete / Share buttons, the scene list and its
+  // collection-drop X. No path deletes the selected scene any more; if one comes back it must
+  // APPLY the neighbour it selects (highlighting alone lets the next edit overwrite it).
+  ok(!body.includes('el("delpreset")') && !body.includes("function dropCollection("),
+     "no Delete / drop-collection path is left in the panel");
+  ok(body.includes('el("newpreset").addEventListener("click", createPreset)'), "New is still wired");
   // The scratch mode is gone from the UI too.
   ok(!/pl-unsaved/.test(body), "the unsaved row is gone from the scene list");
   ok(!/— unsaved scene —/.test(body), "...and so is its label");

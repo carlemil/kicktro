@@ -205,62 +205,6 @@
   .mb-adopt { padding: 4px 6px 2px; min-width: 240px; }
   .mb-adopt > label:first-child { margin-top: 0; }
 
-  /* ---- Scenes list: collections, foldable, collapsed by default ------------------
-     Replaces the <select> as the visible control (#preset stays as the value store).
-     A collection is a <div class="pl-grp">: a header button that folds it, an optional ✕
-     to drop the whole set, and a body of scene buttons shown only while .open. */
-  #presetlist { margin: 0 0 6px; }
-  .pl-grp { position: relative; margin-top: 3px; }
-  .pl-head {
-    width: 100%; display: flex; align-items: center; gap: 6px;
-    padding: 5px 8px 5px 20px; text-align: left; cursor: pointer;
-    background: rgba(255, 140, 40, 0.09); border: 1px solid rgba(255, 140, 40, 0.28);
-    border-radius: 5px; color: #ffcf87; font: 12px/1.25 inherit; letter-spacing: .2px;
-  }
-  .pl-head:hover { background: rgba(255, 122, 26, 0.2); }
-  /* Chevron, rotated when open — same idiom as the .box-t sections above. */
-  .pl-head::before {
-    /* 2x the old 10px. Every chevron in the app is doubled; each pins line-height so the
-       bigger glyph cannot grow the row it sits in. */
-    content: "▸"; position: absolute; left: 4px; font-size: 20px; line-height: 1; color: #ffb15a;
-    transition: transform .12s;
-  }
-  .pl-grp.open > .pl-head::before { transform: rotate(90deg); }
-  .pl-nm { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pl-ct { flex: 0 0 auto; opacity: .6; font-variant-numeric: tabular-nums; }
-  .pl-drop {
-    position: absolute; right: 4px; top: 3px; width: 20px; height: 20px; padding: 0;
-    background: none; border: 0; color: #ffb15a; opacity: .45; cursor: pointer; font-size: 12px;
-  }
-  .pl-drop:hover { opacity: 1; color: #ff9a4a; }
-  .pl-grp .pl-head { padding-right: 46px; }         /* room for the count + ✕ */
-  .pl-body { display: none; padding: 3px 0 2px 10px; }
-  .pl-grp.open > .pl-body { display: block; }
-  .pl-empty { padding: 4px 8px; font-size: 11px; opacity: .45; }
-  /* A scene is a row: the auto-cycle tick, then the name button. The checkbox is a SIBLING
-     of the button rather than inside it — nested interactive content is invalid and the tick
-     would fight the button for the click. */
-  .pl-row { display: flex; align-items: center; gap: 6px; }
-  .pl-cyc {
-    flex: 0 0 auto; width: 13px; height: 13px; margin: 0; cursor: pointer;
-    accent-color: #ff9a4a;
-  }
-  /* Out of the rotation reads as "still here, just not in the show" — the name dims, it is
-     never hidden or disabled, because an unticked scene is still selectable by hand. */
-  .pl-cyc:not(:checked) + .pl-scene { opacity: .5; }
-  .pl-scene {
-    display: block; flex: 1 1 auto; min-width: 0; text-align: left; margin: 2px 0; padding: 5px 8px;
-    background: rgba(255, 255, 255, 0.04); border: 1px solid transparent; border-radius: 5px;
-    color: #ffdcb0; font: 12px/1.25 inherit; cursor: pointer;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .pl-scene:hover { background: rgba(255, 122, 26, 0.22); }
-  .pl-scene.on { border-color: #ffcf87; background: rgba(255, 122, 26, 0.28); color: #fff; }
-  .pl-cyc:not(:checked) + .pl-scene.on { opacity: .8; }   /* selected still reads as selected */
-  .pl-head:focus-visible, .pl-scene:focus-visible, .pl-drop:focus-visible,
-  .pl-cyc:focus-visible {
-    outline: 2px solid #ffb15a; outline-offset: 1px;
-  }
   #panel .check, #menubar .check, #breakout .lyr-box .check {
     display: flex;
     align-items: center;
@@ -270,7 +214,7 @@
     opacity: .9;
   }
   #panel .check input, #menubar .check input, #breakout .lyr-box .check input { accent-color: #ff7a1a; width: 15px; height: 15px; cursor: pointer; }
-  /* Under "Auto-cycle favourites": the cycler is gated on the panel being hidden, and this is the
+  /* Under "Auto-cycle": the cycler is gated on the panel being hidden, and this is the
      one line that says so. Indented to the checkbox's label text (15px box + 8px gap). */
   #panel.hidden { opacity: 0; transform: translateX(-12px); pointer-events: none; visibility: hidden; }
   #toggle, #galbtn, #fs, #mute, #panelbtn {
@@ -1549,14 +1493,6 @@
   #panel .lbl-eye, #breakout .lyr-box .lbl-eye { width: 17px; height: 17px; font-size: 10px; opacity: .68; display: inline-flex; align-items: center; justify-content: center; }
   #panel .lbl-eye > svg, #breakout .lyr-box .lbl-eye > svg { display: block; }
   #panel .lbl-eye:hover, #breakout .lyr-box .lbl-eye:hover { opacity: 1; }
-  /* Data-structure tree inside the help modal. */
-  #help .help-tree {
-    margin: 4px 0 12px; padding: 11px 13px; overflow-x: auto;
-    background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 140, 40, 0.22); border-radius: 8px;
-    font: 11px/1.65 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: #e8ddd0; white-space: pre;
-  }
-  #help .help-tree b { color: #ffcf87; font-weight: 600; }
-  #help .help-tree i { color: #9a8a70; font-style: normal; }
   #help {
     /* Sit the box in the space to the RIGHT of the menu (14–264px) and the pop-out column
        (298–542px), so it never covers them; the backdrop is light so the menu stays readable. */
@@ -2158,32 +2094,19 @@
        live here too; it moved down to Effects, next to the sliders it drives. -->
   <details class="box" open>
   <summary class="box-t">Scene</summary>
-  <!-- Scenes: choose / manage saved scenes, and auto-cycle between them. The ids below still
-       say "preset" — that is the storage/wire name, unchanged so every saved scene, backup
-       and link keeps loading. Only the wording the user reads is "scene". -->
-  <label class="lbl-row"><span>Scenes</span></label><button type="button" id="preset-help-btn" class="lbl-help" title="What a scene saves — its data structure" aria-label="What a scene saves — its data structure">?</button>
-  <!-- #preset is HIDDEN and remains the VALUE STORE, exactly the arrangement #palette has
-       behind its swatches: applyPreset writes .value, applyBlob validates against it, and
-       every pick in the list below dispatches its `change`. The visible control is
-       #presetlist, a foldable list grouped by COLLECTION — a <select> cannot collapse an
-       <optgroup>, which is the whole point of the grouping. Keep the select in the DOM: a
-       JS failure leaves the native dropdown usable. -->
-  <select id="preset"></select>
-  <div id="presetlist"><!-- collapsible per-collection scene list, built in JS --></div>
+  <!-- The ids below still say "preset" — that is the storage/wire name, unchanged so every
+       saved scene, backup and link keeps loading. Only the wording the user reads is "scene".
+       #preset is HIDDEN and remains the VALUE STORE, exactly the arrangement #palette has
+       behind its swatches: applyPreset writes .value, applyBlob validates against it, and a
+       scene change dispatches its `change`. There is no visible scene list any more (the
+       gallery is how scenes are browsed) and no Rename / Delete / Share. -->
+  <select id="preset" style="display:none"></select>
   <div class="presetrow">
     <button id="newpreset" class="audbtn" type="button" title="Save what is on screen as a new scene">New</button>
-    <button id="renamepreset" class="audbtn" type="button" title="Rename the selected scene">Rename</button>
   </div>
-  <div class="presetrow">
-    <button id="delpreset" class="audbtn" type="button" title="Delete the selected scene">Delete</button>
-    <button id="sharepreset" class="audbtn" type="button" title="Copy a link to this scene — short via your cloud profile when signed in, self-contained otherwise">Share</button>
-  </div>
-  <!-- Every scene of your own is a gallery card (gsyncPush); there is nothing to press, so
-       this says what happens instead. Shown only when the cloud is configured (cloudInit). -->
-  <p class="hint" id="gsyncrow" style="display:none">Your scenes are public in the gallery. A change shows there an hour after you last touch the scene, so polish away.</p>
   <!-- Auto-cycle / Scene TTL / Transition defaults come from CONFIG.scene (set in JS at startup),
        not from value=/checked here — so they live in one place. -->
-  <label class="check" title="Switch scene on the TTL timer, whether or not this panel is open."><input type="checkbox" id="cycle"> Auto-cycle favourites</label>
+  <label class="check" title="Switch scene on the TTL timer, whether or not this panel is open."><input type="checkbox" id="cycle"> Auto-cycle</label>
   <!-- The on-screen banner naming each scene as you land on it. It sits HERE, under
        Auto-cycle, because that is when you see it most — every cycle tick draws one — even
        though it is drawn by the credits overlay and remembered per browser like the credits
@@ -2210,8 +2133,7 @@
       <input type="range" id="tdur-lo" min="0" max="3" step="any">
       <input type="range" id="tdur-hi" min="0" max="3" step="any"></div>
     <!-- Which transitions the auto-pick may draw from — same idea as the palette strip's +
-         tile and the tick beside each scene: the catalogue lives in a dialog, and what you
-         tick is what the show uses. -->
+         tile: the catalogue lives in a dialog, and what you tick is what the show uses. -->
     <button id="transpick-open" type="button" class="filter-add">+ Choose transitions</button>
   </div>
 
@@ -24274,8 +24196,8 @@
   // Fractal flames and Boids declare one, because every filter reads clearly over it, and because
   // effect defaults are neutral — so it sits STILL, and pulling a slider's two thumbs apart is a
   // visible before-and-after. That stillness is also why it must NOT ride the auto-cycle show
-  // (inRotation: absent means IN), hence rotate: false — the scene list's checkbox opts it back
-  // in, and autosavePreset carries the flag, so work built on it stays out until ticked. No
+  // (inRotation: absent means IN), hence rotate: false — autosavePreset carries the flag, so work built on it stays
+  // out of the show (the per-scene tick that used to opt it in is gone). No
   // `layers` key, so it is a single-item stack by construction. A retired plasma id returns null
   // and the caller drops the scene — the wire format's rule, unknown id ⇒ dropped, never misfiled
   // onto whatever effect happens to sit at index 0.
@@ -24290,7 +24212,7 @@
     presetSel.innerHTML = "";
     presets.forEach((p, i) => presetSel.appendChild(new Option(p.name, String(i))));
     presetSel.value = String(curPreset);
-    buildPresetList();
+    syncSceneTitle();
   }
 
   // ---- something is ALWAYS selected ---------------------------------------------------
@@ -24334,7 +24256,6 @@
     const name = presets.some(p => p.name === base) ? bumpName(base) : base;
     presets.push({ name, collection: SHARED_COLLECTION, origin: originOk(want.author), ...snapshotScene() });
     curPreset = presets.length - 1;
-    openCollections.add(SHARED_COLLECTION);   // opened, or the scene you just received is hidden
     stopCycling();                            // ...and stays on screen; auto-cycle is on by default
     rebuildPresetOptions();
     persist();
@@ -24418,8 +24339,8 @@
   // added their collection; that is the fact worth remembering, and the scenes themselves stay
   // in this browser.
   //
-  // Keyed by the collection LABEL, which is what every scene carries and what dropCollection
-  // works in; the uid rides along because it is the only durable handle on the source profile
+  // Keyed by the collection LABEL, which is what every scene carries and what the collection
+  // follow works in; the uid rides along because it is the only durable handle on the source profile
   // (a profile can be renamed). Loading the same person twice refreshes rather than duplicates.
   //
   // `collectionsHeld` itself is declared UP IN audio-tuning-data.js, beside fullSnapshot and
@@ -24449,9 +24370,9 @@
     }
     return out;
   }
-  // Whether a scene is in the AUTO-CYCLE ROTATION — the tick beside it in the scene list.
+  // Whether a scene is in the AUTO-CYCLE ROTATION — the `rotate` flag (the per-scene tick that set it is gone from the UI).
   // Unticked scenes are still perfectly selectable by hand; they are just skipped when
-  // "Auto-cycle favourites" is running, so you can build a show out of a subset of your library.
+  // Auto-cycle is running, so you can build a show out of a subset of your library.
   //
   // Stored as `rotate` beside `name`/`collection`, and ABSENT MEANS IN — so every scene saved,
   // shared, backed up or published before this existed keeps cycling exactly as it did, with
@@ -24514,7 +24435,7 @@
       if (name) localStorage.setItem(PROFILE_NAME_KEY, name);
       else localStorage.removeItem(PROFILE_NAME_KEY);
     } catch (e) { /* private mode — the name just won't survive the reload */ }
-    buildPresetList();
+    syncSceneTitle();
   }
   // Arm the on-screen scene title for preset `i`: its name, and the account that made it.
   //
@@ -24547,38 +24468,10 @@
     showSceneTitle(p.name, sceneCredit(p));   // the dash goes with an empty author
     syncAuthorHint();   // the hint names THIS scene's author (it used to keep the boot scene's)
   }
-  // Groups in a stable order: yours always first (and always present, even while empty, so
-  // there is somewhere obvious for New to land), then each collection by first appearance.
-  function presetGroups() {
-    const groups = [], byKey = new Map();
-    const add = key => {
-      let g = byKey.get(key);
-      if (!g) { g = { key, label: key || myCollectionLabel(), items: [] }; byKey.set(key, g); groups.push(g); }
-      return g;
-    };
-    add("");
-    presets.forEach((p, i) => add(collectionOf(p)).items.push({ p, i }));
-    // Listed ALPHABETICALLY, by request: scenes within each collection, and the borrowed
-    // collections themselves after your own. Each item keeps its library index `i`, so the
-    // order is display-only -- curPreset, the auto-cycle and every blob are untouched.
-    const byName = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
-    for (const g of groups) g.items.sort((a, b) => byName(a.p.name, b.p.name));
-    groups.sort((a, b) => (a.key === "") - (b.key === "") ? (a.key === "" ? -1 : 1) : byName(a.label, b.label));
-    return groups;
-  }
-  // Which groups are expanded. Transient and starting EMPTY, so every collection is folded
-  // on load and the list opens as a short stack of names — the requested default. Surviving
-  // rebuilds is what stops a pick from folding the group you are working in.
-  const openCollections = new Set();
-  // No exceptions any more: the top group used to be opened once per load (so a first-time
-  // visitor saw the shipped scenes rather than one closed "Default scenes 4" row), but that
-  // was rolled back by request — EVERY group starts folded, your own included. The count on
-  // each heading is what says there is something inside.
   // The heading under the Scene box that names what you are editing. Called from
-  // buildPresetList rather than from each selection path, because that function is already
-  // the one choke point every path goes through to move the highlight (create, rename,
-  // delete, restore, a manual pick, and the auto-cycle via applyPreset) — so the title
-  // cannot drift from the selection without the highlight drifting too.
+  // rebuildPresetOptions and applyPreset rather than from each selection path: those two are
+  // the choke points every path goes through (create, restore, a gallery pick, and the
+  // auto-cycle via applyPreset) — so the title cannot drift from the selection.
   function syncSceneTitle() {
     const h = el("scenenow");
     if (!h) return;
@@ -24592,131 +24485,6 @@
     // on-screen banner gives you, kept visible while you work rather than for four seconds.
     const from = collectionOf(p);
     h.title = from ? p.name + " — from " + from : p.name;
-  }
-  function buildPresetList() {
-    syncSceneTitle();
-    const host = el("presetlist");
-    if (!host) return;
-    presetSel.style.display = "none";       // the <select> is the value store, not the control
-    host.textContent = "";
-    // Every .pl-scene in here is now a real saved scene. The list used to open with an
-    // "— unsaved scene —" row that also carried .pl-scene, so anything counting that class to
-    // count scenes was off by one; it isn't any more.
-    const groups = presetGroups();
-    for (const g of groups) {
-      const sec = document.createElement("div");
-      sec.className = "pl-grp" + (openCollections.has(g.key) ? " open" : "");
-      const head = document.createElement("button");
-      head.type = "button";
-      head.className = "pl-head";
-      head.title = (openCollections.has(g.key) ? "Collapse" : "Expand") + " “" + g.label + "”";
-      const nm = document.createElement("span");
-      nm.className = "pl-nm"; nm.textContent = g.label;
-      const ct = document.createElement("span");
-      ct.className = "pl-ct"; ct.textContent = String(g.items.length);
-      head.appendChild(nm); head.appendChild(ct);
-      head.addEventListener("click", () => {
-        if (openCollections.has(g.key)) openCollections.delete(g.key); else openCollections.add(g.key);
-        buildPresetList();
-      });
-      sec.appendChild(head);
-      // Someone else's collection can be dropped whole. Without this the only way to undo a
-      // gallery load would be deleting their scenes one at a time; your own group has no ✕
-      // because it is not a thing you loaded.
-      if (g.key) {
-        const rm = document.createElement("button");
-        rm.type = "button"; rm.className = "pl-drop"; rm.textContent = "✕";
-        rm.title = "Remove the “" + g.label + "” collection — your own scenes are untouched";
-        rm.addEventListener("click", e => { e.stopPropagation(); dropCollection(g.key, g.label); });
-        sec.appendChild(rm);
-      }
-      const body = document.createElement("div");
-      body.className = "pl-body";
-      if (!g.items.length) {
-        const e = document.createElement("div");
-        e.className = "pl-empty"; e.textContent = "no scenes yet — New saves one here";
-        body.appendChild(e);
-      }
-      for (const { p, i } of g.items) {
-        // A row, not a bare button: a checkbox cannot live INSIDE a <button> (nested
-        // interactive content), so the tick and the name-button are siblings under .pl-row.
-        // Same shape as .pl-grp holding .pl-head + .pl-drop.
-        const row = document.createElement("div");
-        row.className = "pl-row";
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.className = "pl-cyc";
-        cb.checked = inRotation(p);
-        cb.title = "Include “" + p.name + "” when Auto-cycle favourites is on";
-        cb.setAttribute("aria-label", "Auto-cycle " + p.name);
-        // Ticking must NOT select the scene — that is the whole point of it being a separate
-        // hit target — so the click is stopped from reaching the row.
-        cb.addEventListener("click", e => e.stopPropagation());
-        cb.addEventListener("change", () => setRotation(i, cb.checked));
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "pl-scene" + (i === curPreset ? " on" : "");
-        b.textContent = p.name;
-        b.title = g.key ? p.name + " — from " + g.label : p.name;
-        b.addEventListener("click", () => pickPreset(i));
-        row.appendChild(cb); row.appendChild(b);
-        body.appendChild(row);
-      }
-      sec.appendChild(body);
-      host.appendChild(sec);
-    }
-  }
-  // Tick / untick one scene's place in the auto-cycle rotation.
-  //
-  // It writes `rotate` ONLY when excluding and deletes the key when including, so a library
-  // where everything is ticked serialises exactly as it did before the feature — no key, no
-  // diff in any saved scene, share link, backup or cloud profile.
-  //
-  // persist() only, deliberately NOT autosavePreset(): the tick is a property of the scene in
-  // your library, not of the scene on screen, and folding it into the SELECTED preset would
-  // write the wrong one every time you ticked a different row. It also must not disturb
-  // curPreset or the picture — unticking the scene you are watching leaves it on screen and
-  // simply stops the cycler coming back to it.
-  function setRotation(i, on) {
-    const p = presets[i]; if (!p) return;
-    if (on) delete p.rotate; else p.rotate = false;
-    buildPresetList();     // the row is rebuilt, so the tick reflects what is stored
-    persist();
-  }
-  // Every pick routes through the <select>'s change event, so applyPreset, dockAll, the
-  // autosave and persist all run exactly as a native dropdown pick did. The swatch picker
-  // does the same thing for palettes, and for the same reason: no second code path.
-  function pickPreset(i) {
-    presetSel.value = String(i);
-    presetSel.dispatchEvent(new Event("change", { bubbles: true }));
-  }
-  function dropCollection(key, label) {
-    const n = presets.filter(p => collectionOf(p) === key).length;
-    if (!confirm("Remove the “" + label + "” collection?\n\n" + n + " scene" + (n === 1 ? "" : "s")
-      + " will be deleted. Your own scenes are not touched.")) return;
-    // Re-find the selection by IDENTITY afterwards: every index above the removed run
-    // shifts, so keeping the old number would silently select someone else's scene.
-    const cur = presets[curPreset];
-    const at = curPreset;
-    presets = presets.filter(p => collectionOf(p) !== key);
-    openCollections.delete(key);
-    forgetCollection(key);            // you no longer hold it, so your profile should stop saying you do
-    const kept = cur ? presets.indexOf(cur) : -1;
-    if (kept >= 0) {                  // the scene we were on survived — leave the picture alone
-      curPreset = kept;
-      rebuildPresetOptions();
-      persist();
-      return;
-    }
-    // It went with the collection, so a neighbour is selected — and it must be APPLIED, not
-    // merely highlighted. Selecting without applying leaves the deleted scene on screen under
-    // a name that now belongs to a different scene, and the next slider move autosaves it over
-    // that scene. See the same reasoning on Delete.
-    ensureSelection();
-    curPreset = Math.min(at, presets.length - 1);
-    applyPreset(curPreset);
-    rebuildPresetOptions();
-    persist();
   }
   // Normalize a saved state to the current slider set: keep only keys that still
   // exist (drops retired ones like `radius`) and default any newly-added keys.
@@ -25002,7 +24770,7 @@
     morphOnce = !morphing;
     beginMorph(fromRamp, morphing ? pickOther(+paletteSel.value) : +paletteSel.value);
     curPreset = i; presetSel.value = String(i);
-    buildPresetList();                 // move the highlight — covers the auto-cycle too,
+    syncSceneTitle();                 // covers the auto-cycle too,
     applyingPreset = false;            // which sets the value without firing `change`
     sceneTitleFor(i);                  // name the scene on screen (queues behind the credits)
     sceneMark();                       // as loaded: what a later fold is compared with
@@ -25073,84 +24841,6 @@
       if (changed) gsyncSoon();
     }
   }
-  el("renamepreset").addEventListener("click", () => {
-    if (curPreset < 0 || curPreset >= presets.length) return;
-    const name = (prompt("Rename scene:", presets[curPreset].name) || "").trim();
-    if (!name) return;
-    if (name !== presets[curPreset].name) presets[curPreset].edited = Date.now();   // the card's name changes too
-    presets[curPreset].name = name;
-    rebuildPresetOptions();
-    persist();
-  });
-  // Share the CURRENT scene as a link on the clipboard. cloudShareScene stores the scene
-  // through the API and returns a ~30-char #c= link; signed out (or on any cloud failure) it
-  // falls back to the self-contained ?z= link, so the button always yields something that
-  // opens. The copy goes through ClipboardItem's PROMISE form where available — the write
-  // must be claimed inside the click gesture, before the async link resolves — with
-  // writeText and finally a prompt() as fallbacks, so the link is never just lost.
-  el("sharepreset").addEventListener("click", () => {
-    const btn = el("sharepreset");
-    const urlP = Promise.resolve(cloudShareScene());
-    const done = ok => {
-      btn.textContent = ok ? "Copied!" : "Share";
-      if (ok) setTimeout(() => { btn.textContent = "Share"; }, 1600);
-    };
-    if (navigator.clipboard && window.ClipboardItem) {
-      navigator.clipboard.write([new ClipboardItem({
-        "text/plain": urlP.then(u => new Blob([u], { type: "text/plain" })),
-      })]).then(() => done(true), () => urlP.then(u => { prompt("Copy this link:", u); done(false); }));
-    } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      urlP.then(u => navigator.clipboard.writeText(u).then(() => done(true), () => { prompt("Copy this link:", u); done(false); }));
-    } else {
-      urlP.then(u => { prompt("Copy this link:", u); done(false); });
-    }
-    track("share_scene", {});
-  });
-  // Delete used to drop to "— unsaved scene —" and leave the deleted scene on screen, which
-  // was safe precisely because nothing was selected to autosave into. With something always
-  // selected that shortcut is destructive: highlight the neighbour without applying it and the
-  // next slider move writes the scene you just deleted straight over the neighbour. So the
-  // neighbour is APPLIED, and the picture changes — that is the visible cost of losing the
-  // scratch mode, and it is the correct trade.
-  //
-  // Deleting the last scene re-seeds the shipped library rather than leaving an empty one:
-  // "something is always selected" cannot hold over an empty list.
-  el("delpreset").addEventListener("click", () => {
-    if (curPreset < 0 || curPreset >= presets.length) return;
-    // ASK FIRST. Delete sits one button along from Rename in a row you click while working, a
-    // scene is the only copy of everything you tuned into it, and there is no undo — the next
-    // persist() writes the shorter list. The other destructive buttons (Delete profile, Remove
-    // collection, Delete palette, Reset) have always asked; this one never did.
-    //
-    // Named, because "are you sure?" does not tell you WHICH scene is selected, and the whole
-    // accident this prevents is deleting the wrong one. The last-scene case says what happens
-    // instead, since deleting it re-seeds the shipped library rather than emptying the list.
-    const doomed = presets[curPreset];
-    // A borrowed scene is not gone the way one of yours is: the follow-list refreshes its
-    // whole collection on a profile load, so a one-scene delete can silently un-delete later.
-    // Say so in the confirm rather than springing it — and when the delete empties the
-    // collection, drop the follow too (below), so an emptied set does not resurrect at all.
-    // ("Shared with you" refetches from nothing, so it keeps the plain wording.)
-    const from = collectionOf(doomed);
-    const tail = presets.length === 1
-      ? "It is your only scene, so the scenes that ship with the app will be put back."
-      : (from && from !== SHARED_COLLECTION)
-        ? "It comes from the “" + from + "” collection — loading your cloud profile fetches"
-          + " that collection fresh, so it can come back then. Removing the whole collection"
-          + " from the scene list is what makes it stay gone."
-        : "This cannot be undone.";
-    if (!confirm("Delete the scene “" + doomed.name + "”?\n\n" + tail)) return;
-    const at = curPreset;
-    presets.splice(at, 1);
-    // Emptied its collection ⇒ you no longer hold it, and the follow must go with it, or the
-    // next profile load re-fetches the whole set you just deleted scene by scene.
-    if (from && !presets.some(p => collectionOf(p) === from)) forgetCollection(from);
-    ensureSelection();                                  // re-seeds if that was the last one
-    curPreset = Math.min(at, presets.length - 1);
-    applyPreset(curPreset);
-    rebuildPresetOptions();
-    persist();
-  });
   // The pop-out column is deliberately NOT emptied here, nor anywhere else. It used to be
   // docked on every scene change, on Delete, and on setEffect, on the reasoning that a new
   // scene swaps every slider out from under you so a leftover column is stale furniture.
@@ -25546,10 +25236,9 @@
   // DECODES was touched, which is the standing rule — every `?z=`, `#zp=`/`#sp=` and `#c=`
   // link ever generated still opens, and still lands in the Restore dialog below.
   //
-  // Since then ONE sender came back by request: the Scene box's Share button
-  // (#sharepreset, wired in persist-presets.js) calls `cloudShareScene` — the short
-  // Firestore `#c=` link, ?z= fallback. `libraryUrl` and `shortenUrl` remain unreachable
-  // from the UI, kept as pure probe-pinned builders.
+  // The Scene box's Share button (#sharepreset) went too (card 827): `cloudShareScene`,
+  // `libraryUrl` and `shortenUrl` remain unreachable from the UI, kept as pure
+  // probe-pinned builders.
   //
   // Recipient side of a preset-bundle link (#zp=/#sp=), called (deferred) from applyShared:
   // decode → validate → the Restore dialog. `parsed` carries only presets (no states/ranges/
@@ -25611,9 +25300,8 @@
     const coll = (collection || "").trim();
     // Record the follow HERE, after validation has passed — not in galLoad before the call.
     // A source whose scenes ALL fail validatePresetList installs nothing, and a follow noted
-    // for it would be a phantom: uploaded with every save, "Fetching…" on every load, and —
-    // because dropCollection is only reachable from a collection group that exists in the
-    // scene list — impossible to remove from the UI. Still BEFORE applyRestore, whose
+    // for it would be a phantom: uploaded with every save, "Fetching…" on every load, and
+    // impossible to remove. Still BEFORE applyRestore, whose
     // fullSnapshot() is what carries collectionsHeld into the blob it writes and reloads on.
     if (coll) noteCollection(coll, collectionUid);
     pendingRestore = { parsed: parsed.parsed, valid: parsed.valid, hasSettings: false, hasRanges: false, hasBeat: false,
@@ -25661,7 +25349,6 @@
     const src = parsed.parsed.presets, sel = src && src[parsed.parsed.curPreset];
     const hit = sel ? at.find(i => presets[i].name === sel.name) : undefined;
     curPreset = hit !== undefined ? hit : at[0];
-    openCollections.add(SHARED_COLLECTION);    // opened, or the scene you just picked is hidden
     stopCycling();                             // ...and it stays on screen
     applyPreset(curPreset);
     rebuildPresetOptions();
@@ -27392,7 +27079,6 @@
     if (!cloudOn()) return;              // feature off ⇒ the row stays hidden, nothing loads
     const row = el("cloudrow");
     if (row) row.classList.remove("hidden");
-    if (el("gsyncrow")) el("gsyncrow").style.display = "";
     cloudLoadSess();
     // Seed the field from the cached name BEFORE any request, so the box shows who you are
     // straight away and the scene list's heading (already reading the same cache) agrees.
@@ -28407,8 +28093,8 @@
     // (see the EFFECTS registry). "all" shows on every effect; "band" on every
     // shader effect with a Banding slider; the rest are per-effect tags.
     sliders: [
-      { n: "Scenes", w: "all", t: "A saved scene is a named full snapshot — the effect plus every setting. Pick one to load it; from then on any change you make is auto-saved straight back into it. New saves what is on screen as a fresh scene, selects it and turns auto-cycle off so it stays up; Rename renames the selected one; Delete removes it and moves you to the one beside it. One scene is always selected, so every change you make is always being saved into something — if you want to experiment without touching a scene you like, press New first and work on the copy. Open a link somebody sent you and that scene is kept too, in a “Shared with you” group of its own, so it can never overwrite a scene of yours; drop the whole group with its ✕ when you are done with it. Your whole library can be kept against a Google account in the Cloud profile box, and published there for other people to load." },
-      { n: "Auto-cycle favourites", w: "all", t: "When on, a random saved scene is applied every so often (see Scene TTL) — it cycles whole scenes, not effects, though a scene switch can change the effect too. Turn off to stay put. Needs at least two saved scenes. Creating a scene or restoring a backup switches it off, so the one you just chose stays on screen." },
+      { n: "New", w: "all", t: "A saved scene is a named full snapshot — the effect plus every setting. From the moment one is selected, any change you make is auto-saved straight back into it. New saves what is on screen as a fresh scene, selects it and turns auto-cycle off so it stays up. One scene is always selected, so every change you make is always being saved into something — if you want to experiment without touching a scene you like, press New first and work on the copy. Scenes are browsed and loaded from the Gallery; a scene you load there is kept in a “Shared with you” group of its own, so it can never overwrite a scene of yours." },
+      { n: "Auto-cycle", w: "all", t: "When on, a random saved scene is applied every so often (see Scene TTL) — it cycles whole scenes, not effects, though a scene switch can change the effect too. Turn off to stay put. Needs at least two saved scenes. Creating a scene or restoring a backup switches it off, so the one you just chose stays on screen." },
       { n: "Scene TTL", w: "all", t: "How long auto-cycle holds each scene: a random time in this range (seconds) before applying a random other one." },
       { n: "Transition", w: "all", t: "How long a scene change takes to blend, as a range in seconds — each switch draws a length from it. A suitable transition is chosen automatically for the two scenes involved: a crossfade between two full-screen effects, something that breaks the picture up (pixelate, blur, wipe) when a sparse point cloud meets a dense field, a dip or flash when the palettes jump, and often nothing at all when the scenes already dissolve on their own through Fire or Fade pixel. Collapse both thumbs to 0 to cut straight over instead." },
       { n: "Effect", w: "all", t: "Which visual is running — the chooser at the top of the Effects section, directly above that effect's own sliders. Switching keeps the scene you have selected and folds the change into it, like any other edit — so you carry on working on your scene. The scene keeps its name, so rename it if it no longer suits. Part of a saved scene, so auto-cycle can switch it for you." },
@@ -28718,39 +28404,6 @@
     showHelp();
   }
   el("help-btn").addEventListener("click", openHelp);
-  // The Scenes ? — what a saved scene actually stores. It is a COMPLETE snapshot
-  // (snapshotScene / stackItemOut) nesting three scopes: scene-wide, the per-layer stack,
-  // and a selected-effect copy that also serves single-layer scenes. Reuses the help modal.
-  function openPresetHelp() {
-    const tree =
-      "<b>scene</b>                     <i>everything on screen — snapshotScene()</i>\n" +
-      "├─ name\n" +
-      "├─ effect                  <i>the SELECTED layer's effect (a stable name)</i>\n" +
-      "├─ state·beat·pulse·plen   <i>selected effect's copy (single-layer fallback)</i>\n" +
-      "├─ extra                   <i>…its palette / seed / filters</i>\n" +
-      "├─ <b>beatTune</b>  { fluxK, floor, refract, bands }\n" +
-      "├─ <b>ranges</b>    { slider min/max/step }   <i>scene-wide bounds</i>\n" +
-      "└─ <b>layers[ ]</b>                 <i>the stack, draw order (omitted if 1 layer)</i>\n" +
-      "   └─ layer  { effect, state, beat, pulse, plen,\n" +
-      "               <b>cam</b> { zoom, camrx, camry, camrz },\n" +
-      "               palette, paletteRev, paletteBg,\n" +
-      "               seedPath, seedRide, seedPts,\n" +
-      "               ranges, filters, blend, gain, mute }";
-    let html = HELP_HEAD;
-    html += '<h2 id="help-title">What a scene saves</h2>';
-    html += "<p>A saved scene is a <b>complete snapshot of what is on screen</b> — the effect stack plus every setting — portable enough to hand to someone else. It nests three scopes of state.</p>";
-    html += '<pre class="help-tree">' + tree + "</pre>";
-    html += "<dl>";
-    html += "<dt>Scene-wide — one per scene</dt><dd>The beat-detector tuning and the scene-wide slider bounds.</dd>";
-    html += "<dt>Per-layer — the stack</dt><dd>Each layer keeps its own effect, slider values, beat wiring, <b>camera</b> (zoom + X/Y/Z, in its own <code>cam</code>), palette, cardioid orbit, its <em>own</em> slider bounds, filters, and how it blends into the stack (blend / gain / mute).</dd>";
-    html += "<dt>Selected-effect copy</dt><dd>The top-level effect and its values describe the selected layer — the whole story for a one-layer scene (its camera rides inside that <code>state</code>), and a fallback for a stack (which a one-layer scene omits entirely, so it stays byte-identical to how scenes were stored before stacking).</dd>";
-    html += "</dl>";
-    html += '<p class="help-intro">Effects are stored as stable names, not positions, so reordering or removing one never corrupts a saved scene. Deliberately <b>not</b> saved: the render resolution, audio on/off, and the running animation phase — a saved scene is the same <em>configuration</em>, not the same <em>frame</em>. Your cloud profile carries the whole library of them; a share link carries just the one.</p>';
-    html += "</div>";
-    helpEl.innerHTML = html;
-    showHelp();
-  }
-  el("preset-help-btn").addEventListener("click", openPresetHelp);
   helpEl.addEventListener("click", e => { if (e.target === helpEl || e.target.classList.contains("help-close")) closeHelp(); });
 
   // ---- version + release-notes link (panel footer) ----
@@ -29108,9 +28761,9 @@
         + "goes fullscreen and <span class=\"tut-keys\">H</span> strips every last bit of chrome." },
     { head: "Scenes", art: TUT_ART.scenes,
       body: "A <b>scene</b> is a complete snapshot — the effects, the colours, the filters, every slider. "
-        + "Pick one from the list and it loads; from then on <b>every change you make is saved straight "
+        + "Pick one in the <b>Gallery</b> and it loads; from then on <b>every change you make is saved straight "
         + "back into it</b>, with no Save button. Press <b>New</b> first if you would rather work on a "
-        + "copy. <b>Auto-cycle</b> drifts through the scenes you have ticked, so you can leave it "
+        + "copy. <b>Auto-cycle</b> drifts through your scenes, so you can leave it "
         + "running — one scene <b>blends into the next</b> rather than cutting, and the "
         + "<b>Transition</b> slider sets how long that takes (pinch it to zero for a hard cut)." },
     { head: "Layers", art: TUT_ART.layers,
