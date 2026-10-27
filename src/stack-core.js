@@ -717,9 +717,10 @@
   const plenFmt = v => (v < 1 ? Math.round(v * 1000) + "ms" : v.toFixed(2) + "s");
   // Draw one slider's pulse plot: value (y) against time after a beat (x). The x axis spans
   // the pulse length plus a little rest on either side, so the hit, the fall and the landing
-  // back on the low thumb are all in frame; the y axis is the slider's own [lo, hi] band,
-  // so a pinned slider (lo == hi) is honestly drawn as a flat line -- a trigger on it does
-  // nothing, and the plot says so.
+  // back on the low thumb are all in frame; the y axis is the slider's own [lo, hi] band.
+  // A pinned slider (lo == hi, every shipped default) still draws the SHAPE -- a flat line
+  // read as a broken plot (by request) -- but dimmed and dashed, with a tooltip: a trigger
+  // on it moves nothing until the thumbs are spread.
   function drawPulsePlot(w, shapeKey, lenS) {
     const cv = w && w.pplot; if (!cv) return;
     const c = cv.getContext("2d"), W2 = cv.width, H = cv.height;
@@ -748,7 +749,10 @@
     c.strokeStyle = "rgba(255, 220, 176, 0.45)";
     c.beginPath(); c.moveTo(X(hit) + 0.5, padT); c.lineTo(X(hit) + 0.5, H - padB); c.stroke();
     // the curve: rests at lo, snaps to hi on the beat, falls back along the shape
-    c.strokeStyle = "#ff9a3c"; c.lineWidth = 2; c.lineJoin = "round";
+    const pinned = !(rng > 1e-9);
+    cv.title = pinned ? "Spread the slider's two thumbs apart for the beat to move it along this shape" : "";
+    c.strokeStyle = pinned ? "rgba(255, 154, 60, 0.45)" : "#ff9a3c"; c.lineWidth = 2; c.lineJoin = "round";
+    if (pinned) c.setLineDash([4, 3]);
     c.beginPath();
     for (let i = 0; i <= W2; i++) {
       const t = (i / W2) * span;
@@ -756,11 +760,12 @@
       if (pre) {
         // Phase rising to 1 at each beat line, then wrapping straight back to 0 -- so the drop
         // lands exactly ON the beat, which is what the slider does.
-        f = rng > 1e-9 ? fn((t % hit) / hit) : 0;
-      } else if (t >= hit) { const pulse = Math.max(0, 1 - (t - hit) / len); f = rng > 1e-9 ? fn(pulse) : 0; }
+        f = fn((t % hit) / hit);
+      } else if (t >= hit) { const pulse = Math.max(0, 1 - (t - hit) / len); f = fn(pulse); }
       i ? c.lineTo(X(t), Y(f)) : c.moveTo(X(t), Y(f));
     }
     c.stroke();
+    c.setLineDash([]);
   }
   // Every block's copy of one key, from that block's own picker and duration slider, so a
   // non-selected layer's box shows ITS setting and not the live one. Called on a shape or

@@ -405,8 +405,8 @@ the `#ctl-<key>` node lives in `#breakout`. A box belongs to a LAYER: `popped` k
 - Box order: `.ctl-owner` (also the DRAG HANDLE, `.own-txt`); label+value; slider; `.rng-sec`
   (min/max/step, closed); `.ctl-div`; Triggers (`.trig-t`) over the chips; `.trig-body` — ONE
   folding element with Shape + pulse PLOT (`drawPulsePlot`, drawn from the SAME formula
-  `updateAnims` applies, duration-invariant; every shipped slider is pinned so the default plot is
-  flat), Duration (`.plen`), Tuning (`.trig-refs`: per-band Sensitivity, Floor, Refractory,
+  `updateAnims` applies, duration-invariant; a PINNED slider — every shipped default — still draws
+  the shape, dimmed + dashed with a tooltip; a flat line read as broken, by request), Duration (`.plen`), Tuning (`.trig-refs`: per-band Sensitivity, Floor, Refractory,
   shown for armed bands, `↺`); then `.ctl-div` + the Reset row, always visible. The range editor is
   inserted before the FIRST `.trig-t`. A `single` control has no trigger section or chevron.
 - A SHAPE THUMBNAIL heads the box for the groups in `SHAPE_PREVIEW` (`polygon`, `concentric`,

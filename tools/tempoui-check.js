@@ -63,10 +63,23 @@ const body = ["<script>", "setTimeout(function(){",
   "      var keys=[].slice.call(sel.options).map(function(o){return o.value});",
   "      ok('the anticipatory shapes are offered', keys.indexOf('rise')>=0 && keys.indexOf('swoop')>=0 && keys.indexOf('breathe')>=0, keys.join(','));",
 
-  // ---- 3. THE PLOT MUST NOT CONTRADICT THE SLIDER -------------------------------------------
-  // Spread the thumbs first: every shipped slider is pinned, and a pinned slider honestly
-  // plots flat -- measuring that would be measuring nothing.
+  // ---- 3. A PINNED SLIDER STILL PLOTS ITS SHAPE ----------------------------------------------
+  // Every shipped slider is pinned (lo == hi). The plot used to draw that as a flat line, which
+  // read as a broken plot; it now draws the shape dimmed, with a tooltip saying why.
   "      var box=sel.closest('.ctl');",
+  "      var cv0=box.querySelector('canvas.pulse-plot');",
+  "      function spanY(cv){ var c=cv.getContext('2d'), d=c.getImageData(0,0,cv.width,cv.height).data, ys={};",
+  "        for(var x=0;x<cv.width;x++){ for(var y=0;y<cv.height;y++){ var p=((y*cv.width)+x)*4;",
+  "          if(d[p+3]>90 && d[p]>200 && d[p+1]>110 && d[p+1]<190 && d[p+2]<110) ys[y]=1; } }",
+  "        var k=Object.keys(ys).map(Number); return k.length ? Math.max.apply(null,k)-Math.min.apply(null,k) : 0; }",
+  "      setShape0('snap');",
+  "      function setShape0(k){ sel.value=k; sel.dispatchEvent(new Event('change',{bubbles:true})); }",
+  "      var sp0=cv0?spanY(cv0):0;",
+  "      ok('a PINNED slider still plots the shape, not a flat line', !!cv0 && sp0 > cv0.height*0.4, 'orange rows span '+sp0+' of '+(cv0&&cv0.height));",
+  "      ok('...and says why the shape will not move it', !!cv0 && /Spread/.test(cv0.title||''), cv0&&cv0.title);",
+
+  // ---- 4. THE PLOT MUST NOT CONTRADICT THE SLIDER -------------------------------------------
+  // Spread the thumbs first, so the plot is the slider's real travel.
   "      var lo=box.querySelector('.thumb-lo')||box.querySelector('input[type=range]');",
   "      var hi=box.querySelector('.thumb-hi');",
   "      if(lo&&hi){ lo.value=lo.min; hi.value=hi.max; lo.dispatchEvent(new Event('input',{bubbles:true})); hi.dispatchEvent(new Event('input',{bubbles:true})); }",
