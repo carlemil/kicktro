@@ -15,6 +15,24 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.97.0] — 2026-10-28
+
+### Added
+- **Crash reports.** When something on the page goes wrong, Kicktro now quietly sends a report of
+  the error (what failed, where, which version, which effects were running — nothing about you)
+  so it can be found and fixed. Errors from browser extensions are left out.
+
+### Changed
+- **The "Kicktro hit an error" banner shows only when the picture has actually stopped**, and
+  now has a Reload button. Before, any small error raised it while everything carried on
+  running.
+
+### Internal
+- `POST /api/errors` (API migration 6, one row per kind of error, capped and rate-limited);
+  `node tools/errors.js` lists them for the admin, `--forget <fp>` once fixed.
+  `tools/crash-check.js` drives the real page against a stub API; serverprobe covers the route.
+- CI checks out full history, so stockprobe stops reporting `server/stock.js` stale.
+
 ## [1.96.0] — 2026-10-28
 
 ### Added
