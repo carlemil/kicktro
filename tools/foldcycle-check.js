@@ -39,6 +39,10 @@ const SEED_JS = [
   "    localStorage.setItem(\"burnTheWeb.credits.v1\", \"off\");",
   "    localStorage.setItem(\"burnTheWeb.sync.v1\", JSON.stringify({ shows: 9, done: true }));",
   "  } catch (e) {}",
+  "  // A machine with Windows animation effects off reports prefers-reduced-motion, and the app",
+  "  // then PAUSES itself after two frames (by design) -- every auto-cycle case went red on it.",
+  "  var mm = window.matchMedia;",
+  "  window.matchMedia = function (q) { return /reduced-motion/.test(q) ? mm.call(window, \"not all\") : mm.call(window, q); };",
   "})();"
 ].join(NL);
 

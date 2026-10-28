@@ -276,7 +276,7 @@ Own `localStorage` key + "Show author" (`#sceneTitleOn`, `data-nopersist`, Scene
   AFTER the live one. The outgoing scene drifts but does not re-trigger (null band, scene keys
   skipped). `transStep` nulls `prevStack`; the `transBegin` snapshot stays as the all-muted
   fallback. RD is a singleton (shared dish); Canvas2D keeps the frozen copy. **No downscale**: the
-  double render measured ≤ 11 ms GPU at 1080p (`tools/transperf-check.js`, real time) — a laggy switch
+  double render measured ≤ 11 ms GPU at 1080p (`tools/transperf-check.js`, real time; `--dur=1` pins a 1 s crossfade so two builds A/B) — a laggy switch
   is a CPU FREEZE in `applyPreset`, not the blend. Profile it (CDP) before touching resolution.
 - **`applyPreset` defers editor upkeep** (it measured 240–580 ms): while `applyingPreset`,
   `syncStackUI`/`refreshBreakout`/`rngSyncAll`/`drawPulsePlots` set a `.later` flag on themselves
@@ -1119,6 +1119,9 @@ uses `Math.random()`, guarded by `jit > 0`; don't add a fixed-seed toggle for it
   `--enable-logging=stderr --v=0` (`--dump-dom` returns nothing). Add `--disable-extensions`.
   **Edge 156+ sends nothing to a redirected stderr** (exit 0, no lines — reads as a silent run):
   use `--enable-logging --log-file=<backslash path>` and grep the file.
+  **Headless Edge here reports `prefers-reduced-motion: reduce`** (Windows animation effects
+  off) and the app PAUSES after two frames by design: a check that needs frames stubs
+  `matchMedia` in its seed (foldcycle, transperf) or passes `--force-prefers-no-reduced-motion`.
 - `{bubbles:true}` on synthetic events; seed `localStorage` before the app; auto-morph off before
   asserting palette; analytics inert on `file://`.
 
