@@ -15,6 +15,22 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.96.0] — 2026-10-28
+
+### Added
+- **Gallery moderators.** A moderator signed in with Google sees the ✕ on every published scene
+  in the Gallery, not just their own (never on the built-in AI-Generated ones). It asks first,
+  naming the scene and its author. A deleted scene goes for everyone, with its votes, and its
+  author's next sync cannot put it back. Removing someone else's scene never touches a scene
+  of your own, even one with the same name.
+
+### Internal
+- `ADMIN_UIDS` (in `server/compose.yml`) names the moderators; `/api/me/favs` tells the page.
+  serverprobe and gallery-check `case-admin` cover it, with negative controls.
+- Edge 156 no longer writes the console to a redirected stderr; headless checks log to a file
+  (`--log-file`). Its launcher also returns at once, which had made the startup-time gate
+  read "0s"; `tools/startup-check.sh` now waits on the whole process tree.
+
 ## [1.95.2] — 2026-10-28
 
 ### Fixed

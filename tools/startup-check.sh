@@ -20,8 +20,13 @@ UD="$(mktemp -d)"
 start=$(date +%s)
 # --virtual-time-budget small on purpose: a healthy page reaches its first frame inside it,
 # and a hung one holds the process until the link finishes regardless.
-timeout $((BUDGET + 60)) "$EDGE" --headless=new --disable-extensions --virtual-time-budget=3000 \
-  --window-size=640,400 --user-data-dir="$UD" "file:///$ABS" >/dev/null 2>&1
+# Since Edge 156 msedge.exe hands off and returns AT ONCE (this read "0s wall" while the
+# browser was still booting), so PowerShell's Start-Process -Wait, which waits for the whole
+# process tree, does the waiting.
+UDW="$(cygpath -w "$UD")"
+timeout $((BUDGET + 60)) powershell.exe -NoProfile -Command \
+  "Start-Process -FilePath '$(cygpath -w "$EDGE")' -NoNewWindow -Wait -ArgumentList @('--headless=new','--disable-extensions','--virtual-time-budget=3000','--window-size=640,400','--user-data-dir=$UDW','file:///$ABS')" \
+  >/dev/null 2>&1
 elapsed=$(( $(date +%s) - start ))
 rm -rf "$UD"
 if [ "$elapsed" -gt "$BUDGET" ]; then
