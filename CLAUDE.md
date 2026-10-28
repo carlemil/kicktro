@@ -915,7 +915,9 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   clip = frames 300–598 at 30 fps, synthetic 120 BPM beat latched into every armed trigger; ffmpeg
   → 480×270 WebP + H.264). `--builtin` writes `thumbs/` (staged by `pages.yml`) and re-emits;
   `--server` renders `/api/admin/thumbs/todo` and PUTs; `--check <slug>` proves two renders
-  identical AND that the beat changes them (negative control). **The harness lives IN THE APP**
+  identical AND that the beat changes them (negative control). Edge 156: the console is read from
+  `--log-file` (whole lines only) and Edge is killed by its work folder, browser first, swept until
+  none is left — killing a child first respawns it and the folder stays locked. **The harness lives IN THE APP**
   (`src/gallery-thumbs.js`): `thumbPrelude(cfg)` (SELF-CONTAINED — shipped as its own source text,
   sliced by its two marker lines) swaps in in-memory storage seeded with the scene, the fixed-step
   rAF and the xorshift `Math.random`; the app reads it as `THUMB` (`boot-globals.js`: no API, no

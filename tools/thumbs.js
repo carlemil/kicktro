@@ -72,39 +72,64 @@ function pageFor(app, blob, beat) {
 }
 
 // ---- one render: Edge in REAL time (a shared world's async link needs it), killed on 'done'
+// Edge 156 sends nothing to a redirected stderr and its launcher process exits while the browser
+// keeps running, so the console is read from --log-file (polled, whole lines only) and the
+// browser is found and killed by its user-data-dir, never by the launcher's pid.
+function edgeKill(ud) {
+  // every process of this render names its folder; the BROWSER (no --type=) goes first, or it
+  // respawns the children killed before it, and the sweep repeats until nothing is left.
+  // -EncodedCommand so no quote survives Windows argument quoting by accident
+  const dir = path.dirname(ud).replace(/'/g, "''");
+  const ps = "for ($i = 0; $i -lt 10; $i++) { "
+    + "$p = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('" + dir + "') }); "
+    + "if (-not $p.Count) { break }; "
+    + "$p | Sort-Object { $_.CommandLine.Contains('--type=') } | "
+    + "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 300 }";
+  spawnSync("powershell", ["-NoProfile", "-EncodedCommand", Buffer.from(ps, "utf16le").toString("base64")], { stdio: "ignore" });
+}
 function edgeRun(htmlFile, ud) {
   const url = "file:///" + htmlFile.split(path.sep).join("/") + "?hideui&credits=0";
-  const argv = ["--headless=new", "--disable-extensions", "--enable-logging=stderr", "--v=0",
+  const log = path.join(path.dirname(ud), "console.log");
+  const argv = ["--headless=new", "--disable-extensions", "--enable-logging", "--log-file=" + log, "--v=0",
     "--window-size=" + (W * 2) + "," + (H * 2), "--no-first-run", "--user-data-dir=" + ud, url];
   return new Promise((resolve, reject) => {
-    const p = spawn(EDGE, argv, { stdio: ["ignore", "ignore", "pipe"] });
+    spawn(EDGE, argv, { stdio: "ignore" });
     const out = { scene: "", poster: null, frames: [], done: null };
-    let buf = "", finished = false;
-    const kill = () => { spawnSync("taskkill", ["/PID", String(p.pid), "/T", "/F"], { stdio: "ignore" }); };
+    let pos = 0, finished = false;
     const timer = setTimeout(() => finish(new Error("timed out after 300 s")), 300000);
+    const poll = setInterval(read, 250);
     function finish(err) {
       if (finished) return;
       finished = true;
       clearTimeout(timer);
-      kill();
+      clearInterval(poll);
+      edgeKill(ud);
       if (err) reject(err); else resolve(out);
     }
-    p.stderr.on("data", d => {
-      buf += d;
-      let nl;
-      while ((nl = buf.indexOf("\n")) >= 0) {
-        const line = buf.slice(0, nl);
-        buf = buf.slice(nl + 1);
+    function read() {
+      let fd, text;
+      try { fd = fs.openSync(log, "r"); } catch (e) { return; }
+      try {
+        const size = fs.fstatSync(fd).size;
+        if (size <= pos) return;
+        const chunk = Buffer.alloc(size - pos);
+        fs.readSync(fd, chunk, 0, chunk.length, pos);
+        // up to the last whole line only: a half-written line (or UTF-8 character) waits a poll
+        const end = chunk.lastIndexOf(10);
+        if (end < 0) return;
+        pos += end + 1;
+        text = chunk.subarray(0, end).toString("utf8");
+      } finally { fs.closeSync(fd); }
+      for (const line of text.split(NL)) {
         const m = /"THUMB\|([^"]*)"/.exec(line);
         if (!m) continue;
         const f = m[1].split("|");
         if (f[0] === "scene") out.scene = f.slice(1).join("|");
         else if (f[0] === "poster") out.poster = b64(f[1]);
         else if (f[0] === "f") out.frames[+f[1]] = b64(f[2]);
-        else if (f[0] === "done") { out.done = { errs: +f[1], gl: f[2] }; finish(); }
+        else if (f[0] === "done") { out.done = { errs: +f[1], gl: f[2] }; finish(); return; }
       }
-    });
-    p.on("exit", () => finish(new Error("Edge exited before the render finished")));
+    }
   });
 }
 
@@ -118,7 +143,7 @@ const kb = b => Math.round(b.length / 1024) + " KB";
 
 async function render(blob, tag, beat) {
   const dir = path.join(WORK, tag.replace(/[^A-Za-z0-9_-]+/g, "_"));
-  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
   fs.mkdirSync(path.join(dir, "frames"), { recursive: true });
   const html = path.join(dir, "page.html");
   fs.writeFileSync(html, pageFor(fs.readFileSync(PAGE, "utf8"), blob, beat));
@@ -145,7 +170,7 @@ async function render(blob, tag, beat) {
   };
   console.log("  " + tag + "  (" + r.scene + ")  poster " + kb(res.poster) + ", clip " + kb(res.clip)
     + ", " + ((Date.now() - t0) / 1000).toFixed(1) + " s");
-  if (!args.keep) fs.rmSync(dir, { recursive: true, force: true });
+  if (!args.keep) fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
   return res;
 }
 
