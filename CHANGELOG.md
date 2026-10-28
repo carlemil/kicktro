@@ -15,6 +15,23 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.99.1] — 2026-10-28
+
+### Fixed
+- On a phone held upright the fps counter no longer covers the last buttons of the top row:
+  the buttons wrap onto a second row before they reach it, and the editor panel opens below
+  that row.
+
+### Changed
+- The Gallery (▦) and React to music (♪) buttons have larger icons.
+- The profile box is simpler: Save to cloud, Load from cloud, "List my profile under
+  Collections" and "Save automatically" are gone. Your profile still saves itself
+  automatically, as it did by default.
+
+### Internal
+- `toprow-check` pins the wrap, the icon sizes and the trimmed profile box, and goes red on
+  the previous build.
+
 ## [1.99.0] — 2026-10-28
 
 ### Added

@@ -98,24 +98,13 @@
            it is set once and rarely changed, and an input sitting there implies otherwise.
            Click it (or focus + Enter) to edit; it swaps back to text on Enter/blur. -->
       <div id="cloud-nameline">
-        <span id="cloud-nameview" tabindex="0" role="button" title="Click to rename your profile — written with your next Save to cloud"></span>
+        <span id="cloud-nameview" tabindex="0" role="button" title="Click to rename your profile — written with the next automatic save"></span>
         <input type="text" id="cloud-name" maxlength="40" placeholder="Profile name" style="display:none" title="The name shown on your profile — this is yours to choose, not your Google name">
       </div>
-      <div class="presetrow grid2">
-        <button id="cloud-save" class="audbtn" type="button" title="Upload your scene library to your profile, replacing what is there">Save to cloud</button>
-        <button id="cloud-load" class="audbtn" type="button" title="Fetch your profile and choose whether to merge it with your scenes or replace them">Load from cloud</button>
-      </div>
-      <!-- Opt-in, and off by default: publishing is a deliberate act, not a side effect of
-           saving. Ticking it re-saves the whole profile (see cloudPublish for why a
-           pub-only write cannot satisfy the rules). -->
-      <label class="check" title="List your whole profile on the gallery's Collections tab so anyone can load all your scenes at once. Your name and scene count become visible. Each of your scenes is in the gallery on its own either way."><input type="checkbox" id="cloud-pub"> List my profile under Collections</label>
-      <!-- ON by default. An automatic upload is still an upload, so it gets a control you can
-           see and switch off rather than happening silently. data-nopersist: this is a device
-           preference with its own localStorage key, not scene data. -->
-      <label class="check" title="Save your library to your profile automatically: two hours after your last change, and at most once a day."><input type="checkbox" id="cloud-auto" data-nopersist checked> Save automatically</label>
-      <!-- When it last happened and when it can next happen. The schedule is measured in hours,
-           so it is invisible without being told: without this line the only way to know whether
-           anything had been saved was to press Save and watch. -->
+      <!-- Save to cloud / Load from cloud and the "List my profile under Collections" and
+           "Save automatically" ticks are GONE (by request): the profile saves itself (always on
+           now) and every scene is a gallery card anyway. A profile that was listed stays listed.
+           This line says when the automatic save last happened and when it can next. -->
       <p class="hint" id="cloud-autoinfo"></p>
       <!-- Links minted by "Share this scene" while signed in. /scenes is deliberately
            unlistable (a link meant for one person must not be enumerable), so the local

@@ -65,11 +65,13 @@
        matches #carddlg and #breakout, which come later in the markup and so still paint over the
        panel exactly as they did before. */
     z-index: 5;
-    top: 58px;
+    /* 58px under one row of buttons; --toph is the top row's measured height (ui-menubar.js),
+       so when the row wraps onto a second line on a phone the panel moves down with it. */
+    top: calc(var(--toph, 34px) + 24px);
     left: 14px;
     padding: 14px 16px;
     width: 250px;
-    max-height: calc(100vh - 72px);
+    max-height: calc(100vh - var(--toph, 34px) - 38px);
     overflow-y: auto;
     overscroll-behavior: contain;
     /* 0.8, not the old 0.55: every panel and dialog floats over the visual, and at 55% a
@@ -219,10 +221,13 @@
   #panel.hidden { opacity: 0; transform: translateX(-12px); pointer-events: none; visibility: hidden; }
   /* The top row is a FLEX row: a button hidden with no API (▦, the profile) closes its gap,
      and the scene banner is its last child, so it always follows the last button. */
+  /* It WRAPS short of the fps counter (#frames, top right): --fpsw is that counter's measured
+     width (ui-menubar.js), plus a 10px gap, so on a phone in portrait the buttons that would
+     sit under it start a second row instead of losing their taps to it. */
   #toprow {
     position: fixed; top: 14px; left: 14px; z-index: 10;
-    display: flex; align-items: center; gap: 6px;
-    max-width: calc(100vw - 28px);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    max-width: calc(100vw - 28px - var(--fpsw, 0px) - 10px);
     pointer-events: none;                 /* only the buttons take clicks, never the gaps */
   }
   #toprow > button {
@@ -242,7 +247,9 @@
     transition: background .15s;
   }
   #toprow > button.hidden { display: none; }
-  #galbtn, #mute { font-size: 18px; }
+  /* Through #toprow: `#toprow > button` sets the font above and outranks a bare id, which is
+     how the old 18px here never applied. */
+  #toprow > #galbtn, #toprow > #mute { font-size: 26px; }
   #panelbtn { font-size: 17px; }
   #tourbtn { font: italic 17px/1 Georgia, "Times New Roman", serif; }
   #panelbtn.on, #toprow > button[aria-expanded="true"] { background: rgba(255, 122, 26, 0.3); }
@@ -2011,7 +2018,7 @@
     #fltdlg, #transpickdlg { justify-content: center; }
     #fltdlg .flt-box, #palpickdlg .flt-box, #transpickdlg .flt-box,
     #paledlg .pale-box, #paldlg .pal-box {
-      margin: 58px 14px 14px; width: min(92vw, 430px); max-width: calc(100vw - 28px);
+      margin: calc(var(--toph, 34px) + 24px) 14px 14px; width: min(92vw, 430px); max-width: calc(100vw - 28px);
     }
     /* The pop-out column has nowhere to be beside a panel that already fills the width, so
        it becomes a bottom sheet: boxes lie in a row and scroll sideways, the panel stays
@@ -2108,24 +2115,13 @@
            it is set once and rarely changed, and an input sitting there implies otherwise.
            Click it (or focus + Enter) to edit; it swaps back to text on Enter/blur. -->
       <div id="cloud-nameline">
-        <span id="cloud-nameview" tabindex="0" role="button" title="Click to rename your profile — written with your next Save to cloud"></span>
+        <span id="cloud-nameview" tabindex="0" role="button" title="Click to rename your profile — written with the next automatic save"></span>
         <input type="text" id="cloud-name" maxlength="40" placeholder="Profile name" style="display:none" title="The name shown on your profile — this is yours to choose, not your Google name">
       </div>
-      <div class="presetrow grid2">
-        <button id="cloud-save" class="audbtn" type="button" title="Upload your scene library to your profile, replacing what is there">Save to cloud</button>
-        <button id="cloud-load" class="audbtn" type="button" title="Fetch your profile and choose whether to merge it with your scenes or replace them">Load from cloud</button>
-      </div>
-      <!-- Opt-in, and off by default: publishing is a deliberate act, not a side effect of
-           saving. Ticking it re-saves the whole profile (see cloudPublish for why a
-           pub-only write cannot satisfy the rules). -->
-      <label class="check" title="List your whole profile on the gallery's Collections tab so anyone can load all your scenes at once. Your name and scene count become visible. Each of your scenes is in the gallery on its own either way."><input type="checkbox" id="cloud-pub"> List my profile under Collections</label>
-      <!-- ON by default. An automatic upload is still an upload, so it gets a control you can
-           see and switch off rather than happening silently. data-nopersist: this is a device
-           preference with its own localStorage key, not scene data. -->
-      <label class="check" title="Save your library to your profile automatically: two hours after your last change, and at most once a day."><input type="checkbox" id="cloud-auto" data-nopersist checked> Save automatically</label>
-      <!-- When it last happened and when it can next happen. The schedule is measured in hours,
-           so it is invisible without being told: without this line the only way to know whether
-           anything had been saved was to press Save and watch. -->
+      <!-- Save to cloud / Load from cloud and the "List my profile under Collections" and
+           "Save automatically" ticks are GONE (by request): the profile saves itself (always on
+           now) and every scene is a gallery card anyway. A profile that was listed stays listed.
+           This line says when the automatic save last happened and when it can next. -->
       <p class="hint" id="cloud-autoinfo"></p>
       <!-- Links minted by "Share this scene" while signed in. /scenes is deliberately
            unlistable (a link meant for one person must not be enumerable), so the local
@@ -2841,7 +2837,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.99.0",
+    version: "1.99.1",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -27477,18 +27473,13 @@
     document.head.appendChild(s);
   }
 
-  if (el("cloud-save")) el("cloud-save").addEventListener("click", cloudSave);
-  if (el("cloud-load")) el("cloud-load").addEventListener("click", cloudLoad);
+  // Save to cloud / Load from cloud and the Collections + Save automatically ticks are GONE from
+  // the profile popover (by request). Automatic save is now the only way the profile is
+  // written, so a stored "off" from the old tick — which nothing can switch back — is undone.
   if (el("cloud-delete")) el("cloud-delete").addEventListener("click", cloudDelete);
   if (el("cloud-signout")) el("cloud-signout").addEventListener("click", cloudSignOut);
-  if (el("cloud-pub")) el("cloud-pub").addEventListener("change", e => cloudPublish(e.target.checked));
-  // Automatic save: paint the stored preference, and write it back on every change. Its own
-  // key (see AUTOSAVE_KEY), so it never rides a scene, a share link or a backup.
-  if (el("cloud-auto")) {
-    el("cloud-auto").checked = autoSaveEnabled();
-    el("cloud-auto").addEventListener("change", e => { autoSaveSetEnabled(e.target.checked); autoSaveSyncInfo(); });
-    autoSaveSyncInfo();
-  }
+  if (!autoSaveEnabled()) autoSaveSetEnabled(true);
+  autoSaveSyncInfo();
   if (el("cloud-nameview")) {
     el("cloud-nameview").addEventListener("click", cloudNameEdit);
     // Keyboard parity: the label is focusable, so Enter/Space must open it too.
@@ -29532,6 +29523,31 @@
   window.addEventListener("keydown", e => {
     if (e.key === "Escape" && pop) popClose();
   });
+
+  // THE TOP ROW STOPS SHORT OF THE FPS COUNTER and wraps onto a second row there (by request:
+  // on a phone in portrait the counter sat over the last buttons and ate their taps). The
+  // counter's width changes with its digits, so it is MEASURED into --fpsw, which #toprow's
+  // max-width subtracts; hidden, it measures 0 and the row gets the whole width back.
+  // The row's own height goes into --toph on the root, which the panel and the phone-width
+  // dialogs hang from, so a wrapped second row never sits on top of them. The BUTTONS' rows
+  // only: the scene banner can wrap onto a line of its own while it shows, and the panel
+  // jumping down and back up as it fades in and out would be worse than the banner sitting
+  // over the panel's top edge for a few seconds.
+  const framesBox = el("frames"), toprow = el("toprow");
+  function fpsRoom() { toprow.style.setProperty("--fpsw", (framesBox ? framesBox.offsetWidth : 0) + "px"); }
+  function topRoom() {
+    const top = toprow.getBoundingClientRect().top;
+    let h = 0;
+    for (const b of toprow.querySelectorAll(":scope > button")) {
+      if (b.offsetParent !== null) h = Math.max(h, b.getBoundingClientRect().bottom - top);
+    }
+    document.documentElement.style.setProperty("--toph", Math.round(h || 34) + "px");
+  }
+  if (window.ResizeObserver) {
+    if (framesBox) new ResizeObserver(fpsRoom).observe(framesBox);
+    new ResizeObserver(topRoom).observe(toprow);
+  }
+  fpsRoom(); topRoom();
  }
 
   // DOUBLE requestAnimationFrame: the first callback runs before the next paint, the second

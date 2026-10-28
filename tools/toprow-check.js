@@ -10,7 +10,9 @@
 // © open a popover holding their adopted block and closing returns it home; a second press
 // closes; a press on another button while one is open goes THROUGH to it; Escape closes and
 // hands focus back; the Pause tick is off with no source; the fullscreen button carries an
-// icon that says which way it goes; i and ? open the tutorial and Help.
+// icon that says which way it goes; i and ? open the tutorial and Help; ▦ and ♪ draw larger;
+// the profile box carries no Save/Load/Collections/Save-automatically; with the fps counter
+// widened the row wraps short of it and the open panel starts below the second row.
 // NEGATIVE CONTROL: run it against an index.html from before the change — it goes red.
 //
 // No backtick anywhere in the injected source (CLAUDE.md).
@@ -120,8 +122,36 @@ const ASSERT_JS = [
   "    window.dispatchEvent(new KeyboardEvent(\"keydown\", { key: \"Escape\", bubbles: true }));",
   "    $(\"helpbtn\").click();",
   "    ok(\"? opens Help\", shown($(\"help\")));",
+  "    window.dispatchEvent(new KeyboardEvent(\"keydown\", { key: \"Escape\", bubbles: true }));",
+  "",
+  "    // The gallery and audio icons are the big ones (the old 18px lost to #toprow > button).",
+  "    ok(\"the gallery and audio icons are drawn larger than the rest\",",
+  "       parseFloat(getComputedStyle($(\"galbtn\")).fontSize) >= 24 && parseFloat(getComputedStyle($(\"mute\")).fontSize) >= 24",
+  "       && parseFloat(getComputedStyle($(\"credbtn\")).fontSize) < 20, getComputedStyle($(\"galbtn\")).fontSize + \"/\" + getComputedStyle($(\"mute\")).fontSize);",
+  "    // The profile box lost Save/Load and the two ticks.",
+  "    ok(\"the profile box has no Save / Load / Collections / Save automatically\",",
+  "       ![\"cloud-save\", \"cloud-load\", \"cloud-pub\", \"cloud-auto\"].some(function (id) { return $(id); }));",
   "    } catch (e) { ok(\"no exception\", false, String(e)); }",
-  "    console.log(\"DONE \" + CASE + \" fails=\" + fails);",
+  "",
+  "    // THE ROW WRAPS SHORT OF THE FPS COUNTER (headless will not open a phone-narrow window,",
+  "    // so the counter is widened instead), and the panel moves down under the second row.",
+  "    var fr = $(\"frames\"), oldW = fr.style.width;",
+  "    fr.style.width = Math.max(200, innerWidth - 260) + \"px\";",
+  "    setTimeout(function () {",
+  "      try {",
+  "        var f = fr.getBoundingClientRect();",
+  "        var bs = ORDER.map(function (id) { return $(id); }).filter(shown).map(function (b) { return b.getBoundingClientRect(); });",
+  "        ok(\"with the counter wide, no button reaches under it\", bs.every(function (r) { return r.right <= f.left - 4; }), Math.round(f.left) + \" vs \" + bs.map(function (r) { return Math.round(r.right); }).join(\",\"));",
+  "        ok(\"...the row wrapped onto a second line\", bs.some(function (r) { return r.top > bs[0].bottom; }));",
+  "        $(\"panelbtn\").click();",
+  "        var last = Math.max.apply(null, bs.map(function (r) { return r.bottom; }));",
+  "        var p = $(\"panel\").getBoundingClientRect();",
+  "        ok(\"...and the open panel starts below the second row\", !$(\"panel\").classList.contains(\"hidden\") && p.top >= last + 4, Math.round(p.top) + \" vs \" + Math.round(last) + (shown($(\"panel\")) ? \"\" : \" (mid-transition)\"));",
+  "        $(\"panelbtn\").click();",
+  "        fr.style.width = oldW;",
+  "      } catch (e) { ok(\"no exception in the wrap step\", false, String(e)); }",
+  "      console.log(\"DONE \" + CASE + \" fails=\" + fails);",
+  "    }, 400);",
   "  }, 1500); });",
   "})();"
 ].join(NL);

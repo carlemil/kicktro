@@ -255,7 +255,7 @@ console.log("--- Cloud profiles: the API client (" + file + ")\n");
 
   // ---- structural: the kill switch ---------------------------------------------------------
   {
-    const init = slice("function cloudInit() {", "if (el(\"cloud-save\")");
+    const init = slice("function cloudInit() {", "if (el(\"cloud-delete\")");
     ok("cloudInit early-returns when unconfigured", /if\s*\(!cloudOn\(\)\)\s*return/.test(init));
     ok("...before loading any third-party script",
        init.indexOf("!cloudOn()") >= 0 && init.indexOf("!cloudOn()") < init.indexOf("GIS_SRC"), "gate precedes the script append");

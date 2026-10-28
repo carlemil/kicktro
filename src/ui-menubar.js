@@ -101,3 +101,28 @@
   window.addEventListener("keydown", e => {
     if (e.key === "Escape" && pop) popClose();
   });
+
+  // THE TOP ROW STOPS SHORT OF THE FPS COUNTER and wraps onto a second row there (by request:
+  // on a phone in portrait the counter sat over the last buttons and ate their taps). The
+  // counter's width changes with its digits, so it is MEASURED into --fpsw, which #toprow's
+  // max-width subtracts; hidden, it measures 0 and the row gets the whole width back.
+  // The row's own height goes into --toph on the root, which the panel and the phone-width
+  // dialogs hang from, so a wrapped second row never sits on top of them. The BUTTONS' rows
+  // only: the scene banner can wrap onto a line of its own while it shows, and the panel
+  // jumping down and back up as it fades in and out would be worse than the banner sitting
+  // over the panel's top edge for a few seconds.
+  const framesBox = el("frames"), toprow = el("toprow");
+  function fpsRoom() { toprow.style.setProperty("--fpsw", (framesBox ? framesBox.offsetWidth : 0) + "px"); }
+  function topRoom() {
+    const top = toprow.getBoundingClientRect().top;
+    let h = 0;
+    for (const b of toprow.querySelectorAll(":scope > button")) {
+      if (b.offsetParent !== null) h = Math.max(h, b.getBoundingClientRect().bottom - top);
+    }
+    document.documentElement.style.setProperty("--toph", Math.round(h || 34) + "px");
+  }
+  if (window.ResizeObserver) {
+    if (framesBox) new ResizeObserver(fpsRoom).observe(framesBox);
+    new ResizeObserver(topRoom).observe(toprow);
+  }
+  fpsRoom(); topRoom();

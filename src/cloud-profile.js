@@ -1726,18 +1726,13 @@
     document.head.appendChild(s);
   }
 
-  if (el("cloud-save")) el("cloud-save").addEventListener("click", cloudSave);
-  if (el("cloud-load")) el("cloud-load").addEventListener("click", cloudLoad);
+  // Save to cloud / Load from cloud and the Collections + Save automatically ticks are GONE from
+  // the profile popover (by request). Automatic save is now the only way the profile is
+  // written, so a stored "off" from the old tick — which nothing can switch back — is undone.
   if (el("cloud-delete")) el("cloud-delete").addEventListener("click", cloudDelete);
   if (el("cloud-signout")) el("cloud-signout").addEventListener("click", cloudSignOut);
-  if (el("cloud-pub")) el("cloud-pub").addEventListener("change", e => cloudPublish(e.target.checked));
-  // Automatic save: paint the stored preference, and write it back on every change. Its own
-  // key (see AUTOSAVE_KEY), so it never rides a scene, a share link or a backup.
-  if (el("cloud-auto")) {
-    el("cloud-auto").checked = autoSaveEnabled();
-    el("cloud-auto").addEventListener("change", e => { autoSaveSetEnabled(e.target.checked); autoSaveSyncInfo(); });
-    autoSaveSyncInfo();
-  }
+  if (!autoSaveEnabled()) autoSaveSetEnabled(true);
+  autoSaveSyncInfo();
   if (el("cloud-nameview")) {
     el("cloud-nameview").addEventListener("click", cloudNameEdit);
     // Keyboard parity: the label is focusable, so Enter/Space must open it too.

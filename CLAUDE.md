@@ -489,6 +489,10 @@ Copper Bars gates its row fast path on `camOn()`.
 never position them by `left`). The ☰ dropdown is GONE, and so are its Resolution, Controls panel,
 Fullscreen and Hide all UI rows (F and H keys still work; a stored resolution still applies, it has
 no control). `#panel` is only the scene editor; `m` and ⚙ toggle it.
+**The row WRAPS short of the fps counter** (`flex-wrap`, max-width minus `--fpsw`, the MEASURED
+`#frames` width; a phone in portrait lost its last buttons' taps under it). `--toph` on the root
+= the BUTTONS' rows only (never the banner, which fades) — `#panel` and the phone-width dialogs
+hang from it. ▦ and ♪ are 26px through `#toprow > #id` (a bare id loses to `#toprow > button`).
 
 **♪, profile and © open a POPOVER that ADOPTS nodes** (`src/ui-menubar.js`, last in the manifest;
 `popOpen(btn, hostId, label)`): the children of `#audiobox`/`#cloudbox`/`#creditbox` (authored
@@ -809,6 +813,10 @@ Startup reads `GET /api/profile?meta=1` (no payload).
 `seedIfMissing` is passed by the sign-in caller only (`cloudprobe` asserts startup passes nothing).
 
 `cloudApplyPayload(payload)` is the ONE place a stored payload becomes a library.
+
+**The profile popover has NO Save to cloud / Load from cloud and no Collections / Save
+automatically ticks** (by request, 1.99.1): automatic save is the only writer, so `cloudInit`
+turns a stored "off" back on; a profile already listed under Collections stays listed.
 
 **Only the current version is stored** (no history). The save carries `cloudIfMatch(docTime)`
 (`"none"` ⇒ `If-Match: none`; a version ⇒ `"<updated>"`; absent ⇒ unguarded; 412 = stale); every
