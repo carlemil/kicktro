@@ -531,13 +531,16 @@ container. Control-appearance CSS names `#panel …, #breakout …, #menubar …
 full-screen overlay; every rule an adopted block needs must name it, including the font.
 
 **Panel layout**: header + four `.box` `<details>` (Scene, Scene filters, Beat tuning, hidden Layer
-effect & filters) + `#lyrsec`. `buildControls` routes by `host`. `#scenenow` is filled by
-`syncSceneTitle()` from `rebuildPresetOptions`/`applyPreset`. **The Scene box is TRIMMED (card 827):**
+effect & filters) + `#lyrsec`. `buildControls` routes by `host`. **The Scene box's `<summary>` IS
+the scene name** (`#scenenow`, filled by `syncSceneTitle()` from `rebuildPresetOptions`/`applyPreset`)
+plus a ✎ (`#scenerename`) that swaps in `#scenename` (`data-nopersist`) → `renameScene` (by request,
+1.100.0: a taken name is bumped). Everything clickable in that summary swallows its click or it folds
+the box; the field stops key propagation (window shortcuts). `tools/rename-check.js`. **The Scene box is TRIMMED (card 827):**
 New, Show author, Auto-cycle, Scene TTL, Transition, + Choose transitions — nothing else, in that order.
 **Scene TTL follows Auto-cycle; Transition and + Choose transitions are OFF FOR GOOD** (`syncSceneEnabled`:
 `.ctl-off` + `disabled`, both by request; a stored transition still plays). **New and Show author sit
 above Auto-cycle and are never gated** (creating a scene `stopCycling()`s — gated, New grayed itself). `foldcycle-check` case-gate. There is
-no scene list, no Rename/Delete/Share, no per-scene cycle tick, no collection ✕, no publish hint;
+no scene list, no Delete/Share (Rename is the title's ✎), no per-scene cycle tick, no collection ✕, no publish hint;
 don't bring them back without the owner. `#preset` is hidden (`display:none` in the template) and
 stays the value store; a probe picks a scene by writing it and dispatching `change`.
 

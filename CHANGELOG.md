@@ -15,6 +15,17 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.100.0] — 2026-10-28
+
+### Added
+- **Rename a scene.** The Scene box in the editor is now titled with the name of the scene you are editing, and the small ✎ next to it turns the name into a text field: Enter renames, Escape keeps the old name. A name another of your scenes already has gets a number added. The renamed scene keeps its gallery card.
+
+### Changed
+- The scene name moved from the line under the Scene box into the box's own title, so it stays visible with the box folded.
+
+### Internal
+- `tools/rename-check.js`: browser check for the title and the rename (red on 1.99.2).
+
 ## [1.99.2] — 2026-10-28
 
 ### Removed

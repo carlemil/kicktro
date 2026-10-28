@@ -133,14 +133,19 @@
 
   <!-- Box — Scene: saved scenes and how long each is held. The Effect chooser used to
        live here too; it moved down to Effects, next to the sliders it drives. -->
-  <details class="box" open>
-  <summary class="box-t">Scene</summary>
+  <!-- The box's TITLE is the selected scene's name (by request), so what every box below edits
+       is named even with this one folded; the pencil swaps it for a text field to rename it
+       (renameScene). #scenenow is filled by syncSceneTitle() from the #preset value store, so
+       it cannot drift from the selection. Everything clickable in a <summary> must swallow
+       its click, or it folds the box (wireSceneRename). -->
+  <details class="box" id="scenebox" open>
+  <summary class="box-t"><span id="scenenow"></span><input type="text" id="scenename" maxlength="60" hidden data-nopersist aria-label="Scene name" title="Enter to rename, Escape to keep the old name"><button id="scenerename" type="button" title="Rename this scene" aria-label="Rename this scene">&#x270E;</button></summary>
   <!-- The ids below still say "preset" — that is the storage/wire name, unchanged so every
        saved scene, backup and link keeps loading. Only the wording the user reads is "scene".
        #preset is HIDDEN and remains the VALUE STORE, exactly the arrangement #palette has
        behind its swatches: applyPreset writes .value, applyBlob validates against it, and a
        scene change dispatches its `change`. There is no visible scene list any more (the
-       gallery is how scenes are browsed) and no Rename / Delete / Share. -->
+       gallery is how scenes are browsed) and no Delete / Share; Rename is the title's pencil. -->
   <select id="preset" style="display:none"></select>
   <div class="presetrow">
     <button id="newpreset" class="audbtn" type="button" title="Save what is on screen as a new scene">New</button>
@@ -179,12 +184,6 @@
   </div>
 
   </details>
-
-  <!-- Which scene you are actually editing. The Scene box folds and its list scrolls, so the
-       selected name could easily be off screen while every box below it edits that scene.
-       This is a heading, not a control — filled by syncSceneTitle() from the same #preset
-       value store the list drives, so it cannot drift from the selection. -->
-  <div id="scenenow" class="sec-t"></div>
 
   <!-- There is no "Scene filters" box. It held the whole-scene FX — Bloom and the four
        screen-stage filters — until those became ordinary per-layer passes, after which it was

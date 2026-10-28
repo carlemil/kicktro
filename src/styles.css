@@ -1144,21 +1144,31 @@
      said "these are layers" twice. The heading matches the in-panel group headings
      (.ctl-grp) so it reads as a section marker rather than a container that vanished. */
   #panel #lyrsec { margin: 12px 0 0; }
-  #panel #lyrsec > .sec-t,
-  #panel #scenenow {
-    margin: 12px 0 5px; padding-top: 9px; border-top: 1px solid rgba(255, 140, 40, 0.22);
+  #panel #lyrsec > .sec-t {
+    margin: 0 0 5px; padding-top: 9px; border-top: 1px solid rgba(255, 140, 40, 0.22);
     color: #ffb15a; opacity: .95; font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
   }
-  #panel #lyrsec > .sec-t { margin-top: 0; }
-  /* The selected scene's name, so you can tell at a glance what every box below is editing.
-     Given the DIALOG TITLE treatment — 15px with the amber glow, the largest title type in the
-     app — because it is the answer to "what am I working on", not another section marker. It is
-     free text, so it still has to run out of room without pushing the panel wide. */
+  /* The Scene box's TITLE is the selected scene's name, so you can tell at a glance what every
+     box below is editing, folded or not. Given the DIALOG TITLE treatment — 15px with the amber
+     glow, the largest title type in the app — because it is the answer to "what am I working
+     on", not another section marker. Free text, so it runs out of room (ellipsis) without
+     pushing the panel wide; the pencil and the rename field share its row. */
+  #panel #scenebox > .box-t { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: .01em; }
   #panel #scenenow {
-    color: #ffcf87; opacity: 1; font-size: 15px; letter-spacing: .01em; text-transform: none;
+    flex: 0 1 auto; min-width: 0;
+    color: #ffcf87; font-size: 15px;
     text-shadow: 0 0 12px rgba(255, 120, 20, 0.6);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  #panel #scenerename {
+    flex: none; padding: 0 4px; border: 0; background: none; cursor: pointer;
+    color: #ffb15a; font-size: 14px; line-height: 1; opacity: .6;
+  }
+  #panel #scenerename:hover, #panel #scenerename:focus-visible { opacity: 1; }
+  #panel #scenename {
+    flex: 1 1 auto; min-width: 0; font: inherit; font-size: 14px; padding: 0 6px;
+  }
+  #panel #scenenow[hidden], #panel #scenerename[hidden], #panel #scenename[hidden] { display: none; }
   /* ---- each layer's own controls, INSIDE its row -----------------------------------
      A .lyrblock (effect sliders → filters → palette) per stack slot, cloned from the
      <template> and living permanently in its layer's row, so a layer is one complete object:

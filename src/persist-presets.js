@@ -353,7 +353,7 @@
     showSceneTitle(p.name, sceneCredit(p));   // the dash goes with an empty author
     syncAuthorHint();   // the hint names THIS scene's author (it used to keep the boot scene's)
   }
-  // The heading under the Scene box that names what you are editing. Called from
+  // The Scene box's title, which names what you are editing. Called from
   // rebuildPresetOptions and applyPreset rather than from each selection path: those two are
   // the choke points every path goes through (create, restore, a gallery pick, and the
   // auto-cycle via applyPreset) — so the title cannot drift from the selection.
@@ -365,7 +365,7 @@
     // has run, not a state the user can reach.
     const p = presets[curPreset] || presets[0];
     if (!p) return;
-    h.textContent = "Scene · " + p.name;   // the prefix anchors the floating name to what it is
+    h.textContent = p.name;   // the box title: no "Scene ·" prefix, the box around it says so
     // Whose scene it is, when it came from someone else's collection — the same fact the
     // on-screen banner gives you, kept visible while you work rather than for four seconds.
     const from = collectionOf(p);
@@ -719,6 +719,47 @@
     return make(n);
   }
   el("newpreset").addEventListener("click", createPreset);
+  // Rename the selected scene (the ✎ in the Scene box's title). A name another scene already
+  // has is bumped, for bumpName's reason: a merge resolves scenes BY NAME. Only the name
+  // changes -- `sid` keeps the gallery card, and `edited` stays (it dates what the scene
+  // renders), so the card's hour is not restarted. persist() carries it to the cloud and gallery.
+  // Below createPreset like bumpName: presetprobe slices applyPreset … createPreset.
+  function renameScene(want) {
+    const p = presets[curPreset];
+    const name = String(want || "").trim().slice(0, 60);
+    if (!p || !name || name === p.name) return;
+    p.name = presets.some(q => q !== p && q.name === name) ? bumpName(name) : name;
+    rebuildPresetOptions();   // the hidden store's option text and the title
+    sceneTitleFor(curPreset);   // the banner and the Show author hint name it too
+    persist();
+  }
+  (function wireSceneRename() {
+    const view = el("scenenow"), inp = el("scenename"), pen = el("scenerename");
+    if (!view || !inp || !pen) return;
+    const editing = on => { view.hidden = pen.hidden = on; inp.hidden = !on; };
+    let keep = false;   // Escape: close the field without renaming
+    pen.addEventListener("click", e => {
+      e.preventDefault(); e.stopPropagation();   // inside the <summary>: a click would fold the box
+      const p = presets[curPreset];
+      inp.value = p ? p.name : "";
+      editing(true);
+      inp.focus(); inp.select();
+    });
+    inp.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); });
+    // stopPropagation: m / f / h / s and Escape are app shortcuts on window. The keyup guard is
+    // for space, which a <summary> may take as "toggle".
+    inp.addEventListener("keydown", e => {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); inp.blur(); }
+      else if (e.key === "Escape") { e.preventDefault(); keep = true; inp.blur(); }
+    });
+    inp.addEventListener("keyup", e => { e.stopPropagation(); if (e.key === " ") e.preventDefault(); });
+    inp.addEventListener("blur", () => {
+      if (!keep) renameScene(inp.value);
+      keep = false;
+      editing(false);
+    });
+  })();
   // When a preset is selected, edits flow straight back into it (auto-save); this
   // writes the current scene over the selected preset, keeping its name.
   // Fold the live scene back into the selected preset. Everything that rides BESIDE `name` —
