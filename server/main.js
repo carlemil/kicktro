@@ -25,6 +25,9 @@ const cfg = {
   sessionSecret: env.SESSION_SECRET || "",
   sessionDays: +env.SESSION_DAYS || 60,
   adminToken: env.ADMIN_TOKEN || "",
+  // Google-signed-in accounts (our uids, public in every gallery listing) that may delete ANY
+  // gallery card -- moderation. Not a secret; compose.yml names them.
+  admins: list(env.ADMIN_UIDS),
   origins: list(env.ALLOWED_ORIGINS || "https://kicktro.com,https://carlemil.github.io"),
   allowDev: env.ALLOW_DEV_ORIGINS !== "0",
   // Only behind Caddy, which REPLACES any X-Forwarded-For a visitor sends. Off by default, so

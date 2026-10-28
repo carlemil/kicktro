@@ -215,6 +215,8 @@ function makeRoutes(ctx) {
     if (!cfg.adminToken) throw new HttpError(404, "not found");
     if (!m || !secretEqual(m[1], cfg.adminToken)) throw new HttpError(401, "admin token required");
   }
+  // A moderator (cfg.admins): never an anonymous account, whatever its uid.
+  const isAdmin = u => !u.anon && (cfg.admins || []).includes(u.uid);
   function removeThumbs(id, ver) {
     if (!cfg.thumbDir || !(ver > 0)) return;
     for (const ext of ["webp", "mp4"]) {
@@ -329,7 +331,7 @@ function makeRoutes(ctx) {
   on("GET", "/api/me/favs", r => {
     const u = user(r);
     sendJson(r.res, 200, { ids: S.favMine.all(u.uid).map(x => x.scene_id),
-      hates: S.hateMine.all(u.uid).map(x => x.scene_id) });
+      hates: S.hateMine.all(u.uid).map(x => x.scene_id), ...(isAdmin(u) ? { admin: true } : {}) });
   });
 
   // -- own profile
@@ -510,17 +512,20 @@ function makeRoutes(ctx) {
     const id = decodeURIComponent(r.m[1]);
     const g = ID_RE.test(id) && S.galRow.get(id);
     if (!g) throw new HttpError(404, "no such scene");
-    if (g.owner !== u.uid) throw new HttpError(403, "not your scene");
+    const own = g.owner === u.uid;
+    if (!own && !isAdmin(u)) throw new HttpError(403, "not your scene");
     // A card that follows a scene in your library (every one since auto-publish) is deleted
     // for good: the scene's key is tombstoned so no later push makes it again, and the answer
-    // names the scene (sid / name) so the page drops it from your library as well.
+    // names the scene (sid / name) so the page drops it from your library as well. An ADMIN
+    // deleting someone else's card tombstones it under its OWNER (their pushes skip it) and
+    // gets no sid/name back -- that would drop a same-named scene from the admin's library.
     tx(db, () => {
-      if (g.skey) S.deadIns.run(u.uid, g.skey, g.name, Date.now());
+      if (g.skey) S.deadIns.run(g.owner, g.skey, g.name, Date.now());
       S.favDelScene.run(id); S.hateDelScene.run(id); S.galDel.run(id);
     });
     removeThumbs(id, g.thumb_ver);
     const sid = g.skey && g.skey.startsWith("s:") ? g.skey.slice(2) : null;
-    sendJson(r.res, 200, { ok: true, ...(sid ? { sid } : {}), ...(g.skey ? { name: g.name } : {}) });
+    sendJson(r.res, 200, own ? { ok: true, ...(sid ? { sid } : {}), ...(g.skey ? { name: g.name } : {}) } : { ok: true });
   });
   // The page's library, pushed whole: every scene of your own becomes / updates its card
   // (gallery-sync.js -- an edit waits an hour, a scene gone from the library hides its card).

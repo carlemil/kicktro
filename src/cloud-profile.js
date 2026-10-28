@@ -757,7 +757,7 @@
   // answer to a request a newer tab or filter has overtaken. `mine` / `hate`: the scenes you
   // gave a ❤️ / a 💔.
   const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
-    hate: new Set(), shown: new Set(), seq: 0, note: "" };
+    hate: new Set(), shown: new Set(), seq: 0, note: "", admin: false };
   const galSort = () => (gal.tab === "new" || gal.tab === "own" ? "new" : gal.tab === "all" ? "name" : "favs");
   const galAuthed = () => gal.tab === "mine" || gal.tab === "own";   // the tabs that need a session
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
@@ -964,11 +964,13 @@
       cap.appendChild(w);
     }
     // ✕ on every card of yours, in every tab (signed out: this browser's anonymous account's).
-    // It deletes the scene for everyone AND from your own list (galRemove).
-    if (c.owner && c.owner === galMe()) {
+    // It deletes the scene for everyone AND from your own list (galRemove). An admin gets it
+    // on every published card too (never a built-in: those live in this build, not the API).
+    const own = !!c.owner && c.owner === galMe();
+    if (own || gal.admin && c.at == null && c.id) {
       const rm = document.createElement("button");
       rm.type = "button"; rm.className = "gal-rm"; rm.textContent = "✕";
-      rm.title = "Delete this scene, for you and for everyone";
+      rm.title = own ? "Delete this scene, for you and for everyone" : "Delete this scene from the gallery, for everyone (admin)";
       rm.setAttribute("aria-label", "Delete " + c.name);
       rm.addEventListener("click", e => { e.stopPropagation(); galRemove(c, card); });
       cap.appendChild(rm);
@@ -1091,26 +1093,31 @@
     for (const c of gal.pend) if (c.id === id) { c.favs = favs; c.hates = hates; }
   }
   function galMineFetch() {
-    if (!cloudSess) { gal.mine = new Set(); gal.hate = new Set(); return Promise.resolve(); }
+    if (!cloudSess) { gal.mine = new Set(); gal.hate = new Set(); gal.admin = false; return Promise.resolve(); }
     return apiFetch("/api/me/favs", { method: "GET" })
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
         if (!j || !Array.isArray(j.ids)) return;
         gal.mine = new Set(j.ids);
         gal.hate = new Set(Array.isArray(j.hates) ? j.hates : []);
+        gal.admin = j.admin === true;          // a moderator (the API's ADMIN_UIDS): ✕ on every card
       })
       .catch(() => { /* offline: votes just show unmarked */ });
   }
   // The server deletes the card for good (a later upload of the scene, from another device,
   // makes nothing) and names the scene it followed, which leaves your own list here too.
+  // An admin removing someone else's card is asked with the author named, and nothing leaves
+  // the admin's own list (the server names no scene for that either).
   function galRemove(c, card) {
-    if (!confirm("Delete “" + c.name + "”?\n\nIt goes from the gallery for everyone, with its votes, and from your own scenes. This cannot be undone.")) return;
+    const own = !!c.owner && c.owner === galMe();
+    if (!confirm(own ? "Delete “" + c.name + "”?\n\nIt goes from the gallery for everyone, with its votes, and from your own scenes. This cannot be undone."
+      : "Delete “" + c.name + "” by " + (c.author || "Anonymous") + " from the gallery?\n\nIt goes for everyone, with its votes, and its author cannot publish it again. This cannot be undone.")) return;
     galAuthFetch("/api/gallery/" + encodeURIComponent(c.id), { method: "DELETE" })
       .then(r => {
         if (!r.ok && r.status !== 404) return r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))));
         return r.status === 404 ? null : r.json().catch(() => null);
       }).then(j => {
-        if (j && (j.sid || j.name)) dropOwnScene(typeof j.sid === "string" ? j.sid : "", String(j.name || ""));
+        if (own && j && (j.sid || j.name)) dropOwnScene(typeof j.sid === "string" ? j.sid : "", String(j.name || ""));
         card.remove();
         galBust();
         galEmpty();

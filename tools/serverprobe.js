@@ -67,7 +67,7 @@ function idToken(sub, over = {}, { key = good.privateKey, kid = "k1", alg = "RS2
 }
 
 // ---- the server under test --------------------------------------------------------------
-let proc = null, base = "";
+let proc = null, base = "", extraEnv = {};
 function start(db = path.join(TMP, "kt.db")) {
   return new Promise((resolve, reject) => {
     proc = spawn(process.execPath, ["--disable-warning=ExperimentalWarning", path.join(ROOT, "server", "main.js")], {
@@ -76,7 +76,7 @@ function start(db = path.join(TMP, "kt.db")) {
         DB_PATH: db, PENDING_MS: String(PENDING), THUMB_DIR: path.join(TMP, "thumbs"),
         GOOGLE_CLIENT_ID: CLIENT, GOOGLE_JWKS_URL: "http://127.0.0.1:" + jwks.address().port + "/certs",
         SESSION_SECRET: "probe-session-secret-0123456789abcdef", ADMIN_TOKEN: ADMIN,
-        ALLOWED_ORIGINS: "https://kicktro.com", ALLOW_DEV_ORIGINS: "0", GIT_REV: "probe",
+        ALLOWED_ORIGINS: "https://kicktro.com", ALLOW_DEV_ORIGINS: "0", GIT_REV: "probe", ...extraEnv,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -714,13 +714,35 @@ async function main() {
     && (await cardsOf(E.token)).total === 2, r.text);
 
   // ---- restart: the data is on disk and the migrations re-run cleanly ------------------------
+  // It comes back with ADMIN_UIDS naming Alice (a Google account) and the anonymous N1: uids
+  // are minted at sign-in, so only a restart can name them.
   await stop();
   base = "";
+  extraEnv = { ADMIN_UIDS: A.uid + ", " + N1.uid };
   await start();
   r = await call("GET", "/api/profile", { token: A.token });
   ok("restart: data and sessions survive a restart", r.status === 200 && r.json.name === "Alice", r.text);
   r = await call("GET", "/api/gallery?sort=name&limit=100&q=Dyze");
   ok("restart: ...the cards too", r.json.total === 2, r.text);
+
+  // ---- admins (ADMIN_UIDS) delete any card; an anonymous account never is one ---------------
+  r = await call("GET", "/api/me/favs", { token: A.token });
+  ok("admin: an admin's /api/me/favs says so", r.status === 200 && r.json.admin === true, r.text);
+  r = await call("GET", "/api/me/favs", { token: D.token });
+  ok("admin: ...nobody else's does", r.status === 200 && !("admin" in r.json), r.text);
+  const dyzeTwo = (await publicNamed("Dyze Two")).items[0];
+  r = await call("DELETE", "/api/gallery/" + dyzeTwo.id, { token: D.token });
+  ok("admin: a non-admin still cannot delete someone else's card", r.status === 403, r.status);
+  r = await call("DELETE", "/api/gallery/" + dyzeTwo.id, { token: N1.token });
+  ok("admin: an anonymous account named in ADMIN_UIDS is not an admin", r.status === 403, r.status);
+  r = await call("DELETE", "/api/gallery/" + dyzeTwo.id, { token: A.token });
+  ok("admin: an admin deletes someone else's card, told no scene to drop", r.status === 200 && r.json.ok === true
+    && !("sid" in r.json) && !("name" in r.json), r.text);
+  ok("admin: ...gone for everyone", (await call("GET", "/api/gallery/" + dyzeTwo.id)).status === 404
+    && (await publicNamed("Dyze Two")).total === 0);
+  r = await push(E.token, [scene("Dyze Dream", 1, { sid: "sidDyzeDrm1", edited: old }), scene("Dyze Two", 2, { sid: "sidDyzeTwo1", edited: old })]);
+  ok("admin: ...and the owner's next push does not bring it back (tombstoned under the owner)", r.json.deleted === 1
+    && (await cardsOf(E.token, "Dyze Two")).total === 0 && (await cardsOf(E.token, "Dyze Dream")).total === 1, r.text);
 
   // ---- migration 3 over a database the previous server wrote --------------------------------
   await stop();
