@@ -802,8 +802,8 @@
       float k = 1.0 - abs(2.0 * t - 1.0);        // 0 at the ends, 1 at the midpoint
       float half_ = step(0.5, t);                 // 0 = still showing the old scene
       vec3 a = texture(uPrev, vUv).rgb, b = texture(uNew, vUv).rgb, c;
-      if (uMode == 0) {                           // crossfade
-        c = mix(a, b, t);
+      if (uMode == 0) {                           // crossfade, eased in and out
+        c = mix(a, b, t * t * (3.0 - 2.0 * t));
       } else if (uMode == 1) {                    // dip to black through the middle
         c = mix(a, b, half_) * (1.0 - k);
       } else if (uMode == 2) {                    // flash

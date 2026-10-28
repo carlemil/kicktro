@@ -495,6 +495,8 @@
     // Fade pixel) to decay it. With none, `applyFilters`/`glBeginHeat` rewrite the whole
     // buffer on the first frame anyway, so the old image is gone immediately — that is
     // the clean-slate contract those paths already have, not a regression here.
-    persist();
+    // A scene load persists once, at its end; this one would only be a second full
+    // serialise + localStorage write inside the auto-cycle hitch.
+    if (!applyingPreset) persist();
   }
 

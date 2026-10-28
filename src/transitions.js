@@ -191,6 +191,14 @@
     for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }
     return pool[0];
   }
+  // THE SCENE SWITCH IS A CROSSFADE (by request, 1.95.2): both scenes render, live, and the mix
+  // slides from all of the old one to all of the new. The weighted menu above (flash, pixelate,
+  // checker…) read as glitches on an auto-cycle, and its picker is switched off for good, so
+  // nothing reaches pickTransition from here; it and every `fits` stay for the registry. A
+  // remembered "none of these" (the cut-only set) is still honoured.
+  function scenePick(a, b) {
+    return transUse && transUse.size === 1 && transUse.has("cut") ? TRANS_BY_ID.cut : TRANS_BY_ID.crossfade;
+  }
   // Live transition state. `t` counts 0→1 in RENDERED time, like the credits, so a
   // backgrounded tab doesn't burn through it unseen.
   const trans = { on: false, t: 0, dur: 0, mode: -1, burn: false, id: "cut" };
@@ -210,7 +218,7 @@
     // The outgoing side is the live stack, not just the selected item.
     const from = sceneInfo(effect, extras[effect] && extras[effect].filters, +paletteSel.value,
       stack.filter(L => !L.mute).map(L => L.fx));
-    const pick = pickTransition(from, to);
+    const pick = scenePick(from, to);
     const scale = (len.a + Math.random() * (len.b - len.a)) / TRANS_DUR.slow;
     trans.on = true; trans.t = 0; trans.id = pick.id;
     trans.mode = pick.mode; trans.burn = !!pick.burn;
@@ -251,9 +259,16 @@
     }
   }
   let transOff = null, transTmp = null;      // CPU path's frozen copy + downsample scratch
+  // At most TRANS_MAX_STEP seconds of blend per frame. The scene switch is a synchronous task
+  // that runs INSIDE the frame that begins the blend (cyclePresets precedes transStep), so the
+  // next frame arrives carrying the whole switch as its dt — clamped to 0.25 s, which against
+  // a 0.45-0.9 s blend skipped a third to a half of it in one frame. Capped, a hitch (that one,
+  // or the incoming scene's first draws) pauses the blend instead of jumping it. 1/20 s leaves
+  // every frame rate from 20 fps up exactly as it was.
+  const TRANS_MAX_STEP = 1 / 20;
   function transStep(dt) {
     if (!trans.on) return;
-    trans.t += dt / trans.dur;
+    trans.t += Math.min(dt, TRANS_MAX_STEP) / trans.dur;
     if (trans.t >= 1) {
       trans.on = false; trans.t = 0; trans.mode = -1; trans.burn = false;
       prevStack = null;                      // stop rendering the scene that has gone

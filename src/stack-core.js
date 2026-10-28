@@ -723,6 +723,11 @@
   // on it moves nothing until the thumbs are spread.
   function drawPulsePlot(w, shapeKey, lenS) {
     const cv = w && w.pplot; if (!cv) return;
+    // A plot in a box that is not shown is only marked: refreshBreakout draws it as it shows the
+    // box (drawStalePlot). Every scene load re-drew all of them, for every layer, unseen.
+    const box = w.pbox || (w.pbox = cv.closest(".poppable"));
+    if (box && box.style.display === "none") { w.pplotStale = true; return; }
+    w.pplotStale = false;
     const c = cv.getContext("2d"), W2 = cv.width, H = cv.height;
     const fn = PULSE_FN[shapeKey] || PULSE_FN[PULSE_DEFAULT];
     const len = lenS > 0 ? lenS : PULSE_DROP;
@@ -771,10 +776,15 @@
   // non-selected layer's box shows ITS setting and not the live one. Called on a shape or
   // duration change, and from syncPulse/syncPlen so a layer switch repaints too.
   function drawPulsePlots(id) {
+    if (applyingPreset) { (drawPulsePlots.later || (drawPulsePlots.later = new Set())).add(id); return; }   // presetUiCatchUp
     for (let s2 = 0; s2 < STACK_MAX; s2++) {
       const ww = W[s2] && W[s2][id];
       if (ww && ww.pplot) drawPulsePlot(ww, ww.psel ? ww.psel.value : pulseShape[id], ww.plen ? +ww.plen.inp.value : pulseLen[id]);
     }
+  }
+  function drawStalePlot(slot, id) {          // a box just shown: catch its plot up
+    const ww = W[slot] && W[slot][id];
+    if (ww && ww.pplotStale) drawPulsePlot(ww, ww.psel ? ww.psel.value : pulseShape[id], ww.plen ? +ww.plen.inp.value : pulseLen[id]);
   }
   // Wiring a control splits in two, because several open layers need one set of DOM nodes
   // EACH against one shared definition.

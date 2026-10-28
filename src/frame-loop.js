@@ -16,8 +16,8 @@
       const t = Math.max(0, Math.min(1, trans.t)), k = 1 - Math.abs(2 * t - 1), m = trans.mode;
       const g = offCtx, W = off.width, H = off.height;
       g.save();
-      if (m === 0) {                                   // crossfade
-        g.globalAlpha = 1 - t; g.drawImage(transOff, 0, 0);
+      if (m === 0) {                                   // crossfade, eased like FS_TRANS's
+        g.globalAlpha = 1 - t * t * (3 - 2 * t); g.drawImage(transOff, 0, 0);
       } else if (m === 3 || m === 4) {                 // pixelate / blur through
         if (t < 0.5) { g.globalAlpha = 1; g.drawImage(transOff, 0, 0); }
         if (m === 3) {                                  // down- then up-sample

@@ -144,7 +144,13 @@
       box.appendChild(cell);
       fields[which] = f;
     }
-    const sync = () => { for (const w in fields) fields[w].value = w === "step" ? stepFieldVal(els[0].step) : els[0][w]; };
+    // Writes only what changed: rngSyncAll runs every editor in the page on every scene load.
+    const sync = () => {
+      for (const w in fields) {
+        const v = w === "step" ? stepFieldVal(els[0].step) : els[0][w];
+        if (fields[w].value !== String(v)) fields[w].value = v;
+      }
+    };
     rngSyncs.push(sync);
     const rst = document.createElement("button");
     rst.type = "button"; rst.className = "rng-rst"; rst.textContent = "↺";
@@ -1222,6 +1228,7 @@
     if (slot !== stackSel && stack[slot]) selectStack(slot);
   }, true);
   function refreshBreakout() {
+    if (applyingPreset) { refreshBreakout.later = true; return; }   // laid out once by presetUiCatchUp
     let anyVisible = false;
     // Un-hide the host BEFORE anything measures: placeLayerBox reads the freshly-shown
     // box's size mid-pass, and inside a display:none host every box measures 0×0 — which
@@ -1249,7 +1256,7 @@
         // was put, so the next + brings the whole arrangement back exactly as it was.
         const vis = isPopped(slot, key) && shown.has(key) && !!stack[slot] && openSlots.has(slot);
         box.style.display = vis ? "" : "none";
-        if (vis) anyVisible = true;
+        if (vis) { anyVisible = true; drawStalePlot(slot, key); }
       }
     }
     // ...and the scene controls, which have one box outside every block. Gated on the UNION
@@ -1266,7 +1273,7 @@
       if (!box) continue;
       const vis = isPopped(-1, key) && sceneShown.has(key);
       box.style.display = vis ? "" : "none";
-      if (vis) anyVisible = true;
+      if (vis) { anyVisible = true; drawStalePlot(0, key); }   // a scene control is wired in slot 0 only
     }
     breakout.classList.toggle("empty", !anyVisible);
     // Position what is now visible, then repaint the thumbnails. Layout first: a box that
@@ -1330,7 +1337,7 @@
     if (!nextSwitch) { nextSwitch = now + ttlMs(); return; }
     if (now >= nextSwitch) {
       let n; do { n = pool[(Math.random() * pool.length) | 0]; } while (n === curPreset && pool.length > 1);
-      applyPreset(n);
+      applyPreset(n, true);
       nextSwitch = now + ttlMs();
     }
   }

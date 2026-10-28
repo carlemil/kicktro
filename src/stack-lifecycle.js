@@ -613,6 +613,7 @@
   function syncStackUI() {
     const host = el("stacklist");
     if (!host) return;
+    if (applyingPreset) { syncStackUI.later = true; return; }   // painted once by presetUiCatchUp
     // The single choke point for a STRUCTURAL stack change — add, remove, reorder, mute — and
     // triggers are keyed by slot, so any of those repoints them. Cheaper to invalidate here
     // than to remember it at four call sites.

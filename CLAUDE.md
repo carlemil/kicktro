@@ -275,7 +275,18 @@ Own `localStorage` key + "Show author" (`#sceneTitleOn`, `data-nopersist`, Scene
 - Order in `frame()`: `renderPrevScene` BEFORE the live render; `updateAnims(now, dt, prevStack)`
   AFTER the live one. The outgoing scene drifts but does not re-trigger (null band, scene keys
   skipped). `transStep` nulls `prevStack`; the `transBegin` snapshot stays as the all-muted
-  fallback. RD is a singleton (shared dish); Canvas2D keeps the frozen copy. No downscale.
+  fallback. RD is a singleton (shared dish); Canvas2D keeps the frozen copy. **No downscale**: the
+  double render measured ≤ 11 ms GPU at 1080p (`tools/transperf-check.js`, real time) — a laggy switch
+  is a CPU FREEZE in `applyPreset`, not the blend. Profile it (CDP) before touching resolution.
+- **`applyPreset` defers editor upkeep** (it measured 240–580 ms): while `applyingPreset`,
+  `syncStackUI`/`refreshBreakout`/`rngSyncAll`/`drawPulsePlots` set a `.later` flag on themselves
+  (function properties — TDZ across slices) and `presetUiCatchUp()` runs each ONCE after the load.
+  `setEffect` does not `persist()` mid-load; `applyPreset(i, true)` (the cycler) does not persist at
+  all — a reload lands on the last scene the user PICKED. `rangeIsLayer` is memoised; range writes
+  touch only changed attributes; a pulse plot in a hidden box is marked stale and drawn on show
+  (`drawStalePlot`). Still ~50–120 ms: whatever remains is `installStack` + shader uniforms.
+- **`TRANS_MAX_STEP` (1/20 s) caps `trans.t`'s per-frame advance** — the frame after the switch
+  carries the freeze in its `dt` and skipped up to 2/3 of the blend in one step.
 
 `TRANSITIONS` — third registry, sixteen modes of the single `FS_TRANS` pass: `cut`, `burnoff`,
 `crossfade`, `dip`, `flash`, `pixelate`, `blur`, `wipe`, `iris`, then the staggered family
@@ -287,7 +298,11 @@ Own `localStorage` key + "Show author" (`#sceneTitleOn`, `data-nopersist`, Scene
   mask-based ones paint a mask + `destination-in`; `dissolve`/`ripple` fall through to crossfade.
 - `transUse` stored by stable id, skipped while `sharing`. `glRender` sends zoom output to
   `glFbo.post[0]` during a transition so the blend precedes the glow.
-- Auto-pick = `fits(a, b) → weight` over `sceneInfo()`. Transition slider = [min,max] seconds;
+- **THE SCENE SWITCH IS A CROSSFADE** (by request, 1.95.2): `transBegin` calls `scenePick(a, b)`,
+  which answers `crossfade` (eased with smoothstep, GL and CPU mirror alike), or `cut` when the
+  stored `transUse` is the one-member `{"cut"}` set. `pickTransition`/`fits` and the other fifteen
+  modes stay (a stored choice still decodes), unreached.
+- Auto-pick (unreached) = `fits(a, b) → weight` over `sceneInfo()`. Transition slider = [min,max] seconds;
   both thumbs 0 = cut; `trans.t` advances in rendered time.
 
 ### Filters (post-FX)

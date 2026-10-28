@@ -37,9 +37,18 @@
   // zoom) and scene-wide otherwise (camera rotation, palette cycle, banding, TTL, scene
   // filters) — the same split as isSceneCtl / the value store, so a custom bound stays with
   // the exact layer + effect + slider it tunes instead of being shared across every layer.
+  // Memoised: the answer is fixed by the schema, and the range loops ask it for every key in
+  // RNG_ORIG several times per scene switch — a CONTROLS.find each time was a quarter of the
+  // auto-cycle hitch (tools/transperf-check.js). The memo hangs off the hoisted function, not a
+  // const beside it, so a caller from an earlier slice cannot land in the TDZ.
   function rangeIsLayer(id) {
-    const c = CONTROLS.find(x => x.key === id.replace(/-(lo|hi)$/, ""));
-    return !!c && !isSceneCtl(c);
+    const memo = rangeIsLayer.memo || (rangeIsLayer.memo = new Map());
+    let v = memo.get(id);
+    if (v === undefined) {
+      const c = CONTROLS.find(x => x.key === id.replace(/-(lo|hi)$/, ""));
+      memo.set(id, v = !!c && !isSceneCtl(c));
+    }
+    return v;
   }
   // A shipped bound can be PER EFFECT. Fractal flames wants a Points slider an order of
   // magnitude longer than Tetrafyer's, and the schema carries exactly one range per key, so
@@ -96,7 +105,10 @@
   // a blob (restore / share link) show up in the fields. Declared beside applyRanges
   // because applyRanges calls it, and applyBlob can run before the boxes are built.
   const rngSyncs = [];
-  function rngSyncAll() { rngSyncs.forEach(f => f()); }
+  function rngSyncAll() {
+    if (applyingPreset) { rngSyncAll.later = true; return; }   // once, from presetUiCatchUp
+    rngSyncs.forEach(f => f());
+  }
   // Put one slider back the way it ships for the CURRENT effect: bounds, value,
   // beat chips, pulse shape and pulse length. The box's ↺ used to restore only the
   // range, which left a slider you had wandered off into a strange place still
@@ -160,7 +172,13 @@
     for (const id in RNG_ORIG) {
       if (!want(id)) continue;
       const inp = g(id), o = rngShipped(id, fx);
-      if (inp) { inp.min = o.min; inp.max = o.max; inp.step = o.step; }
+      // Only what differs: every write re-sanitises the slider, and this loop covers every
+      // slider in the page on every scene load. Writing an unchanged bound is a no-op anyway.
+      if (inp) {
+        if (inp.min !== o.min) inp.min = o.min;
+        if (inp.max !== o.max) inp.max = o.max;
+        if (inp.step !== o.step) inp.step = o.step;
+      }
     }
     if (r && typeof r === "object") for (const id in r) {
       if (!want(id)) continue;

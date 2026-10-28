@@ -614,7 +614,25 @@
     // applyPreset reads no field snapshotScene does not capture — still holds by construction.
     repaintAllBlocks();
   }
-  function applyPreset(i) {
+  // A scene load repaints the editor ONCE, at its end. Inside it, setEffect, installStack and
+  // the map loads each asked for the stack rows, the break-out layout and the pulse plots again
+  // (several times per switch, for a panel that is usually hidden): measured as most of the
+  // 250-500 ms freeze that opened every auto-cycle transition (tools/transperf-check.js). While
+  // applyingPreset is set those three only note that they are wanted; this does the work.
+  // syncStackUI ends in refreshBreakout itself, so a load that wanted both lays out once.
+  function presetUiCatchUp() {
+    const rows = syncStackUI.later, brk = refreshBreakout.later;
+    syncStackUI.later = refreshBreakout.later = false;
+    if (rows) syncStackUI(); else if (brk) refreshBreakout();
+    if (rngSyncAll.later) { rngSyncAll.later = false; rngSyncAll(); }
+    const ids = drawPulsePlots.later; drawPulsePlots.later = null;
+    if (ids) for (const id of ids) drawPulsePlots(id);
+  }
+  // `cycled`: the auto-cycle's switch, which is not an edit and is not persisted. What is stored
+  // still agrees with itself (the last scene you put up, with its live state), so a reload lands
+  // there; the cloud and gallery hear nothing; and the frame loses the full serialise +
+  // localStorage write it used to pay at the start of every blend.
+  function applyPreset(i, cycled) {
     const p = presets[i]; if (!p) return;
     applyingPreset = true;
     // Start the transition BEFORE anything is swapped: it freezes the frame that is
@@ -657,9 +675,10 @@
     curPreset = i; presetSel.value = String(i);
     syncSceneTitle();                 // covers the auto-cycle too,
     applyingPreset = false;            // which sets the value without firing `change`
+    presetUiCatchUp();
     sceneTitleFor(i);                  // name the scene on screen (queues behind the credits)
     sceneMark();                       // as loaded: what a later fold is compared with
-    persist();
+    if (!cycled) persist();
   }
   function createPreset() {           // save the current scene as a new preset
     // New nearly always means "a variation on the one I am editing", so it proposes that
