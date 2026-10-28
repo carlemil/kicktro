@@ -4,6 +4,7 @@
 // client's own checks in src/cloud-profile.js and CONFIG.cloud.maxPayload.
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { HttpError, readJson, sendJson } = require("./http");
 const { tx } = require("./db");
 const { newId, secretEqual, AuthError } = require("./auth");
@@ -22,6 +23,12 @@ const CAP = {
   poster: 1 << 20,          // 1 MB
   viewerPoster: 256 << 10,  // a visitor's browser render: 480x270 WebP, ~20-60 KB in practice
   clip: 6 << 20,            // 6 MB
+  errMsg: 300,              // a crash report's message, source, context and stack
+  errSrc: 300,
+  errCtx: 300,
+  errStack: 4000,
+  errRows: 2000,            // kinds of error kept; the least recently seen go first
+  errDays: 90,              // ...and any not seen for this long
 };
 const BODY = {
   small: 16 << 10,
@@ -41,6 +48,8 @@ const LIMIT = {   // [max, windowMs]
   anon: [5, 86400000],      // anonymous accounts minted per IP per day
   sync: [600, 3600000],     // library pushes per account per hour (the page sends each edit within seconds)
   thumb: [30, 3600000],     // visitor-rendered posters per IP per hour
+  error: [30, 3600000],     // crash reports per IP per hour (the page sends at most 5 per load)
+  errorAll: [3000, 3600000], // ...and from everyone together, so a flood cannot grow the table
 };
 
 const ID_RE = /^[A-Za-z0-9]{10,40}$/;
@@ -92,6 +101,24 @@ function vInt(v, lo, hi, field) {
 function vTime(v) {
   const t = typeof v === "number" ? v : Date.parse(v);
   return Number.isFinite(t) && t > 0 ? Math.round(t) : Date.now();
+}
+
+// A crash report's text field: a string or nothing, control characters gone (a stack keeps
+// its line breaks), cut to length.
+function errText(v, max, lines) {
+  if (typeof v !== "string") return "";
+  return v.replace(lines ? /[\u0000-\u0009\u000b-\u001f\u007f]/g : /[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
+}
+// The function at the top of a stack: "    at name (url:1:2)" (Chromium) or "name@url:1:2"
+// (Firefox, Safari). Its NAME, not its position, so a report groups across releases.
+function topFrame(stack) {
+  for (const line of stack.split("\n")) {
+    const v8 = /^\s*at (?:async )?(.*)$/.exec(line);
+    if (v8) return /^(\S+) \(/.test(v8[1]) ? v8[1].replace(/ \(.*$/, "") : "<anonymous>";
+    const gk = /^([^@\s]*)@\S+:\d+:\d+$/.exec(line.trim());
+    if (gk) return gk[1] || "<anonymous>";
+  }
+  return "";
 }
 
 // clip 0 = a visitor's poster with no clip (thumb_clip).
@@ -183,6 +210,17 @@ function makeRoutes(ctx) {
     hateMineCount: q("select count(*) n from hates where uid = ?"),
     hateDelScene: q("delete from hates where scene_id = ?"),
     hateDelOwnedScenes: q("delete from hates where scene_id in (select id from gallery where owner = ?)"),
+
+    errPut: q("insert into errors (fp, kind, msg, src, stack, ctx, version, path, ua, count, stalled, first, last) "
+      + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?) on conflict(fp) do update set "
+      + "msg = excluded.msg, src = excluded.src, stack = excluded.stack, ctx = excluded.ctx, version = excluded.version, "
+      + "path = excluded.path, ua = excluded.ua, count = count + 1, stalled = stalled + excluded.stalled, last = excluded.last"),
+    errPrune: q("delete from errors where last < ? or fp in (select fp from errors order by last desc limit -1 offset ?)"),
+    errList: q("select * from errors order by last desc limit ?"),
+    errListByCount: q("select * from errors order by count desc, last desc limit ?"),
+    errCount: q("select count(*) n, coalesce(sum(count), 0) reports from errors"),
+    errDel: q("delete from errors where fp = ?"),
+    errDelAll: q("delete from errors"),
   };
 
   // ---- helpers -------------------------------------------------------------------------
@@ -217,6 +255,12 @@ function makeRoutes(ctx) {
   }
   // A moderator (cfg.admins): never an anonymous account, whatever its uid.
   const isAdmin = u => !u.anon && (cfg.admins || []).includes(u.uid);
+  // The admin token (tools/errors.js) or a moderator's own session (the page).
+  function adminOrModerator(r) {
+    const m = /^Bearer (\S+)$/.exec(r.req.headers.authorization || "");
+    if (m && cfg.adminToken && secretEqual(m[1], cfg.adminToken)) return;
+    if (!isAdmin(user(r))) throw new HttpError(403, "moderators only");
+  }
   function removeThumbs(id, ver) {
     if (!cfg.thumbDir || !(ver > 0)) return;
     for (const ext of ["webp", "mp4"]) {
@@ -627,6 +671,45 @@ function makeRoutes(ctx) {
     removeThumbs(id, g.thumb_ver);
     sendJson(r.res, 200, { id, thumb_ver: ver, ...thumbUrls(id, ver, 0) });
   });
+  // -- crash reports. The page's last-resort handler (armCrashReport, src/config.js) posts
+  //    whatever reaches window.onerror / unhandledrejection; anyone may, so everything is capped
+  //    and cut to length, and the table is bounded (CAP.errRows, CAP.errDays). Read by the admin
+  //    token (tools/errors.js) or a moderator's session.
+  on("POST", "/api/errors", async r => {
+    limit(r.ip, "error");
+    limit("all", "errorAll");
+    const body = await readJson(r.req, BODY.small);
+    onlyKeys(body, ["kind", "msg", "src", "stack", "ctx", "version", "path", "stalled"]);
+    const kind = body.kind;
+    if (kind !== "error" && kind !== "rejection") throw new HttpError(400, "kind must be error or rejection");
+    const msg = errText(body.msg, CAP.errMsg);
+    if (!msg) throw new HttpError(400, "msg is required");
+    const stack = errText(body.stack, CAP.errStack, true);
+    const version = typeof body.version === "string" && /^\d{1,4}\.\d{1,5}\.\d{1,6}$/.test(body.version) ? body.version : "";
+    const fp = crypto.createHash("sha1").update(kind + "\n" + msg.replace(/\d+/g, "#") + "\n" + topFrame(stack)).digest("hex");
+    const now = Date.now();
+    S.errPut.run(fp, kind, msg, errText(body.src, CAP.errSrc), stack, errText(body.ctx, CAP.errCtx), version,
+      errText(body.path, 200).replace(/[?#].*$/, ""), errText(r.req.headers["user-agent"], 200),
+      body.stalled === true ? 1 : 0, now, now);
+    S.errPrune.run(now - CAP.errDays * 86400000, CAP.errRows);
+    sendJson(r.res, 200, { ok: true });
+  });
+  on("GET", "/api/errors", r => {
+    adminOrModerator(r);
+    const n = Math.min(500, Math.max(1, parseInt(r.url.searchParams.get("limit"), 10) || 100));
+    const rows = (r.url.searchParams.get("sort") === "count" ? S.errListByCount : S.errList).all(n);
+    sendJson(r.res, 200, { ...S.errCount.get(), items: rows });
+  });
+  // Fixed: forget one kind (it comes back as a new row if it happens again), or all of them.
+  on("DELETE", "/api/errors/([0-9a-f]{40})", r => {
+    adminOrModerator(r);
+    sendJson(r.res, 200, { ok: true, deleted: Number(S.errDel.run(r.m[1]).changes) });
+  });
+  on("DELETE", "/api/errors", r => {
+    adminOrModerator(r);
+    sendJson(r.res, 200, { ok: true, deleted: Number(S.errDelAll.run().changes) });
+  });
+
   // -- admin: thumbnails (tools/thumbs.js) and the one-time Firebase import
   on("GET", "/api/admin/thumbs/todo", r => {
     admin(r);

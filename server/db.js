@@ -128,6 +128,30 @@ const MIGRATIONS = [
     primary key (owner, skey)
   );
   `,
+  // 6 -- crash reports (POST /api/errors): what a visitor's page threw, so it can be fixed.
+  // One row per KIND of error: fp hashes the kind, the message with its numbers blurred and
+  // the function at the top of the stack -- not its line, which moves with every release.
+  // The rest is the LATEST sample. count = reports, stalled = reports whose page stopped
+  // rendering after it (the banner showed), first/last = when. No uid, no IP: the page sends
+  // none, and the route stores what the body carries plus the User-Agent.
+  `
+  create table errors (
+    fp      text primary key,
+    kind    text not null,
+    msg     text not null,
+    src     text not null,
+    stack   text not null,
+    ctx     text not null,
+    version text not null,
+    path    text not null,
+    ua      text not null,
+    count   integer not null,
+    stalled integer not null,
+    first   integer not null,
+    last    integer not null
+  );
+  create index errors_last on errors(last);
+  `,
 ];
 
 function openDb(file) {

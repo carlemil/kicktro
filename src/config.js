@@ -8,12 +8,39 @@
   //
   // (A PARSE error is not catchable from inside; `node tools/build.js` gates that one instead.)
   //
-  // It reports and gets out of the way: one line, dismissable, shown once. `track` is a hoisted
-  // function declaration in a much later slice, which is exactly why it can be called from here.
+  // Every error OF OURS is REPORTED to the API (POST /api/errors; `node tools/errors.js` reads
+  // them): message, stack, version, the scene's shape (crashContext, a declaration in
+  // frame-loop.js). At most CRASH_MAX different ones per page load. Errors from somewhere else --
+  // an extension, gtag's opaque "Script error." -- are neither reported nor shown.
+  //
+  // The BANNER shows only when the page has really STOPPED: CRASH_WAIT ms after the error, the
+  // frame counter has not moved (the frame loop re-arms its rAF first, so most throws cost one
+  // frame and the picture runs on -- that banner used to say "may not be running" for every
+  // stray rejection). Paused, the gallery up or a hidden tab count as running. A boot crash
+  // leaves frameCount in its TDZ: stopped.
+  //
+  // `track` is a hoisted function declaration in a much later slice, which is exactly why it can
+  // be called from here. Nothing posts from file:// or localhost without ?api= (every headless
+  // tool), nor from a thumbnail render (srcdoc).
   (function armCrashReport() {
+    const CRASH_MAX = 5, CRASH_WAIT = 2500;
+    const seen = new Set();
     let shown = false;
-    function report(what, err) {
-      try { if (typeof track === "function") track("js_error", { what: what, msg: String((err && err.message) || err).slice(0, 120) }); } catch (e) {}
+    const page = () => location.href.split(/[?#]/)[0];   // not origin + path: file:// has origin "null"
+    // The API, picked as cloud-profile.js picks it -- worked out HERE because a crash in an
+    // earlier slice means that file never runs, and a boot crash is the report that matters most.
+    function crashApi() {
+      try {
+        const local = location.protocol === "file:" || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+        const q = new URLSearchParams(location.search).get("api");
+        if (local) return q && /^https?:\/\/[^/?#]+$/.test(q) ? q : "";
+        if (!/^https?:$/.test(location.protocol)) return "";
+        return String(CONFIG.cloud.apiBase || "").replace(/\/+$/, "");
+      } catch (e) { return ""; }
+    }
+    function frames() { try { return frameCount; } catch (e) { return -1; } }
+    function holding() { try { return paused || galHolds(); } catch (e) { return false; } }
+    function banner() {
       if (shown || !document.body) return;
       shown = true;
       const d = document.createElement("div");
@@ -21,17 +48,50 @@
       d.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:99999;padding:10px 14px;" +
         "background:rgba(60,10,0,.94);color:#ffdcb0;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;" +
         "border-bottom:1px solid rgba(255,140,40,.5)";
-      d.textContent = "Kicktro hit an error and may not be running. Reloading usually fixes it. ";
-      const b = document.createElement("button");
-      b.type = "button"; b.textContent = "Dismiss";
-      b.style.cssText = "margin-left:8px;background:transparent;color:inherit;border:1px solid currentColor;" +
-        "border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit";
-      b.addEventListener("click", () => d.remove());
-      d.appendChild(b);
+      d.textContent = "Kicktro hit an error and stopped. Reloading usually fixes it. ";
+      for (const [label, act] of [["Reload", () => location.reload()], ["Dismiss", () => d.remove()]]) {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = label;
+        b.style.cssText = "margin-left:8px;background:transparent;color:inherit;border:1px solid currentColor;" +
+          "border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit";
+        b.addEventListener("click", act);
+        d.appendChild(b);
+      }
       document.body.appendChild(d);
     }
-    addEventListener("error", e => report("error", e && (e.error || e.message)));
-    addEventListener("unhandledrejection", e => report("rejection", e && e.reason));
+    function report(kind, err, ev) {
+      const isErr = err && typeof err === "object" && typeof err.message === "string";
+      const msg = String(isErr ? (err.name ? err.name + ": " : "") + err.message
+        : err && typeof err === "object" && err.type ? "Event: " + err.type : err).slice(0, 300);
+      const stack = isErr && typeof err.stack === "string" ? err.stack.slice(0, 4000) : "";
+      const file = ev && ev.filename ? String(ev.filename).split(/[?#]/)[0] : "";
+      // Ours = thrown from this page's own script. Anything else, or the opaque cross-origin
+      // "Script error." with no file at all, is somebody else's.
+      if (kind === "error" ? file !== page() : stack && stack.indexOf(page()) < 0 && /-extension:\/\//.test(stack)) return;
+      const src = file ? file + ":" + (ev.lineno | 0) + ":" + (ev.colno | 0)
+        : ((stack.split("\n").find(l => l.indexOf(page()) >= 0) || "").trim().replace(/^at /, "").slice(0, 300));
+      try { if (typeof track === "function") track("js_error", { what: kind, msg: msg.slice(0, 120) }); } catch (e) {}
+      const key = kind + "\n" + msg + "\n" + src;
+      if (seen.has(key) || seen.size >= CRASH_MAX) return;
+      seen.add(key);
+      let ctx = "";
+      try { ctx = String(crashContext()).slice(0, 300); } catch (e) { ctx = "boot"; }
+      const f0 = frames();
+      setTimeout(() => {
+        const stalled = !document.hidden && !holding() && frames() === f0;
+        if (stalled) banner();
+        const api = crashApi();
+        if (!api) return;
+        const body = { kind, msg, src, stack, ctx, version: CONFIG.version, path: location.pathname, stalled };
+        // text/plain: a "simple" request, no preflight. A failed post is caught, never re-reported.
+        try {
+          fetch(api + "/api/errors", { method: "POST", body: JSON.stringify(body), keepalive: true,
+            headers: { "Content-Type": "text/plain" } }).catch(() => {});
+        } catch (e) { /* no fetch */ }
+      }, CRASH_WAIT);
+    }
+    addEventListener("error", e => report("error", e && (e.error || e.message), e));
+    addEventListener("unhandledrejection", e => report("rejection", e && e.reason, null));
   })();
 
   // ============================================================================

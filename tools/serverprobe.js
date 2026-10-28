@@ -23,6 +23,8 @@
 //          and backfilled cards are adopted; anonymous accounts: per-IP limit, push only (no
 //          profile, links or votes), Anonymous author, claimed on Google sign-in; the backfill
 //          (dry run changes nothing, insert-only, idempotent); a promoted edit re-renders
+//   crash reports: anyone posts (capped, rate-limited, query/hash cut from the path), one row
+//          per function across lines and releases, read/forgotten by a moderator or the token
 //   cors, body limit, account deletion, data surviving a restart (migrations re-run cleanly),
 //   migration 3 over a v2 database
 "use strict";
@@ -743,6 +745,67 @@ async function main() {
   r = await push(E.token, [scene("Dyze Dream", 1, { sid: "sidDyzeDrm1", edited: old }), scene("Dyze Two", 2, { sid: "sidDyzeTwo1", edited: old })]);
   ok("admin: ...and the owner's next push does not bring it back (tombstoned under the owner)", r.json.deleted === 1
     && (await cardsOf(E.token, "Dyze Two")).total === 0 && (await cardsOf(E.token, "Dyze Dream")).total === 1, r.text);
+
+  // ---- crash reports (POST /api/errors): anyone reports, a moderator or the token reads -------
+  const crash = (over = {}) => call("POST", "/api/errors", { body: { kind: "error", msg: "x is not a function",
+    src: "https://kicktro.com/:1200:7", stack: "TypeError: x is not a function\n    at frame (https://kicktro.com/:1200:7)\n    at boot (https://kicktro.com/:9:1)",
+    ctx: "gl plasma,tunnel", version: "1.97.0", path: "/", stalled: false, ...over } });
+  r = await crash({ kind: "warning" });
+  ok("errors: an unknown kind is refused", r.status === 400, r.status);
+  r = await crash({ who: "me" });
+  ok("errors: an unknown field is refused", r.status === 400, r.status);
+  r = await crash({ msg: "" });
+  ok("errors: a report needs a message", r.status === 400, r.status);
+  r = await call("POST", "/api/errors", { raw: JSON.stringify({ kind: "error", msg: "x".repeat(20000) }), headers: { "Content-Type": "text/plain" } });
+  ok("errors: a body past the small limit is 413", r.status === 413, r.status);
+  r = await crash({ path: "/?z=SECRETSCENE#g=abc", version: "not-a-version" });
+  ok("errors: a report is taken, signed out", r.status === 200 && r.json.ok === true, r.text);
+  // Same function at another line (the next release), another number in the message, and sent
+  // as text/plain -- what a no-preflight fetch from the page sends.
+  r = await call("POST", "/api/errors", { raw: JSON.stringify({ kind: "error", msg: "x is not a function",
+    stack: "TypeError: x is not a function\n    at frame (https://kicktro.com/:1350:2)", version: "1.97.1", stalled: true }),
+    headers: { "Content-Type": "text/plain", "User-Agent": "ProbeAgent/1.0" } });
+  ok("errors: ...as text/plain too", r.status === 200, r.text);
+  await crash({ kind: "rejection", msg: "Failed to fetch 3 times\u0007", stack: "boom@https://kicktro.com/:5:5\n@https://kicktro.com/:6:6" });
+  await crash({ kind: "rejection", msg: "Failed to fetch 4 times", stack: "boom@https://kicktro.com/:7:7" });
+  r = await call("GET", "/api/errors");
+  ok("errors: reading needs a sign-in", r.status === 401, r.status);
+  r = await call("GET", "/api/errors", { token: D.token });
+  ok("errors: ...and a moderator, not just anyone", r.status === 403, r.status);
+  r = await call("GET", "/api/errors", { token: N1.token });
+  ok("errors: ...never an anonymous account, even one in ADMIN_UIDS", r.status === 403, r.status);
+  r = await call("GET", "/api/errors", { token: A.token });
+  ok("errors: a moderator reads them", r.status === 200 && Array.isArray(r.json.items), r.text);
+  const frameErr = r.json.items.find(x => x.kind === "error");
+  ok("errors: one function's error is ONE row across lines and releases, counted", r.json.items.filter(x => x.kind === "error").length === 1
+    && frameErr.count === 2 && frameErr.stalled === 1, r.text);
+  ok("errors: ...holding the latest sample", frameErr.version === "1.97.1" && /:1350:2/.test(frameErr.stack)
+    && frameErr.ua === "ProbeAgent/1.0", JSON.stringify(frameErr));
+  ok("errors: Firefox-style stacks group by function, numbers in the message blurred",
+    r.json.items.filter(x => x.kind === "rejection").length === 1 && r.json.items.find(x => x.kind === "rejection").count === 2, r.text);
+  ok("errors: totals", r.json.n === 2 && r.json.reports === 4, r.text);
+  r = await call("GET", "/api/errors?sort=count&limit=1", { token: ADMIN });
+  ok("errors: the admin token reads them too, by count, limited", r.status === 200 && r.json.items.length === 1, r.text);
+  const firstFrame = (await call("GET", "/api/errors", { token: ADMIN })).json.items;
+  const stored1 = firstFrame.find(x => x.kind === "error");
+  ok("errors: a stack keeps its line breaks, a message loses its control characters",
+    stored1.stack.split("\n").length === 2 && !/\u0007/.test(firstFrame.find(x => x.kind === "rejection").msg), JSON.stringify(firstFrame));
+  r = await call("DELETE", "/api/errors/" + stored1.fp, { token: D.token });
+  ok("errors: only a moderator forgets one", r.status === 403, r.status);
+  r = await call("DELETE", "/api/errors/" + stored1.fp, { token: A.token });
+  ok("errors: a moderator forgets one", r.status === 200 && r.json.deleted === 1, r.text);
+  await crash({ path: "/?z=SECRETSCENE#g=abc", version: "not-a-version" });
+  r = await call("GET", "/api/errors", { token: ADMIN });
+  const again = r.json.items.find(x => x.kind === "error");
+  ok("errors: ...and it comes back new if it happens again", again && again.count === 1, r.text);
+  ok("errors: the path loses its query and hash (a ?z= link carries a whole scene)", again && again.path === "/", again && again.path);
+  ok("errors: a malformed version is stored empty", again && again.version === "", again && again.version);
+  r = await call("DELETE", "/api/errors", { token: ADMIN });
+  ok("errors: forget them all", r.status === 200 && r.json.deleted === 2
+    && (await call("GET", "/api/errors", { token: ADMIN })).json.n === 0, r.text);
+  let lastErr = 0;
+  for (let i = 0; i < 40 && lastErr !== 429; i++) lastErr = (await crash({ msg: "flood " + i })).status;
+  ok("errors: reports are rate-limited per IP", lastErr === 429, lastErr);
 
   // ---- migration 3 over a database the previous server wrote --------------------------------
   await stop();

@@ -164,6 +164,7 @@ node tools/tempoui-check.js  <scratchdir> dev-index.html
 node tools/tunedim-check.js  <scratchdir> dev-index.html
 node tools/author-check.js   <scratchdir> dev-index.html
 node tools/gallery-check.js  <scratchdir> dev-index.html  # gallery grid, hover clip, favourites, built-in load
+node tools/crash-check.js    <scratchdir> dev-index.html  # crash reports + the stopped-page banner (runs itself, ~1 min)
 ```
 
 If you are short of time, `world-check` and `flipcheck` are the two that guard silent-rendering

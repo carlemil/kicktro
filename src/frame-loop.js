@@ -338,3 +338,10 @@
   }
   requestAnimationFrame(frame);
 
+  // What a crash report says about the page (armCrashReport, src/config.js, calls it inside a
+  // try -- a declaration, so the first slice can): renderer, canvas size, the live layers' effects.
+  function crashContext() {
+    return (useGL ? "gl " : "2d ") + canvas.width + "x" + canvas.height + " "
+      + stack.map(L => (EFFECTS[L.fx] || {}).id).join(",") + (paused ? " paused" : "");
+  }
+

@@ -968,6 +968,24 @@ talks to it since M2.
   under `kicktro/`. Thumbnails are not backed up (re-rendered).
 - `tools/serverprobe.js` spawns the real server on port 0 with a stand-in JWKS.
 
+### Crash reports (`armCrashReport`, first thing in `src/config.js`)
+Every error OF OURS (thrown from this page's own script; an extension's or an opaque "Script
+error." is dropped) is POSTed to `/api/errors` as `text/plain` (no preflight): message, stack,
+`CONFIG.version`, path, `crashContext()` (a declaration in `frame-loop.js`), `stalled`. At most
+`CRASH_MAX` (5) different ones per load. **The API base is worked out IN config.js** (`crashApi`,
+the same rules as cloud-profile's `API`): a boot crash means that file never ran. Never from
+file:// or localhost without `?api=`.
+- **The banner shows only when the page STOPPED**: `CRASH_WAIT` ms on, `frameCount` has not moved
+  and nothing holds the frame (paused, `galHolds()`, hidden tab). `frame()` re-arms rAF first, so
+  most throws cost one frame — the old banner said "may not be running" for every stray rejection.
+  A boot crash leaves `frameCount` in its TDZ (read in a try): stopped.
+- Server: migration 6 `errors`, ONE ROW PER KIND — `fp` = sha1(kind, message with digits blurred,
+  the top frame's FUNCTION NAME, never its line). Bounded (`CAP.errRows`, `CAP.errDays`),
+  `LIMIT.error` per IP + `errorAll`. Read/forget: admin token or a moderator (`adminOrModerator`).
+- **`node tools/errors.js [--stack] [--sort count]`** lists them (token over ssh, as thumbs.js);
+  `--forget <fp>` once fixed. **`tools/crash-check.js`** is the gate: self-driving (its own stub
+  API, one Edge per case, real time) with an old-build negative control that goes red.
+
 ### Audio & beat reactivity
 `startAudio("capture"|"mic")` must run inside a user gesture. **The MIC is armed by default**:
 `restore()` (not `applyBlob`) calls `armAudioResume("mic")` when no source was ever chosen —
