@@ -493,6 +493,14 @@
   }
   #galdlg .gal-tab[aria-selected="true"] { background: rgba(255, 140, 40, 0.28); border-color: rgba(255, 160, 60, 0.85); color: #fff3df; }
   #galdlg .gal-tab:focus-visible { outline: 1px solid #ffb15a; outline-offset: 2px; }
+  /* Weight: leave out scenes heavier than a step (galSetWeight). Sits after the tabs. */
+  #galdlg .gal-weight {
+    display: inline-flex; align-items: center; gap: 7px; padding: 0 4px 0 6px;
+    color: #ffcf87; font: 11px/1.3 ui-monospace, Consolas, monospace;
+  }
+  #galdlg .gal-weight input { width: 90px; margin: 0; accent-color: #ff8c28; cursor: pointer; }
+  #galdlg .gal-weight input.off { opacity: 0.35; cursor: default; }
+  #galdlg #gal-wval { min-width: 11ch; color: #fff3df; }
   /* Copy a link to the gallery itself (#gallery): the end of the tab row, not a tab. */
   #galdlg .gal-linkbtn {
     margin-left: auto; padding: 5px 12px; border-radius: 999px; cursor: pointer;
@@ -505,7 +513,7 @@
   /* The scene grid: as many 200px+ columns as fit, each card a 16:9 thumbnail over two lines. */
   #galdlg .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
   #galdlg .gal-card {
-    min-width: 0; cursor: pointer; border-radius: 8px; overflow: hidden;
+    position: relative; min-width: 0; cursor: pointer; border-radius: 8px; overflow: hidden;
     border: 1px solid rgba(255, 140, 40, 0.22); background: rgba(255, 140, 40, 0.05);
   }
   #galdlg .gal-card:hover, #galdlg .gal-card:focus-visible { border-color: rgba(255, 160, 60, 0.8); outline: none; }
@@ -519,6 +527,20 @@
   /* A poster not loaded yet (galLazy): no src draws a light frame + broken icon, a white flash per card. */
   #galdlg .gal-thumb img.lz { visibility: hidden; }
   #galdlg .gal-card.playing .gal-thumb video { opacity: 1; }
+  /* A card's weight: four rising bars over the thumbnail's top-left corner, lit up to its step. */
+  #galdlg .gal-wt {
+    position: absolute; left: 6px; top: 6px; display: flex; align-items: flex-end; gap: 2px;
+    padding: 3px 4px; border-radius: 4px; background: rgba(0, 0, 0, 0.55); pointer-events: auto;
+  }
+  #galdlg .gal-wt i { display: block; width: 3px; background: rgba(255, 255, 255, 0.25); }
+  #galdlg .gal-wt i:nth-child(1) { height: 4px; }
+  #galdlg .gal-wt i:nth-child(2) { height: 7px; }
+  #galdlg .gal-wt i:nth-child(3) { height: 10px; }
+  #galdlg .gal-wt i:nth-child(4) { height: 13px; }
+  #galdlg .gal-wt[data-w="0"] i.on { background: #7fe08f; }
+  #galdlg .gal-wt[data-w="1"] i.on { background: #e8d65a; }
+  #galdlg .gal-wt[data-w="2"] i.on { background: #ff9a3c; }
+  #galdlg .gal-wt[data-w="3"] i.on { background: #ff5a4a; }
   #galdlg .gal-thumb.gal-ph { display: flex; align-items: center; justify-content: center; padding: 10px; box-sizing: border-box; }
   /* A card whose thumbnail this browser is rendering (gallery-thumbs.js). */
   #galdlg .gal-thumb.gal-rendering::after {
@@ -2391,7 +2413,7 @@
   <div class="gal-box" role="dialog" aria-modal="true" aria-labelledby="gal-title">
     <button type="button" class="pal-close" id="gal-close" aria-label="Close">×</button>
     <h2 id="gal-title">Gallery</h2>
-    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>❤️</b> says you love a scene and <b>💔</b> that it is not for you (signed in) — the number between them is loves minus dislikes, which <b>Most loved</b> sorts by, and clicking it takes your vote back; <b>🔗</b> copies a link that opens the scene for anyone. Every scene you make goes in by itself, signed in or not (then as <b>Anonymous</b>): a change shows there an hour after your last edit to the scene, so you can play with it first. <b>My scenes</b> lists yours, with how long each still waits; delete the scene from your list to take it out.</p>
+    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>❤️</b> says you love a scene and <b>💔</b> that it is not for you (signed in) — the number between them is loves minus dislikes, which <b>Most loved</b> sorts by, and clicking it takes your vote back; <b>🔗</b> copies a link that opens the scene for anyone. The bars in a scene's corner say how heavy it is to run: on a slower device, slide <b>Weight</b> to the left to leave out the heavy ones. Every scene you make goes in by itself, signed in or not (then as <b>Anonymous</b>): a change shows there an hour after your last edit to the scene, so you can play with it first. <b>My scenes</b> lists yours, with how long each still waits; delete the scene from your list to take it out.</p>
     <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
       <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true" title="Highest score first: every ❤️ counts for a scene, every 💔 against it">Most loved</button>
       <button type="button" role="tab" class="gal-tab" data-tab="all" aria-selected="false" title="Every scene, A to Z">All</button>
@@ -2399,6 +2421,11 @@
       <button type="button" role="tab" class="gal-tab" data-tab="mine" aria-selected="false">My favourites</button>
       <button type="button" role="tab" class="gal-tab" data-tab="own" aria-selected="false" title="The scenes you have published, newest first — ✕ takes one out of the gallery">My scenes</button>
       <button type="button" role="tab" class="gal-tab" data-tab="people" aria-selected="false">Collections</button>
+      <label class="gal-weight" title="Leave out scenes heavier than this — slide left on a slower device">
+        <span class="gal-wlab">Weight</span>
+        <input type="range" id="gal-weight" min="1" max="4" step="1" value="4" data-nopersist aria-describedby="gal-wval">
+        <span id="gal-wval">Any</span>
+      </label>
       <button type="button" class="gal-linkbtn" id="gal-link" title="Copy a link that opens this gallery">🔗 Copy link</button>
     </div>
     <input type="search" id="gal-filter" placeholder="Filter by name or author" aria-label="Filter by scene name or author" autocomplete="off">
@@ -2814,7 +2841,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.98.0",
+    version: "1.99.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -2911,6 +2938,15 @@
       // The gallery's answers are kept in memory this long (galJson); a favourite patches them.
       galleryTtlMs: 600000,                       // 10 minutes
       galleryPage: 24,                            // scene cards per request as the grid scrolls
+      // How HEAVY a card is (its `cost`: ms per frame at 1080p on the PC tools/thumbs.js runs
+      // on, a 4090). Each step's `max` is the most it may cost; the gallery's Weight slider
+      // shows cards up to a step, its last stop shows all, and a card's bars are its step.
+      galleryWeights: [
+        { name: "Light", max: 1.5 },
+        { name: "Medium", max: 5 },
+        { name: "Heavy", max: 15 },
+        { name: "Very heavy", max: Infinity },
+      ],
       maxPayload: 300000,                         // must match CAP.profilePayload in server/routes.js
     },
 
@@ -25680,37 +25716,38 @@
   // scenes dialog WITHOUT any network. 'payload' is the same deflated libraryUrl-shaped blob
   // a cloud profile carries, so galFetchLibrary decodes it through the one path and a follow
   // of it (uid 'builtin:...') resolves offline too. BUILTIN_SCENES is one gallery card per
-  // scene in it ('at' = its index), with the hash of its shipped thumbnail ('' = none yet).
+  // scene in it ('at' = its index), with the hash of its shipped thumbnail ('' = none yet)
+  // and its cost, ms a frame (absent = not measured yet).
   const BUILTIN_GALLERY = [
     { uid: "builtin:ai-generated", name: "AI-Generated", count: 25, updated: "2026-10-25",
       payload: "7T3Zjtw4kr-S0LOcUJ6uqrfpnp2eXWwvBt0D7IPhB0piSpqSRA1FVVaW4X8f8AqSupKqst1tOF8KNpOHFBGMO0KfgobiFrM2ePjwKahRhYOH4P8wqVe_YXwKwgCfTjhhwUPwRCipSRGEQcsQw8HDp-CJJLgs-dJDeP8xDJ4ITjMcPHyI1rswWsuhfxVMjNyF0fpOjLQNxqkY24fRev8xDF5OcfDwYbOONodQ_JVjjxg3cu2BL-ajcUlIJU_gY7vDx89hEGPE5PPI8z8FJTkHDydUtjgMqiINHhjtcBjkRZar8c-fw6DpyhbbC4Om7JLHgP9U4tr-JVpvD5_DAD8zivh4g0rMOBQCXOKE0SIJwuBUlAxTDo_ghZDqFAf6gflTlugif_x0A6oD1KWw5P_AdRo8BBV6DsIgQ0UdPGw-hxZgK8xQjDgcLdBWcUK6mkPuGB4_hkEVU5QWXStefRNG6-1WjBpYvg-j9XsxJg_5sFlvws168zEMkpySColZh3BvQ8xsq2Am4SRApsBnw8xsNQJiZz7fxwGxOSloz7gsA7NX0NaosYFu5go0w8RovXVwUCTYBb-aOAJ-lKYA_mh9_PyRo0DxkN8ZodXqb5TUzOYiSUm61EFKUibkCVMByGMYrTlikrJNUIkFvLfhZr0VY2WR5Zrst4LEk1Kjysx7KrJavgq_C5ye95zGMyoRGK0jfkp0dOhe3hkLh3CaFwptnMDKAKMW2xiAX6L1BC9pu7rFzAU_vI9-hylecgMtgHYpRH04ijigLurMhnDJWkaLRwGRkHOFklHEDLfeiaGYlELA7kL5_0y8t8XQ0-J06vg7ftiuD-F2fVBjwKvvxUQLiOZgTx6jT13MY8xJkqWYrYaM3czl7wYT-yxmnM1rIFxlNPcuoymLCq9-RizHKUWlzWya_NIi2lU2xppcy4DdIYpC_udjGDR5i2uBgGO4VQMgBPSVaPIUJ-giEbLlGNnKmQliTF0zLUDD4IRSSQf3XIjccykCgpxPcgWvvk0WiuGZvCSv9ciL7xWcpDEMWwVt1zIOdgvJMFvgGKZG6_04U8soxnWOXnpiRcBHweSamnRD5DdH5Ovw58NIswslRWqjMrucKP63EDV34UYotNmF5UXyKEC6PSjZlV0szilFUnY5I9o4uMguBuNS6lm4gH092aY-cjHbhIOkrDI7DbkmTJWKmZ7Y55oJaRpMHSRY8E7TbFIX-68qxnT1F8YoShihNotE1iDgAzEEcp-TO2Lckni3Xe9C_keMJEJYbcOtwAxiqZyx4TM2YkTbKFoONqSohRjcRlEUheLvxzBozwUt-aiwdsT_jNjjOL3nSK0KSgkFGWrum8S6hWHx8J7YFa_heSvVcy6-k-J5NBGIA-EuwqYDZV0s4i8nV3AtSs-N1rsJQ5Rj2b2jcglA7xqbvRHD90kMr6IBH1Y9QxDvNuv7kP8Bktisj6FGNyeId9x8fhcpolEksecksXdIghPW3iaJzZ6ThPjriF_OzO-PLnrjBegVBy5m5OIMxbRhlyETF9MkA1dz-vz7VNAxETqp5t45PPyvGDer3zFa_VKitrVZOEkwqh1xStqOnsQtEiKS5Ngy7zZSSBKKT6XYwHIjZeREUAUXVQ4lOWkcy0TftwnDcMSHZB7BV-yqB1kuduEkkLtqqxG5C3O5ogATJd5GGOzAMyIBYb3-FGO9oehroGgRZrw0U3W1DJrAYajwFLfFi6v5Z3GFBIbCSPyvEIJpIxTUezECOutBMTrwHGrs2GiQG_jiIJ7UTud9s-oYS_jorQbSR00VUkdPGqim_I3G3YYT7G3jMLdfUZ3iMibPq7_S4gnb3K2KybONkvhZ-6_ebdbvD1wEHQTFPwOc9wrO8bNt-sm7QuMSVQxMCDVUFc-Ok2zGewXne6JIP5fXNTHPt1izgOfSl0ofDKJLbz3AMCwVOoZexwUzrJlUOpuONmUP8zQuu-vK5g2xfx7ELsKnDydtGaKnApeOmd8y2zDnmnvLtPWu4iwtS3HdFuwiuKPGt-UeFWzYdY0KJ-rORiUc5IlK_RiL2SgcBOEXvdXAQw1ThbNFT-NS-Con1a8_qSm-d5jpP2mX5Jitfi5o0hVO9IXJn2yk8CEVbzyGGy7DGO3ORcpypZxLMcdoZ-IBB6WhNMUzLiGallBWofbRkY4JZXHZD0xa4UZlDbYJqp0pfABE7z4Kt_vIRrB5aE97zbzT4vtnzgpahhuuH5jdhhqLmS4kppk6HUFOjnsX4QKuSAQoEsomOegNm384Nhcg0Stq3dVJbuPzmVBAVBQeOEL5kBKUBjMNaaXjeu-Gos36xZAySwdyxfw0UAQz1IOCfDDr7Z-FN0Gzrr3z_tLFGSPqhjFBC-dvFwaJFaA_CIGQxIbGdQzSjjjGLhD8bRVYOSQN-KkPAx5SjMm554VJUF0WNW6nufjO4eK_oBI9X1Y_KUPGuGQ6Sihy_DFd0lGuxZsQI-ras4pv6DuIujYvqgqiwdJObMmJ8dfhzpodd9bs1CBF6ahBORrgsPZe7l4xa4eOL_PbpFH-hGmK6l6EV73WpJ_zR4ahJ-i87GVBo47B_IxoZWCYPbeNSg2AgM1zQigGaXQvZ40G3iZ8xC8SilIVtLyDwj18dJ0a6nxfc1o923KXhjoHHBpqoxGHhpopNHI9rY-YMSVchduuhsZt_OSIVqQmGUWNI1XyjCJWEIc48yzFrKslMKOIAzPai_GK0EarDz1PrYsYgwtulN3fua4OqWZYyDEneop9eJTFsswcFcSkq4W3CHYbC42aBULuw9yBvj6eyqCQNe8C4akqTpTuCdds9XdCixdS2yw_zomgBmMq56wouTzc3IUbDuY4h3t2p5lNHmPlJzxqszknNFZOd57txl31bU5klDWE_6FKGlYRx2J0p4eNhN1wfrjZj0Re-ilCAxs7X3Qf9Tv4BmXkuyy3sHP39upjwcBWGw_t61xf5v3BLBMBa72Gh2JH5RYaidSIJaG_W_lGGN87YbySHnyEc3KpECsSV5O-VETw6F3IvS3Jpc2l_0XZfBdbv9kpuxCSXbQTLS1YXj6VIkPZ4eh6e9-018vrVR59FFhx1mYjurqaLaSuNfNqHEFlt_A3dq0Y7pOxObnLyn_FdYbp6qdepK4Sw05GcpZyf7d2boqk5MxJctmIIUrc8LmVfLwLd33tUqmrVl6mEOcOrvTJnrjST-Xp7exlNPtfOf1YVmRCHw23bjrFWS0WaNbLhLvTTXYeYceMPPeFeC_v-Vr67Q25fw7kvgqnPgyVFnFMaoefUvBMcE7IveqWr-2gfNo0ZueiZUoJPoqRYW41TnICdhP_D6qz4OHDfRTeR2pkOhsYzvVEODzSYo83nKRlImylNWsLZTBZ-LxhZj9Hm-vPpCQ96ScAMu3ydhnu7x19wpfV_woPi11uQGpGup47STlihEtNaElJrdG2FWhMapMjf1Q3N6lTWpyY6w-tT0VZGmxvx6-qG3oXl9wWmvpxfKVm7eLaH3dwkhGa9aTnEyYLAwgmTnuxR70J3qrsDVFfB1GL8eMV3ctRgzPqJvG2mY48bPahMALaLFWSTVgMWzHU_rtD0v8jEibaTL21HT_I-uzRju3JTRcrjGrdQKyo8b7sGKrjk6xo73Cin_OiqvHFZkJtRR4dM62taKHe-U5RbVuxjsbqlbdqSBO3TK0U8KtMfFSStzDDKjt9CMr6eM62jIlrc5CP6E2lL52PqIcxsogPZtJ7aQLsXibdFb1Ev7hvXFYBxdfMM8BZrJroJ9NiTR9tp2ea7VW41yYjtV5oJ3qxzNQ0yyZLJEbSNlXC_eCCXlNDb8R2IzaL2N5GY15-ho6WjtTuoMg2isKj8AwnHVCXjNd1diaIHCmLEx5x66ukb1sOd6-O5nXT0bxuIpo3Arb5tF1XHPwTNXj1Gz4XderqpfOBTuWPiQdgsgwM7al7yluZSr2VEf-nvI1Rbde_yDEVub8L767F6He8nkogrh_cnwmqXrtf-jGXV33GThza7DSQ5XZI9mDmTSavDWL2T7nAB8Rqr-Ww3dD4zdH4Guz5sLFHfKLYte4fTwKz2rh_PEFAeKNDlI8nUFWFn_zxZCUiDEWS3mKxRaAXDtLK9A99bt9PxJjJHfPI27OS8mQ4gPUzMEwmnwjryiF2LupHaZ6FDolLdcCmcK37WxTeS2VZltQ3nqU3YPt2Vl6v6BFdpMwakJhnOO9_cFlexuuSZyogVZ55v_rxcHDLH_fD8scjFEkO21ecSSyDN8dwF8n_q_Okv-lMYpeOZ1MVvmoNpXnYxXi-VnJpth4muZsSzL1TgWnWqNCvZw70mcRxeb2w-UYJ3y8lLCOAL9C0RoqhYdOaXs8abUNZPWu0rQXY5w41F_1ycxv9w4yNQWMbfwE26FQz1ZlmPh6noOrZg-bXgqIMr_5eZDkXknYiNKZUGVqQOovBrjWZ5wybXEt9rRgmiUEHwyeSOdY1wzYuZCmCZR1H4W7bs47lTrZ1LK6eYxnfq2Spa15LyJ6ybOO9TOaxU27lU3teW3gjz_nwtovJRD2XvrZwsGUZw-Yj2bpytTCLYalM4NGLJm2BsUYxr_XB3Kjrh6auNxKVV-YlSSlyMy-p1dNEVUrzLc9uYakcNL4-nf6X0bahGBm5n9G-RLHlPmy7XDTD0qEgML_1zZkF7nhXC_9_zBVwuvpVmJyevbIgbGT1ytJ3Ninl_VSp6FbnrPfqNlqds3oaFBg583GmP6T12ITB4x_A-7Eh-gpAejlXZ8Oid-Hm6ERFTf8cOzIKbd6syKhm7yYyGkZzwc7XBy8nQpXXs2hnGiO8qS-b9k-YvmzS1LL6smlynS88fGNPtrkma1M91Ra0UfNsn_bfdSKaQIWL0sYFNHop40IP2KlxLYoiDu1oO0wkdxp-3ImGH3f9NPL3wvn__uAbEPruk8snwoNX6wE8-PMNqX8kUl-JS69kjJmArzYqIOAr0sCdcK90-wxDvQc31OvGa5WxsQ03fWNDbmcZG8Yf4RgcAxndC78uCaaq4Omg4hoCo14CWujlniXWP1HyiOvVT5SgNEGtU2PdlKitnOKyxg7_SPHcDKVzA_47XSoFRZ3SggPv-U6m19ju873uDG3c59rFAyEiY7w59bjHKNwerwSJmmUWWrOgnH5hRMl67cXhX_0W2v5Tjwk-QTcgZZ00kMmNbf01UMrvxKqs9ZNZx6Ologrt4eJo5I3ybpQ3SnlvJrgvULu-H9Su74V8_1OVq0-WqR-cVxV5zG6uPzsnRCY_Ci2Ind2mC1sxBnngwtJlZ9eqzcqCJVboeAdjlJxbFfK3vWznJUncZv_F1AsHQTRF7TTiIztDjvfezPNpF6Xm-sap5zNQZd6FyT_dmMxSnX6qAtlW-unW5KhaeJlMPV2goajU02H0GXJP53tJWEAhT6XdMuDQ6xHYYsqGHQJnvzKxD-_cr0zoUOH8VyZ063JLHTxKd8R83t_Q9zzSQ3nM9zwSfoSX8OX35LXcBU6CjGzYa6B3wlxxB2DepHU3Uvk35SN-1WdEbgj-lgh-HV6_eHdCkyow05_wzu1PuP9qzQjn5ctMM8Jh_4TXdSN0OCimFoSHKTv9Dx9daT4fySy7fvN5kQLdaz7fbz2vbliv8bySVSNt5yF8v5e97U303gRyrAj-WDq1X6nL1-1Y_4bEDo8G91Zux4B6pjve--T5jFbQKN9NL93Dg2ffyOpHJKs3U5OPpIhJ4Ybi4lTT1WYbhRuB5TjtExGflTuegTg9YUSl9BCOxLm8fNjQM7tLb768LYM-COxnvdWwEUNqLL-DmecXSZnL8-8DXLmIDcRNFrbsUV9rbUj0J5NNMmpTDAfWR1xDxw7Qm-rh1YM7K_PAzZWVpo91XbluYGNJPshyoMt1w6C9-sGnkei17K33vS-IYVStfuv1P5tzdx8U2Zr6JmnkWbVNR6h3chzeUMZ0xeW9jSSLdFze64Oq0nfqm3RbRUcVHjZNHI98jH1b6wtUOH3JkiX_-iSrJGlCsg7y_L5G9duNOr4H6ngLUXhmVCS4Vsze5FSQtkixcR0lRLNvyV8TYqVhK06dOMbyRo0ofOiqnpd-H367W-CBdwvULQQlEXBpYadhkGmZeiUNg7hC0k7DMBarV9HDsCXgbAG0TFlZ_YYHHxuifEh1zjE9NNKThmK009Fmmj7qgv3oKKLNx60Y1iCXaKFppi_Ave5ltVAn1Vsspnm9cEjg-pdJj89IYxJvs-GHhOFC0L09s-ooA112ZtVBpqfVw9xJO69K62dWxwnNCkBl20k3mtHZpBPNyb0f9D34ut0nBraTv_fmerOKmWoLKyPs0GteYZtOVz-EdlW1dHPGZv2lOnxpeUyP-stTxmUKJZmWFBh8bW7m28nzQPX6dvKiFLrZwME_Cp4dt_q9yGq3Uo11dY2d8m7W1fYLi8BWV-vIVqTIn3U1LeqstbJEIIgMMWWn-K8fQ1ar7DbkkLN4pQ05RJtjRCkuHaE9n2BkXs43dx1e3T_k7MSQF3Quh2ezfBLmfK16TYeOzQaylzksFXfPChlPSC0O4XSs4pa3NzdqmQK6hyi7EdcPSlxfgqa8OrYRRl7kDkZVetHt9mS-In156Rtb9IUVVuUMyyluVcNLM0mO6k_ODCok1DHLNSK5bsj31Q-DIviRULp8tC_Vc1_6r3o996XeY3fdVz1hv3DX_bnWAK5eONZDztNi-Uubr37m5Qt-fqZN6HoR9LdsKpNZpbPwXT-CjrvaXgSIlioPwj7c7q-GWMe9B3p7y3sAUcBr3XOG2Pua3XMW9cIZ9Rzsnb433vLqy7uVbsTwJySGt9GAj2RZXHSy4dDfHObLTkyD5Zmykzshaxz0fPPCk2Fmw9WqkzvPplH8W-6HftMoI3I6RwzZjaPMRTBBKpGc6ihh37Z51NJPvh57ARDewHv1C6Iprhd0Nd2POS82637DTKi_s9wXUieynRdAt2M68LWPisLWywvv9Mph4Z3-ZTKaUCFGi-ev04j0h4LtUpD6cE5GMXaAy6iraTKa4kaAVvonGW2bsjBZToyiOpNsYRvujnKGbsykPynDTOqxgLphCf2iPdjO-9tjTgunJV8eUwdB-bnaaeyrY2qq-ujYeIun6QQCTyY8Fywz6gloNpqm52uHTHDKaRR5P8wmVG62We1monqo72iz4GzA-Pain8OSnGOoejBdb-F-z7a9hdZtVttbzVPAr7EJjz2_BjgdpjtmLWiV-4bGbk5n3Zm2bibbebqn20jO5GzLrT33Y4ovVyScgORDJx39B8W88cJD9Pk_" },
   ];
   const BUILTIN_SCENES = [
-    { id: "builtin:neon-reef", name: "Neon Reef", at: 0, thumb: "7e604d09d0" },
-    { id: "builtin:storm-front", name: "Storm Front", at: 1, thumb: "d61a182058" },
-    { id: "builtin:slime-cathedral", name: "Slime Cathedral", at: 2, thumb: "60ba316cd8" },
-    { id: "builtin:ember-attractor", name: "Ember Attractor", at: 3, thumb: "2cfda866ed" },
-    { id: "builtin:deep-sea-glass", name: "Deep Sea Glass", at: 4, thumb: "27e57cfac5" },
-    { id: "builtin:mandelbox-drive", name: "Mandelbox Drive", at: 5, thumb: "ea863f25df" },
-    { id: "builtin:truchet-circuit", name: "Truchet Circuit", at: 6, thumb: "9d014b09c8" },
-    { id: "builtin:galaxy-bloom", name: "Galaxy Bloom", at: 7, thumb: "79fbcb45e6" },
-    { id: "builtin:event-horizon", name: "Event Horizon", at: 8, thumb: "3945c4aa89" },
-    { id: "builtin:menger-bass", name: "Menger Bass", at: 9, thumb: "419a612147" },
-    { id: "builtin:survey-lines", name: "Survey Lines", at: 10, thumb: "9bc313b697" },
-    { id: "builtin:chimney", name: "Chimney", at: 11, thumb: "3b2cfea739" },
-    { id: "builtin:tape-rewind", name: "Tape Rewind", at: 12, thumb: "de486c9e77" },
-    { id: "builtin:jelly-cathedral", name: "Jelly Cathedral", at: 13, thumb: "f0671aa8b2" },
-    { id: "builtin:mirage-highway", name: "Mirage Highway", at: 14, thumb: "e2d5b1f793" },
-    { id: "builtin:weather-map", name: "Weather Map", at: 15, thumb: "a62cf46d22" },
-    { id: "builtin:incense", name: "Incense", at: 16, thumb: "e3cdff2478" },
-    { id: "builtin:broken-broadcast", name: "Broken Broadcast", at: 17, thumb: "adb4c9dcd9" },
-    { id: "builtin:desert-glass", name: "Desert Glass", at: 18, thumb: "93fa72cc9c" },
-    { id: "builtin:jelly-reef", name: "Jelly Reef", at: 19, thumb: "541af2b497" },
-    { id: "builtin:steam-room", name: "Steam Room", at: 20, thumb: "8e71c2598b" },
-    { id: "builtin:contour-reactor", name: "Contour Reactor", at: 21, thumb: "e070b9efaf" },
-    { id: "builtin:pirate-signal", name: "Pirate Signal", at: 22, thumb: "f83b41ec07" },
-    { id: "builtin:ash-cloud", name: "Ash Cloud", at: 23, thumb: "a364f0c5c7" },
-    { id: "builtin:static-garden", name: "Static Garden", at: 24, thumb: "d7007891a0" },
+    { id: "builtin:neon-reef", name: "Neon Reef", at: 0, thumb: "7e604d09d0", cost: 0.7 },
+    { id: "builtin:storm-front", name: "Storm Front", at: 1, thumb: "d61a182058", cost: 0.9 },
+    { id: "builtin:slime-cathedral", name: "Slime Cathedral", at: 2, thumb: "60ba316cd8", cost: 3.8 },
+    { id: "builtin:ember-attractor", name: "Ember Attractor", at: 3, thumb: "2cfda866ed", cost: 8.1 },
+    { id: "builtin:deep-sea-glass", name: "Deep Sea Glass", at: 4, thumb: "27e57cfac5", cost: 1.1 },
+    { id: "builtin:mandelbox-drive", name: "Mandelbox Drive", at: 5, thumb: "ea863f25df", cost: 0.809 },
+    { id: "builtin:truchet-circuit", name: "Truchet Circuit", at: 6, thumb: "9d014b09c8", cost: 0.7 },
+    { id: "builtin:galaxy-bloom", name: "Galaxy Bloom", at: 7, thumb: "79fbcb45e6", cost: 32 },
+    { id: "builtin:event-horizon", name: "Event Horizon", at: 8, thumb: "3945c4aa89", cost: 0.8 },
+    { id: "builtin:menger-bass", name: "Menger Bass", at: 9, thumb: "419a612147", cost: 1.8 },
+    { id: "builtin:survey-lines", name: "Survey Lines", at: 10, thumb: "9bc313b697", cost: 0.8 },
+    { id: "builtin:chimney", name: "Chimney", at: 11, thumb: "3b2cfea739", cost: 4.7 },
+    { id: "builtin:tape-rewind", name: "Tape Rewind", at: 12, thumb: "de486c9e77", cost: 1.3 },
+    { id: "builtin:jelly-cathedral", name: "Jelly Cathedral", at: 13, thumb: "f0671aa8b2", cost: 1.3 },
+    { id: "builtin:mirage-highway", name: "Mirage Highway", at: 14, thumb: "e2d5b1f793", cost: 1.652 },
+    { id: "builtin:weather-map", name: "Weather Map", at: 15, thumb: "a62cf46d22", cost: 0.955 },
+    { id: "builtin:incense", name: "Incense", at: 16, thumb: "e3cdff2478", cost: 5.5 },
+    { id: "builtin:broken-broadcast", name: "Broken Broadcast", at: 17, thumb: "adb4c9dcd9", cost: 0.8 },
+    { id: "builtin:desert-glass", name: "Desert Glass", at: 18, thumb: "93fa72cc9c", cost: 0.8 },
+    { id: "builtin:jelly-reef", name: "Jelly Reef", at: 19, thumb: "541af2b497", cost: 4 },
+    { id: "builtin:steam-room", name: "Steam Room", at: 20, thumb: "8e71c2598b", cost: 0.723 },
+    { id: "builtin:contour-reactor", name: "Contour Reactor", at: 21, thumb: "e070b9efaf", cost: 0.8 },
+    { id: "builtin:pirate-signal", name: "Pirate Signal", at: 22, thumb: "f83b41ec07", cost: 1.1 },
+    { id: "builtin:ash-cloud", name: "Ash Cloud", at: 23, thumb: "a364f0c5c7", cost: 4.5 },
+    { id: "builtin:static-garden", name: "Static Garden", at: 24, thumb: "d7007891a0", cost: 3.4 },
   ];
   // ---- cloud profiles: the Kicktro API (server/ in this repo, at api.kicktro.com) ---------
   // Keep your preset library against a Google account so it follows you between machines.
@@ -26466,14 +26503,48 @@
     const slug = b.id.slice(8), v = b.thumb ? "?" + b.thumb : "";
     return { id: b.id, name: b.name, author: BUILTIN_GALLERY[0].name, owner: "",
       created: Date.parse(BUILTIN_GALLERY[0].updated) || 0, favs: 0, hates: 0, at: b.at,
-      poster: b.thumb ? "thumbs/" + slug + ".webp" + v : null, clip: b.thumb ? "thumbs/" + slug + ".mp4" + v : null };
+      poster: b.thumb ? "thumbs/" + slug + ".webp" + v : null, clip: b.thumb ? "thumbs/" + slug + ".mp4" + v : null,
+      ...(b.cost != null ? { cost: b.cost } : {}) };
   });
+  // How HEAVY a scene is: CONFIG.cloud.galleryWeights, lightest first, against a card's `cost`
+  // (ms a frame on the PC that rendered its thumbnail; absent = not measured yet). The Weight
+  // slider keeps cards up to a step; its last stop keeps every card. An unmeasured card is
+  // always kept: nothing says it is heavy, and the server answers the same way.
+  const GAL_W = CLOUD.galleryWeights || [];
+  const GAL_W_KEY = "kt.galWeight";
+  const galWeightOf = cost => { let i = 0; while (i < GAL_W.length - 1 && cost > GAL_W[i].max) i++; return i; };
+  const galMaxCost = () => (gal.weight < GAL_W.length - 1 ? GAL_W[gal.weight].max : -1);
+  const galFits = c => c.cost == null || galMaxCost() < 0 || c.cost <= galMaxCost();
+  function galWeightStored() {
+    let v = NaN;
+    try { const s = localStorage.getItem(GAL_W_KEY); if (s) v = +s; } catch (e) {}   // +null is 0: Light
+    return Number.isInteger(v) && v >= 0 && v < GAL_W.length ? v : GAL_W.length - 1;
+  }
+  function galWeightText(i) {
+    return i >= GAL_W.length - 1 ? "Any" : i === 0 ? GAL_W[0].name : "Up to " + GAL_W[i].name.toLowerCase();
+  }
+  function galSyncWeight() {
+    const r = el("gal-weight");
+    if (!r) return;
+    r.max = String(GAL_W.length);
+    r.value = String(gal.weight + 1);
+    el("gal-wval").textContent = galWeightText(gal.weight);
+    setOff(r, gal.tab === "people");     // Collections lists profiles, which carry no weight
+  }
+  function galSetWeight(v) {
+    const i = Math.max(0, Math.min(GAL_W.length - 1, Math.round(v) - 1));
+    if (i === gal.weight) return;
+    gal.weight = i;
+    try { localStorage.setItem(GAL_W_KEY, String(i)); } catch (e) {}
+    galSyncWeight();
+    galReset();
+  }
 
   // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
   // answer to a request a newer tab or filter has overtaken. `mine` / `hate`: the scenes you
   // gave a ❤️ / a 💔.
   const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
-    hate: new Set(), shown: new Set(), seq: 0, note: "", admin: false };
+    hate: new Set(), shown: new Set(), seq: 0, note: "", admin: false, weight: 0 };
   const galSort = () => (gal.tab === "new" || gal.tab === "own" ? "new" : gal.tab === "all" ? "name" : "favs");
   const galAuthed = () => gal.tab === "mine" || gal.tab === "own";   // the tabs that need a session
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
@@ -26505,6 +26576,7 @@
     for (const t of document.querySelectorAll("#galdlg .gal-tab")) {
       t.setAttribute("aria-selected", String(t.dataset.tab === gal.tab));
     }
+    galSyncWeight();
     if (gal.tab === "people") { gal.done = true; galSyncMore(); galPeople(); return; }
     if (galAuthed() && !galMe() || gal.tab === "mine" && !cloudSess) {
       gal.done = true; gal.pend = []; galSyncMore();
@@ -26514,7 +26586,7 @@
       return;
     }
     gal.pend = gal.tab === "own" ? []
-      : galBuiltinCards().filter(c => galMatch(c) && (gal.tab !== "mine" || gal.mine.has(c.id)));
+      : galBuiltinCards().filter(c => galMatch(c) && galFits(c) && (gal.tab !== "mine" || gal.mine.has(c.id)));
     gal.done = false;
     galHint("Loading…");
     galMore();
@@ -26527,6 +26599,7 @@
     if (gal.q) sp.set("q", gal.q);
     if (gal.tab === "mine") sp.set("mine", "favs");
     if (gal.tab === "own") sp.set("mine", "own");
+    if (galMaxCost() >= 0) sp.set("maxcost", String(galMaxCost()));
     galJson("/api/gallery?" + sp, galAuthed()).then(j => {
       if (seq !== gal.seq) return;
       let rows = (j && Array.isArray(j.items)) ? j.items : [];
@@ -26544,6 +26617,8 @@
       gal.offset += rows.length;
       gal.total = +j.total || 0;
       gal.done = !rows.length || gal.offset >= gal.total;
+      // An API from before maxcost lists every weight: page by what it sent, show what fits.
+      rows = rows.filter(galFits);
       const out = [];
       for (const r of rows) {
         while (gal.pend.length && galBefore(gal.pend[0], r)) out.push(gal.pend.shift());
@@ -26565,8 +26640,10 @@
   function galEmpty() {
     if (el("gal-list").children.length) { galHint(""); return; }
     galHint(gal.q ? "Nothing matches “" + gal.q + "”."
+      + (galMaxCost() >= 0 ? " Heavier scenes are left out: slide Weight to the right to see them." : "")
       : gal.tab === "mine" ? "No favourites yet — press ❤️ on a scene you like."
       : gal.tab === "own" ? "No scenes of yours yet — press New in the Scene box, change it, and it shows up here."
+      : galMaxCost() >= 0 ? "Nothing this light here — slide Weight to the right to see heavier scenes."
       : "No scenes here yet. Every scene you make shows up, an hour after your last change to it.");
   }
   // Keep paging while the end of the list is in view: the grid scrolls inside .gal-box, so
@@ -26692,6 +26769,20 @@
       cap.appendChild(rm);
     }
     card.append(th, cap);
+    // Its weight, as bars over the thumbnail's corner: one per step up to the card's own.
+    if (c.cost != null && GAL_W.length) {
+      const w = galWeightOf(c.cost), wt = document.createElement("span");
+      wt.className = "gal-wt";
+      wt.title = GAL_W[w].name + " to run — " + c.cost.toFixed(1) + " ms a frame on a fast PC";
+      wt.setAttribute("aria-label", GAL_W[w].name + " to run");
+      for (let i = 0; i < GAL_W.length; i++) {
+        const b = document.createElement("i");
+        if (i <= w) b.className = "on";
+        wt.appendChild(b);
+      }
+      wt.dataset.w = String(w);
+      card.appendChild(wt);
+    }
     // The clip plays while the card is hovered (mouse, pen) or focused (keyboard). On touch
     // there is no hover, so the FIRST tap plays it and the second loads the scene. A tap
     // focuses the card before its click arrives, so focus must not start the preview then, or
@@ -27417,6 +27508,9 @@
   if (el("signindlg")) el("signindlg").addEventListener("click", e => { if (e.target === el("signindlg")) closeSignIn(); });
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
   if (el("gal-more")) el("gal-more").addEventListener("click", galMore);
+  gal.weight = galWeightStored();
+  if (el("gal-weight")) el("gal-weight").addEventListener("input", e => galSetWeight(+e.target.value));
+  galSyncWeight();
   if (el("gal-link")) el("gal-link").addEventListener("click", e => galCopyLink(null, e.currentTarget));
   // The profile button is gated like ▦: with no API there is nothing to sign in to.
   if (el("profbtn")) el("profbtn").classList.toggle("hidden", !cloudOn());
@@ -27548,8 +27642,46 @@
             T.out("f", i + "|" + shot("image/jpeg", 0.93));
           }
           if (T.clip && THUMB_POSTER + i * THUMB_STEP < THUMB_END) { setTimeout(clip, 0); return; }
-          T.out("done", T.errs + "|" + (T.gl ? T.gl.getError() : "nogl"));
+          const done = () => T.out("done", T.errs + "|" + (T.gl ? T.gl.getError() : "nogl"));
+          if (T.cost) thumbCost(done); else done();
         })();
+      })();
+    })();
+  }
+  // HOW HEAVY the scene is (cfg.cost, tools/thumbs.js only): THUMB_COST_N more frames, each
+  // timed on the GPU (EXT_disjoint_timer_query_webgl2 around the whole frame) and on the CPU
+  // (the point effects stamp there, and a GPU-only number calls them free). Out goes
+  // "cost|<gpu ms>|<cpu ms>|<canvas WxH>", medians, gpu -1 without the timer. A DISJOINT
+  // (the GPU was interrupted) spoils that frame's sample, which is dropped.
+  const THUMB_COST_N = 180;
+  function thumbCost(done) {
+    const T = THUMB, g = T.gl, ext = g && g.getExtension("EXT_disjoint_timer_query_webgl2");
+    const cpu = [], gpu = [], open = [];
+    const med = a => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[s.length >> 1] : -1; };
+    let i = 0;
+    (function run() {
+      for (let k = 0; k < 10 && i < THUMB_COST_N; k++, i++) {
+        const q = ext ? g.createQuery() : null;
+        if (q) g.beginQuery(ext.TIME_ELAPSED_EXT, q);
+        const t = performance.now();
+        T.pump(1);
+        cpu.push(performance.now() - t);
+        if (q) { g.endQuery(ext.TIME_ELAPSED_EXT); open.push(q); }
+      }
+      if (i < THUMB_COST_N) { setTimeout(run, 0); return; }
+      const t0 = Date.now();
+      (function drain() {
+        const dis = ext && g.getParameter(ext.GPU_DISJOINT_EXT);
+        for (let j = open.length - 1; j >= 0; j--) {
+          if (!g.getQueryParameter(open[j], g.QUERY_RESULT_AVAILABLE)) continue;
+          if (!dis) gpu.push(g.getQueryParameter(open[j], g.QUERY_RESULT) / 1e6);
+          g.deleteQuery(open[j]);
+          open.splice(j, 1);
+        }
+        if (open.length && Date.now() - t0 < 10000) { setTimeout(drain, 20); return; }
+        const r = x => Math.round(x * 1000) / 1000;
+        T.out("cost", r(med(gpu)) + "|" + r(med(cpu)) + "|" + canvas.width + "x" + canvas.height);
+        done();
       })();
     })();
   }
