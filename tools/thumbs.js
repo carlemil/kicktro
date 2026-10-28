@@ -6,9 +6,19 @@
 //       the AI-generated scenes shipped in the app: writes thumbs/<slug>.webp + .mp4 for every
 //       one that has none yet, then re-runs 'node tools/ai-scenes.js --emit' and the build so
 //       BUILTIN_SCENES carries the new hashes. Commit thumbs/ with them; pages.yml ships it.
+//       Each also gets its COST measured into thumbs/costs.json (any built-in missing one is
+//       measured too, render or not); --emit writes it into BUILTIN_SCENES.
 //   node tools/thumbs.js --server [--all] [--api <base>] [--ssh <user@host>]
 //       published gallery scenes with no thumbnail yet (--all: every one): fetched from
-//       /api/admin/thumbs/todo, rendered, uploaded with PUT /api/admin/thumbs/:id.
+//       /api/admin/thumbs/todo, rendered, measured, uploaded with PUT /api/admin/thumbs/:id.
+//       A card whose thumbnail is current but has no cost (render 0) is only measured.
+//   node tools/thumbs.js --cost <slug,slug|all> [--size WxH]
+//       measures built-ins and prints them, writing nothing.
+//
+// COST = how heavy a scene is to run: the larger of the median GPU time (a timer query around
+// each frame) and the median CPU time of 180 frames, in ms, at 1920x1080 (COST_SIZE) on THIS
+// machine, in its own Edge run with a cold shader cache. It only compares scenes with each
+// other; the gallery's Weight slider (CONFIG.cloud.galleryWeights) cuts it into steps.
 //   node tools/thumbs.js --check <slug>
 //       renders one built-in TWICE and compares the frames: the harness must be deterministic,
 //       or a re-render would change every thumbnail for nothing.
@@ -36,15 +46,17 @@ const NL = String.fromCharCode(10);
 const EDGE = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
 const FFMPEG = process.env.FFMPEG || "C:/Program Files/ImageMagick-7.1.0-Q16-HDRI/ffmpeg.exe";
 const W = 480, H = 270, POSTER = 300, CLIP_END = 600, STEP = 2;
+let COST_SIZE = "1920,1080";
 
 const args = { only: null };
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i];
   if (["--builtin", "--server", "--all", "--force", "--keep", "--help"].includes(a)) args[a.slice(2)] = true;
-  else if (["--check", "--page", "--work", "--api", "--ssh", "--only"].includes(a) && i + 1 < process.argv.length) args[a.slice(2)] = process.argv[++i];
+  else if (["--check", "--cost", "--size", "--page", "--work", "--api", "--ssh", "--only"].includes(a) && i + 1 < process.argv.length) args[a.slice(2)] = process.argv[++i];
   else die("unexpected argument " + a);
 }
-if (args.help || !(args.builtin || args.server || args.check)) {
+if (args.size) COST_SIZE = args.size.replace("x", ",");
+if (args.help || !(args.builtin || args.server || args.check || args.cost)) {
   console.log(fs.readFileSync(__filename, "utf8").split(NL).slice(2, 20).map(l => l.replace(/^\/\/ ?/, "")).join(NL));
   process.exit(args.help ? 0 : 2);
 }
@@ -62,10 +74,10 @@ function die(msg) { console.error("thumbs: " + msg); process.exit(1); }
 // sink is the console. The prelude is sliced out of the built page by its marker lines, which
 // must match exactly once, so a renamed marker fails loudly instead of rendering nothing.
 const PRE_A = "  function thumbPrelude(cfg) {", PRE_B = "  // end thumbPrelude";
-function pageFor(app, blob, beat) {
+function pageFor(app, blob, beat, opt) {
   if (app.split(PRE_A).length !== 2 || app.split(PRE_B).length !== 2) die("thumbPrelude markers not found exactly once in the page");
   const pre = app.slice(app.indexOf(PRE_A), app.indexOf(PRE_B)).trim();
-  const cfg = { blob, sink: "console", type: "image/png", clip: true, beat: beat !== false };
+  const cfg = { blob, sink: "console", type: "image/png", clip: !(opt && opt.cost), cost: !!(opt && opt.cost), beat: beat !== false };
   const head = "(" + pre + ")(" + JSON.stringify(cfg).replace(/</g, "\\u003c") + ");";
   const at = app.indexOf("<head>");
   return app.slice(0, at + 6) + NL + "<script>" + head + "<" + "/script>" + app.slice(at + 6);
@@ -87,11 +99,11 @@ function edgeKill(ud) {
     + "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 300 }";
   spawnSync("powershell", ["-NoProfile", "-EncodedCommand", Buffer.from(ps, "utf16le").toString("base64")], { stdio: "ignore" });
 }
-function edgeRun(htmlFile, ud) {
+function edgeRun(htmlFile, ud, size) {
   const url = "file:///" + htmlFile.split(path.sep).join("/") + "?hideui&credits=0";
   const log = path.join(path.dirname(ud), "console.log");
   const argv = ["--headless=new", "--disable-extensions", "--enable-logging", "--log-file=" + log, "--v=0",
-    "--window-size=" + (W * 2) + "," + (H * 2), "--no-first-run", "--user-data-dir=" + ud, url];
+    "--window-size=" + (size || (W * 2) + "," + (H * 2)), "--no-first-run", "--user-data-dir=" + ud, url];
   return new Promise((resolve, reject) => {
     spawn(EDGE, argv, { stdio: "ignore" });
     const out = { scene: "", poster: null, frames: [], done: null };
@@ -127,6 +139,7 @@ function edgeRun(htmlFile, ud) {
         if (f[0] === "scene") out.scene = f.slice(1).join("|");
         else if (f[0] === "poster") out.poster = b64(f[1]);
         else if (f[0] === "f") out.frames[+f[1]] = b64(f[2]);
+        else if (f[0] === "cost") out.cost = { gpu: +f[1], cpu: +f[2], size: f[3] };
         else if (f[0] === "done") { out.done = { errs: +f[1], gl: f[2] }; finish(); return; }
       }
     }
@@ -174,6 +187,20 @@ async function render(blob, tag, beat) {
   return res;
 }
 
+// How heavy a scene is: its own run at COST_SIZE (no clip), ms per frame on THIS machine.
+async function measure(blob, tag) {
+  const dir = path.join(WORK, tag.replace(/[^A-Za-z0-9_-]+/g, "_") + "-cost");
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+  fs.mkdirSync(dir, { recursive: true });
+  const html = path.join(dir, "page.html");
+  fs.writeFileSync(html, pageFor(fs.readFileSync(PAGE, "utf8"), blob, true, { cost: true }));
+  const r = await edgeRun(html, path.join(dir, "ud"), COST_SIZE);
+  if (!r.cost) die(tag + ": the render reported no cost");
+  if (!args.keep) fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+  return r.cost;
+}
+const costOf = c => Math.round(Math.max(c.gpu, c.cpu) * 1000) / 1000;
+
 // ---- the built-in scenes: read from the generated source, the same blob the app ships ----
 function builtins() {
   const src = fs.readFileSync(path.join(ROOT, "src", "gallery-builtin.js"), "utf8");
@@ -218,22 +245,44 @@ function adminToken() {
     console.log((moved ? "PASS" : "FAIL") + "  the synthetic beat " + (moved ? "changes" : "does NOT change") + " the frames");
     process.exit(same && moved ? 0 : 1);
   }
+  if (args.cost) {
+    const want = args.cost === "all" ? null : new Set(args.cost.split(",").map(s => s.trim().replace(/^builtin:/, "")));
+    for (const b of builtins()) {
+      if (want && !want.has(b.slug)) continue;
+      const c = await measure(b.blob, b.slug);
+      console.log("  " + b.slug.padEnd(24) + " gpu " + c.gpu.toFixed(3).padStart(8) + " ms  cpu " + c.cpu.toFixed(3).padStart(8) + " ms  " + c.size);
+    }
+  }
   if (args.builtin) {
     const only = args.only ? new Set(args.only.split(",").map(s => s.trim().replace(/^builtin:/, ""))) : null;
     const dir = path.join(ROOT, "thumbs");
     fs.mkdirSync(dir, { recursive: true });
-    let made = 0;
-    for (const b of builtins()) {
+    const costFile = path.join(dir, "costs.json");
+    const costs = fs.existsSync(costFile) ? JSON.parse(fs.readFileSync(costFile, "utf8")) : {};
+    let made = 0, measured = 0;
+    const list = builtins();
+    for (const b of list) {
       if (only && !only.has(b.slug)) continue;
       const files = ["webp", "mp4"].map(x => path.join(dir, b.slug + "." + x));
-      if (!args.force && files.every(f => fs.existsSync(f))) continue;
-      const r = await render(b.blob, b.slug);
-      fs.writeFileSync(files[0], r.poster);
-      fs.writeFileSync(files[1], r.clip);
-      made++;
+      const draw = args.force || !files.every(f => fs.existsSync(f));
+      if (draw) {
+        const r = await render(b.blob, b.slug);
+        fs.writeFileSync(files[0], r.poster);
+        fs.writeFileSync(files[1], r.clip);
+        made++;
+      }
+      if (draw || costs[b.slug] == null) {
+        costs[b.slug] = costOf(await measure(b.blob, b.slug));
+        console.log("    cost " + b.slug + " " + costs[b.slug] + " ms");
+        measured++;
+      }
     }
-    console.log(made + " built-in thumbnail(s) rendered");
-    if (made) {
+    // Only the scenes that still exist, in BUILTIN_SCENES order, so a diff reads as a list.
+    const keep = {};
+    for (const b of list) if (costs[b.slug] != null) keep[b.slug] = costs[b.slug];
+    fs.writeFileSync(costFile, JSON.stringify(keep, null, 2) + "\n");
+    console.log(made + " built-in thumbnail(s) rendered, " + measured + " measured");
+    if (made || measured) {
       for (const a of [["tools/ai-scenes.js", "--emit"], ["tools/build.js"]]) {
         const r = spawnSync(process.execPath, a, { cwd: ROOT, stdio: "inherit" });
         if (r.status !== 0) die(a.join(" ") + " failed");
@@ -245,18 +294,22 @@ function adminToken() {
     const r = await fetch(API + "/api/admin/thumbs/todo" + (args.all ? "?all=1" : ""), { headers: hdr });
     if (!r.ok) die("GET todo -> " + r.status + " " + (await r.text()).slice(0, 200));
     const { items } = await r.json();
-    console.log(items.length + " gallery scene(s) to render");
+    console.log(items.length + " gallery scene(s) to render or measure");
     let bad = 0;
     for (const it of items) {
       let blob;
       try { blob = JSON.parse(zlib.inflateRawSync(Buffer.from(it.payload, "base64url")).toString("utf8")); }
       catch (e) { console.log("  ! " + it.id + ": payload does not decode, skipped"); bad++; continue; }
-      const res = await render(blob, it.id);
+      // render 0 = the thumbnail is current, only its cost is missing (an API from before
+      // costs sends no flag: render it)
+      const draw = it.render !== 0;
+      const res = draw ? await render(blob, it.id) : null;
+      const cost = costOf(await measure(blob, it.id));
       const put = await fetch(API + "/api/admin/thumbs/" + encodeURIComponent(it.id), {
         method: "PUT", headers: Object.assign({ "Content-Type": "application/json" }, hdr),
-        body: JSON.stringify({ poster: res.poster.toString("base64"), clip: res.clip.toString("base64") }) });
+        body: JSON.stringify(draw ? { poster: res.poster.toString("base64"), clip: res.clip.toString("base64"), cost } : { cost }) });
       if (!put.ok) { console.log("  ! " + it.id + ": PUT -> " + put.status + " " + (await put.text()).slice(0, 200)); bad++; continue; }
-      console.log("    uploaded " + it.id + " v" + (await put.json()).thumb_ver);
+      console.log("    " + (draw ? "uploaded " : "measured ") + it.id + " v" + (await put.json()).thumb_ver + ", " + cost + " ms");
     }
     if (bad) die(bad + " scene(s) failed");
   }

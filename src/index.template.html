@@ -403,7 +403,7 @@
   <div class="gal-box" role="dialog" aria-modal="true" aria-labelledby="gal-title">
     <button type="button" class="pal-close" id="gal-close" aria-label="Close">×</button>
     <h2 id="gal-title">Gallery</h2>
-    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>❤️</b> says you love a scene and <b>💔</b> that it is not for you (signed in) — the number between them is loves minus dislikes, which <b>Most loved</b> sorts by, and clicking it takes your vote back; <b>🔗</b> copies a link that opens the scene for anyone. Every scene you make goes in by itself, signed in or not (then as <b>Anonymous</b>): a change shows there an hour after your last edit to the scene, so you can play with it first. <b>My scenes</b> lists yours, with how long each still waits; delete the scene from your list to take it out.</p>
+    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it — the page reloads. <b>❤️</b> says you love a scene and <b>💔</b> that it is not for you (signed in) — the number between them is loves minus dislikes, which <b>Most loved</b> sorts by, and clicking it takes your vote back; <b>🔗</b> copies a link that opens the scene for anyone. The bars in a scene's corner say how heavy it is to run: on a slower device, slide <b>Weight</b> to the left to leave out the heavy ones. Every scene you make goes in by itself, signed in or not (then as <b>Anonymous</b>): a change shows there an hour after your last edit to the scene, so you can play with it first. <b>My scenes</b> lists yours, with how long each still waits; delete the scene from your list to take it out.</p>
     <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
       <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true" title="Highest score first: every ❤️ counts for a scene, every 💔 against it">Most loved</button>
       <button type="button" role="tab" class="gal-tab" data-tab="all" aria-selected="false" title="Every scene, A to Z">All</button>
@@ -411,6 +411,11 @@
       <button type="button" role="tab" class="gal-tab" data-tab="mine" aria-selected="false">My favourites</button>
       <button type="button" role="tab" class="gal-tab" data-tab="own" aria-selected="false" title="The scenes you have published, newest first — ✕ takes one out of the gallery">My scenes</button>
       <button type="button" role="tab" class="gal-tab" data-tab="people" aria-selected="false">Collections</button>
+      <label class="gal-weight" title="Leave out scenes heavier than this — slide left on a slower device">
+        <span class="gal-wlab">Weight</span>
+        <input type="range" id="gal-weight" min="1" max="4" step="1" value="4" data-nopersist aria-describedby="gal-wval">
+        <span id="gal-wval">Any</span>
+      </label>
       <button type="button" class="gal-linkbtn" id="gal-link" title="Copy a link that opens this gallery">🔗 Copy link</button>
     </div>
     <input type="search" id="gal-filter" placeholder="Filter by name or author" aria-label="Filter by scene name or author" autocomplete="off">

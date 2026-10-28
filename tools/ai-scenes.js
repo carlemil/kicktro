@@ -345,6 +345,10 @@ if (argv[0] === "--emit") {
   const kept = prev.indexOf("payload: \"" + payload + "\"") >= 0 && /updated: "(\d{4}-\d\d-\d\d)"/.exec(prev);
   const updated = kept ? kept[1] : new Date().toISOString().slice(0, 10);
   const thumbs = path.join(__dirname, "..", "thumbs");
+  // 'cost' = how heavy the scene is to run (ms a frame, thumbs.js --builtin measures it into
+  // thumbs/costs.json); left out until measured, which the gallery reads as "not known".
+  const costFile = path.join(thumbs, "costs.json");
+  const costs = fs.existsSync(costFile) ? JSON.parse(fs.readFileSync(costFile, "utf8")) : {};
   const cards = SCENES.map((sc, at) => {
     const slug = builtinSlug(sc.name);
     const files = ["webp", "mp4"].map(x => path.join(thumbs, slug + "." + x));
@@ -352,7 +356,8 @@ if (argv[0] === "--emit") {
       ? require("crypto").createHash("sha1").update(Buffer.concat(files.map(f => fs.readFileSync(f)))).digest("hex").slice(0, 10)
       : "";
     return "    { id: " + JSON.stringify("builtin:" + slug) + ", name: " + JSON.stringify(sc.name)
-      + ", at: " + at + ", thumb: " + JSON.stringify(thumb) + " },";
+      + ", at: " + at + ", thumb: " + JSON.stringify(thumb)
+      + (typeof costs[slug] === "number" ? ", cost: " + costs[slug] : "") + " },";
   });
   const src = [
     "  // ---- built-in gallery entries ----------------------------------------------------",
@@ -360,7 +365,8 @@ if (argv[0] === "--emit") {
     "  // scenes dialog WITHOUT any network. 'payload' is the same deflated libraryUrl-shaped blob",
     "  // a cloud profile carries, so galFetchLibrary decodes it through the one path and a follow",
     "  // of it (uid 'builtin:...') resolves offline too. BUILTIN_SCENES is one gallery card per",
-    "  // scene in it ('at' = its index), with the hash of its shipped thumbnail ('' = none yet).",
+    "  // scene in it ('at' = its index), with the hash of its shipped thumbnail ('' = none yet)",
+    "  // and its cost, ms a frame (absent = not measured yet).",
     "  const BUILTIN_GALLERY = [",
     "    { uid: \"builtin:ai-generated\", name: \"AI-Generated\", count: " + SCENES.length
       + ", updated: \"" + updated + "\",",

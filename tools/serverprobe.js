@@ -358,7 +358,7 @@ async function main() {
   }
   r = await call("PUT", "/api/admin/thumbs/" + a1, { token: ADMIN, body: { poster: mp4.toString("base64"), clip: mp4.toString("base64") } });
   ok("thumbs: a poster that is not WebP is 400", r.status === 400, r.text);
-  r = await call("PUT", "/api/admin/thumbs/" + a1, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64") } });
+  r = await call("PUT", "/api/admin/thumbs/" + a1, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64"), cost: 2.5 } });
   ok("thumbs: upload sets version 1", r.status === 200 && r.json.thumb_ver === 1 && r.json.poster === "/thumbs/" + a1 + "-1.webp", r.text);
   r = await call("GET", "/thumbs/" + a1 + "-1.webp");
   ok("thumbs: served back byte for byte, cached forever", r.status === 200
@@ -372,11 +372,44 @@ async function main() {
   ok("thumbs: the listing points at the files", r.json.items.find(x => x.id === a1).clip === "/thumbs/" + a1 + "-1.mp4");
   r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
   ok("thumbs: a rendered scene leaves the todo list", r.json.items.length === 2 && !r.json.items.some(x => x.id === a1));
-  r = await call("PUT", "/api/admin/thumbs/" + a1, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64") } });
+  r = await call("PUT", "/api/admin/thumbs/" + a1, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64"), cost: 3.5 } });
   ok("thumbs: a re-render is version 2", r.json.thumb_ver === 2);
   await new Promise(res => setTimeout(res, 100));
   ok("thumbs: the old version's files are removed", (await call("GET", "/thumbs/" + a1 + "-1.webp")).status === 404
     && (await call("GET", "/thumbs/" + a1 + "-2.webp")).status === 200);
+  // ---- cost: how heavy a card is (migration 7), set by thumbs.js with each render -------------
+  r = await call("PUT", "/api/admin/thumbs/" + a1, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64"), cost: "fast" } });
+  ok("cost: a cost that is not a number is 400", r.status === 400, r.text);
+  r = await call("PUT", "/api/admin/thumbs/" + a1, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64"), cost: 0 } });
+  ok("cost: a cost of 0 is 400", r.status === 400, r.text);
+  r = await call("GET", "/api/gallery?sort=new");
+  const costOf = id => (r.json.items.find(x => x.id === id) || {}).cost;
+  ok("cost: the listing carries a measured card's cost, and none for one never measured",
+    costOf(a1) === 3.5 && r.json.items.some(x => x.id !== a1 && !("cost" in x)), JSON.stringify(r.json.items));
+  const all = r.json.total;
+  r = await call("GET", "/api/gallery?sort=new&maxcost=3");
+  ok("cost: maxcost leaves out a card measured heavier, keeps the unmeasured ones",
+    r.json.total === all - 1 && !r.json.items.some(x => x.id === a1), JSON.stringify(r.json));
+  r = await call("GET", "/api/gallery?sort=new&maxcost=3.5");
+  ok("cost: ...and keeps one exactly at the limit", r.json.total === all && r.json.items.some(x => x.id === a1), r.text);
+  r = await call("GET", "/api/gallery?sort=new&maxcost=nonsense");
+  ok("cost: a maxcost that is not a number filters nothing", r.json.total === all, r.text);
+  // A card rendered by an older thumbs.js (no cost) stays on the todo with render 0, and a
+  // cost ALONE measures it without a new render.
+  r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
+  const c3 = (r.json.items.find(x => x.id !== a2) || {}).id;
+  ok("cost: an unrendered card is on the todo with render 1", !!c3 && r.json.items.every(x => x.render === 1), r.text);
+  await call("PUT", "/api/admin/thumbs/" + c3, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64") } });
+  r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
+  ok("cost: rendered but unmeasured stays on the todo with render 0",
+    (r.json.items.find(x => x.id === c3) || {}).render === 0, r.text);
+  r = await call("PUT", "/api/admin/thumbs/" + c3, { token: ADMIN, body: { cost: 1.25 } });
+  ok("cost: a cost alone keeps the thumbnail's version", r.status === 200 && r.json.thumb_ver === 1 && r.json.cost === 1.25, r.text);
+  r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
+  ok("cost: ...and takes the card off the todo", !r.json.items.some(x => x.id === c3), r.text);
+  ok("cost: ...and its files are still there", (await call("GET", "/thumbs/" + c3 + "-1.webp")).status === 200);
+  r = await call("PUT", "/api/admin/thumbs/" + c3, { token: ADMIN, body: {} });
+  ok("cost: an empty body is still a bad render (400)", r.status === 400, r.text);
   r = await call("GET", "/thumbs/..%2F..%2Fkt.db");
   ok("thumbs: path traversal is 404", r.status === 404, r.status);
 
@@ -409,7 +442,7 @@ async function main() {
   ok("viewer thumb: the first one wins (409 after)", r.status === 409, r.text);
   r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
   ok("viewer thumb: a visitor's poster stays on the admin todo list", r.json.items.some(x => x.id === a2), r.text);
-  await call("PUT", "/api/admin/thumbs/" + a2, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64") } });
+  await call("PUT", "/api/admin/thumbs/" + a2, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64"), cost: 1 } });
   r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
   c2 = (await call("GET", "/api/gallery/" + a2)).json;
   ok("viewer thumb: ...until a real render replaces it, clip and all", !r.json.items.some(x => x.id === a2)
@@ -577,7 +610,7 @@ async function main() {
   ok("hour: once the edit is an hour old it is public", (await publicNamed("Reef One")).total === 1);
   r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
   ok("thumbs: a newly public card is on the todo list", r.json.items.some(x => x.id === reef.id), r.text);
-  await call("PUT", "/api/admin/thumbs/" + reef.id, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64") } });
+  await call("PUT", "/api/admin/thumbs/" + reef.id, { token: ADMIN, body: { poster: webp.toString("base64"), clip: mp4.toString("base64"), cost: 1 } });
   r = await call("GET", "/api/admin/thumbs/todo", { token: ADMIN });
   ok("thumbs: ...and leaves it once rendered", !r.json.items.some(x => x.id === reef.id), r.text);
 

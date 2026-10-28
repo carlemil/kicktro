@@ -15,6 +15,25 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.99.0] — 2026-10-28
+
+### Added
+- **How heavy is a scene? The gallery now says.** Every card wears four small bars in its
+  corner — green Light, yellow Medium, orange Heavy, red Very heavy — and hovering them gives
+  the time it takes a frame. A new **Weight** slider sits beside the gallery's tabs: on a
+  slower phone or laptop slide it left and the heavier scenes are left out (Light, Up to
+  medium, Up to heavy, Any). The choice is remembered. A scene that has not been measured yet
+  is always shown.
+
+### Internal
+- `tools/thumbs.js` measures every scene it renders (median GPU timer query and CPU time over
+  180 frames at 1920×1080, in its own Edge run) and sends it with the thumbnail; a card whose
+  thumbnail is current is measured without a new render. `--cost <slugs|all>` prints them.
+  Built-ins keep theirs in `thumbs/costs.json`, emitted into `BUILTIN_SCENES`.
+- API: migration 7 adds `gallery.cost`; `GET /api/gallery?maxcost=` filters (unmeasured cards
+  stay in); the admin thumbnail PUT takes `cost`, alone or with a render; the todo lists
+  unmeasured cards with `render: 0`. serverprobe covers it; gallery-check gains `case-weight`.
+
 ## [1.98.0] — 2026-10-28
 
 ### Added

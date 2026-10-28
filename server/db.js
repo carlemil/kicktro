@@ -152,6 +152,13 @@ const MIGRATIONS = [
   );
   create index errors_last on errors(last);
   `,
+  // 7 -- how HEAVY a card is to run: GPU-or-CPU ms per frame (whichever is larger) at 1920x1080
+  // on the machine tools/thumbs.js runs on, measured with every full render. NULL = not
+  // measured yet (the todo lists it). Only comparable with itself: a slower device takes longer
+  // for all of them alike, which is what the gallery's weight slider relies on.
+  `
+  alter table gallery add column cost real;
+  `,
 ];
 
 function openDb(file) {

@@ -186,10 +186,13 @@ function makeRoutes(ctx) {
     galOwnedIds: q("select id, thumb_ver from gallery where owner = ?"),
     // To render: a public card with no thumbnail, or whose public version changed since its
     // thumbnail was made (a promoted edit), or whose thumbnail is a visitor's poster.
-    galTodo: q("select id, name, payload, thumb_ver from gallery where payload != '' "
-      + "and (thumb_ver = 0 or thumb_at < pub_at or thumb_clip = 0) order by created"),
-    galAll: q("select id, name, payload, thumb_ver from gallery where payload != '' order by created"),
+    // render = 0: the thumbnail is current and only the cost is missing (measure, no new render)
+    galTodo: q("select id, name, payload, thumb_ver, "
+      + "(thumb_ver = 0 or thumb_at < pub_at or thumb_clip = 0) render from gallery where payload != '' "
+      + "and (thumb_ver = 0 or thumb_at < pub_at or thumb_clip = 0 or cost is null) order by created"),
+    galAll: q("select id, name, payload, thumb_ver, 1 render from gallery where payload != '' order by created"),
     galThumb: q("update gallery set thumb_ver = ?, thumb_at = ?, thumb_clip = ? where id = ?"),
+    galCost: q("update gallery set cost = ? where id = ?"),
     galBuiltinFavs: q("select scene_id, count(*) n from favs where scene_id like 'builtin:%' group by scene_id"),
     galBuiltinHates: q("select scene_id, count(*) n from hates where scene_id like 'builtin:%' group by scene_id"),
 
@@ -489,23 +492,28 @@ function makeRoutes(ctx) {
     // PUBLIC (payload, never a pending edit); My scenes also lists a scene still inside its first
     // hour, with `pending` = when the waiting edit goes public.
     const mine = sp.get("mine");
+    // ?maxcost=<ms> is the gallery's weight slider: cards measured heavier than that are left
+    // out; a card not measured yet stays in (it is not known to be heavy).
+    const mc = parseFloat(sp.get("maxcost"));
+    const maxCost = Number.isFinite(mc) && mc > 0 ? mc : -1;
     const favOf = mine === "favs" ? user(r).uid : "";
     const ownOf = mine === "own" ? user(r).uid : "";
     const where = "where (? = '' or g.name like ? escape '\\' or u.name like ? escape '\\') "
       + "and (? = '' or g.id in (select scene_id from favs where uid = ?)) "
-      + "and (? = '' or g.owner = ?) and g.gone = 0 and (g.payload != '' or g.owner = ?)";
+      + "and (? = '' or g.owner = ?) and g.gone = 0 and (g.payload != '' or g.owner = ?) "
+      + "and (? < 0 or g.cost is null or g.cost <= ?)";
     const order = sort === "new" ? "order by g.created desc, g.id"
       : sort === "name" ? "order by g.name collate nocase, g.id"
       : "order by favs - hates desc, favs desc, g.created desc, g.id";   // Most loved: the SCORE
-    const rows = q("select g.id, g.name, g.pend_name, g.owner, g.created, g.thumb_ver, g.thumb_clip, g.edited, g.skey, "
+    const rows = q("select g.id, g.name, g.pend_name, g.owner, g.created, g.thumb_ver, g.thumb_clip, g.edited, g.skey, g.cost, "
       + "g.payload != '' and g.thumb_ver > 0 and g.thumb_at < g.pub_at stale, "
       + "g.pend is not null pending, g.payload != '' live, " + AUTHOR + ", "
       + "(select count(*) from favs f where f.scene_id = g.id) favs, "
       + "(select count(*) from hates h where h.scene_id = g.id) hates "
       + "from gallery g join users u on u.uid = g.owner " + where + " " + order + " limit ? offset ?")
-      .all(needle, like, like, favOf, favOf, ownOf, ownOf, ownOf, lim, off);
+      .all(needle, like, like, favOf, favOf, ownOf, ownOf, ownOf, maxCost, maxCost, lim, off);
     const total = q("select count(*) n from gallery g join users u on u.uid = g.owner " + where)
-      .get(needle, like, like, favOf, favOf, ownOf, ownOf, ownOf).n;
+      .get(needle, like, like, favOf, favOf, ownOf, ownOf, ownOf, maxCost, maxCost).n;
     const builtin = {};
     for (const b of S.galBuiltinFavs.all()) builtin[b.scene_id] = b.n;
     // builtin stays LOVES ONLY (an older client reads it as its heart count); dislikes ride beside.
@@ -516,6 +524,7 @@ function makeRoutes(ctx) {
       items: rows.map(g => ({ id: g.id, name: ownOf && g.pend_name ? g.pend_name : g.name, author: g.author,
         owner: g.owner, created: g.created, favs: g.favs, hates: g.hates, ...thumbUrls(g.id, g.thumb_ver, g.thumb_clip),
         ...(g.stale ? { stale: true } : {}),   // the thumbnail shows an older public version
+        ...(g.cost != null ? { cost: g.cost } : {}),   // ms per frame, see migration 7
         ...(g.skey ? { synced: true } : {}),   // follows a scene in its owner's library
         ...(ownOf ? { live: !!g.live, ...(g.pending ? { pending: g.edited + cfg.pendingMs } : {}) } : {}) })),
     }, { "Cache-Control": favOf || ownOf ? "private, no-store" : "public, max-age=30" });
@@ -724,9 +733,20 @@ function makeRoutes(ctx) {
     if (!g) throw new HttpError(404, "no such scene");
     if (!cfg.thumbDir) throw new HttpError(503, "thumbnail storage is not configured");
     const body = await readJson(r.req, BODY.thumbs);
-    onlyKeys(body, ["poster", "clip"]);
+    onlyKeys(body, ["poster", "clip", "cost"]);
     const poster = Buffer.from(String(body.poster || ""), "base64");
     const clip = Buffer.from(String(body.clip || ""), "base64");
+    // cost: ms per frame (migration 7); absent from an older thumbs.js, which leaves it alone
+    const hasCost = body.cost !== undefined;
+    if (hasCost && !(typeof body.cost === "number" && body.cost > 0 && body.cost <= 10000)) {
+      throw new HttpError(400, "cost must be a number of milliseconds, above 0 and at most 10000");
+    }
+    // cost ALONE: a card whose thumbnail is current, measured for the first time. No new files.
+    if (hasCost && body.poster === undefined && body.clip === undefined) {
+      S.galCost.run(body.cost, id);
+      sendJson(r.res, 200, { id, thumb_ver: g.thumb_ver, cost: body.cost });
+      return;
+    }
     const isMp4 = b => b.length > 12 && b.toString("latin1", 4, 8) === "ftyp";
     if (!isWebp(poster) || poster.length > CAP.poster) throw new HttpError(400, "poster must be a WebP of at most 1 MB");
     if (!isMp4(clip) || clip.length > CAP.clip) throw new HttpError(400, "clip must be an MP4 of at most 6 MB");
@@ -738,8 +758,9 @@ function makeRoutes(ctx) {
       fs.renameSync(file + ".tmp", file);
     }
     S.galThumb.run(ver, Date.now(), 1, id);
+    if (hasCost) S.galCost.run(body.cost, id);
     removeThumbs(id, g.thumb_ver);
-    sendJson(r.res, 200, { id, thumb_ver: ver, ...thumbUrls(id, ver) });
+    sendJson(r.res, 200, { id, thumb_ver: ver, ...thumbUrls(id, ver), ...(hasCost ? { cost: body.cost } : {}) });
   });
   // Every stored profile's scenes become cards (the switch to "everything is public", run
   // once): insert-only and never hiding -- a profile can be older than what the page pushed

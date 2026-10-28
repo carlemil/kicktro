@@ -113,7 +113,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.98.0",
+    version: "1.99.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -210,6 +210,15 @@
       // The gallery's answers are kept in memory this long (galJson); a favourite patches them.
       galleryTtlMs: 600000,                       // 10 minutes
       galleryPage: 24,                            // scene cards per request as the grid scrolls
+      // How HEAVY a card is (its `cost`: ms per frame at 1080p on the PC tools/thumbs.js runs
+      // on, a 4090). Each step's `max` is the most it may cost; the gallery's Weight slider
+      // shows cards up to a step, its last stop shows all, and a card's bars are its step.
+      galleryWeights: [
+        { name: "Light", max: 1.5 },
+        { name: "Medium", max: 5 },
+        { name: "Heavy", max: 15 },
+        { name: "Very heavy", max: Infinity },
+      ],
       maxPayload: 300000,                         // must match CAP.profilePayload in server/routes.js
     },
 

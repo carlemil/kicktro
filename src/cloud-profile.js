@@ -752,14 +752,48 @@
     const slug = b.id.slice(8), v = b.thumb ? "?" + b.thumb : "";
     return { id: b.id, name: b.name, author: BUILTIN_GALLERY[0].name, owner: "",
       created: Date.parse(BUILTIN_GALLERY[0].updated) || 0, favs: 0, hates: 0, at: b.at,
-      poster: b.thumb ? "thumbs/" + slug + ".webp" + v : null, clip: b.thumb ? "thumbs/" + slug + ".mp4" + v : null };
+      poster: b.thumb ? "thumbs/" + slug + ".webp" + v : null, clip: b.thumb ? "thumbs/" + slug + ".mp4" + v : null,
+      ...(b.cost != null ? { cost: b.cost } : {}) };
   });
+  // How HEAVY a scene is: CONFIG.cloud.galleryWeights, lightest first, against a card's `cost`
+  // (ms a frame on the PC that rendered its thumbnail; absent = not measured yet). The Weight
+  // slider keeps cards up to a step; its last stop keeps every card. An unmeasured card is
+  // always kept: nothing says it is heavy, and the server answers the same way.
+  const GAL_W = CLOUD.galleryWeights || [];
+  const GAL_W_KEY = "kt.galWeight";
+  const galWeightOf = cost => { let i = 0; while (i < GAL_W.length - 1 && cost > GAL_W[i].max) i++; return i; };
+  const galMaxCost = () => (gal.weight < GAL_W.length - 1 ? GAL_W[gal.weight].max : -1);
+  const galFits = c => c.cost == null || galMaxCost() < 0 || c.cost <= galMaxCost();
+  function galWeightStored() {
+    let v = NaN;
+    try { const s = localStorage.getItem(GAL_W_KEY); if (s) v = +s; } catch (e) {}   // +null is 0: Light
+    return Number.isInteger(v) && v >= 0 && v < GAL_W.length ? v : GAL_W.length - 1;
+  }
+  function galWeightText(i) {
+    return i >= GAL_W.length - 1 ? "Any" : i === 0 ? GAL_W[0].name : "Up to " + GAL_W[i].name.toLowerCase();
+  }
+  function galSyncWeight() {
+    const r = el("gal-weight");
+    if (!r) return;
+    r.max = String(GAL_W.length);
+    r.value = String(gal.weight + 1);
+    el("gal-wval").textContent = galWeightText(gal.weight);
+    setOff(r, gal.tab === "people");     // Collections lists profiles, which carry no weight
+  }
+  function galSetWeight(v) {
+    const i = Math.max(0, Math.min(GAL_W.length - 1, Math.round(v) - 1));
+    if (i === gal.weight) return;
+    gal.weight = i;
+    try { localStorage.setItem(GAL_W_KEY, String(i)); } catch (e) {}
+    galSyncWeight();
+    galReset();
+  }
 
   // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
   // answer to a request a newer tab or filter has overtaken. `mine` / `hate`: the scenes you
   // gave a ❤️ / a 💔.
   const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
-    hate: new Set(), shown: new Set(), seq: 0, note: "", admin: false };
+    hate: new Set(), shown: new Set(), seq: 0, note: "", admin: false, weight: 0 };
   const galSort = () => (gal.tab === "new" || gal.tab === "own" ? "new" : gal.tab === "all" ? "name" : "favs");
   const galAuthed = () => gal.tab === "mine" || gal.tab === "own";   // the tabs that need a session
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
@@ -791,6 +825,7 @@
     for (const t of document.querySelectorAll("#galdlg .gal-tab")) {
       t.setAttribute("aria-selected", String(t.dataset.tab === gal.tab));
     }
+    galSyncWeight();
     if (gal.tab === "people") { gal.done = true; galSyncMore(); galPeople(); return; }
     if (galAuthed() && !galMe() || gal.tab === "mine" && !cloudSess) {
       gal.done = true; gal.pend = []; galSyncMore();
@@ -800,7 +835,7 @@
       return;
     }
     gal.pend = gal.tab === "own" ? []
-      : galBuiltinCards().filter(c => galMatch(c) && (gal.tab !== "mine" || gal.mine.has(c.id)));
+      : galBuiltinCards().filter(c => galMatch(c) && galFits(c) && (gal.tab !== "mine" || gal.mine.has(c.id)));
     gal.done = false;
     galHint("Loading…");
     galMore();
@@ -813,6 +848,7 @@
     if (gal.q) sp.set("q", gal.q);
     if (gal.tab === "mine") sp.set("mine", "favs");
     if (gal.tab === "own") sp.set("mine", "own");
+    if (galMaxCost() >= 0) sp.set("maxcost", String(galMaxCost()));
     galJson("/api/gallery?" + sp, galAuthed()).then(j => {
       if (seq !== gal.seq) return;
       let rows = (j && Array.isArray(j.items)) ? j.items : [];
@@ -830,6 +866,8 @@
       gal.offset += rows.length;
       gal.total = +j.total || 0;
       gal.done = !rows.length || gal.offset >= gal.total;
+      // An API from before maxcost lists every weight: page by what it sent, show what fits.
+      rows = rows.filter(galFits);
       const out = [];
       for (const r of rows) {
         while (gal.pend.length && galBefore(gal.pend[0], r)) out.push(gal.pend.shift());
@@ -851,8 +889,10 @@
   function galEmpty() {
     if (el("gal-list").children.length) { galHint(""); return; }
     galHint(gal.q ? "Nothing matches “" + gal.q + "”."
+      + (galMaxCost() >= 0 ? " Heavier scenes are left out: slide Weight to the right to see them." : "")
       : gal.tab === "mine" ? "No favourites yet — press ❤️ on a scene you like."
       : gal.tab === "own" ? "No scenes of yours yet — press New in the Scene box, change it, and it shows up here."
+      : galMaxCost() >= 0 ? "Nothing this light here — slide Weight to the right to see heavier scenes."
       : "No scenes here yet. Every scene you make shows up, an hour after your last change to it.");
   }
   // Keep paging while the end of the list is in view: the grid scrolls inside .gal-box, so
@@ -978,6 +1018,20 @@
       cap.appendChild(rm);
     }
     card.append(th, cap);
+    // Its weight, as bars over the thumbnail's corner: one per step up to the card's own.
+    if (c.cost != null && GAL_W.length) {
+      const w = galWeightOf(c.cost), wt = document.createElement("span");
+      wt.className = "gal-wt";
+      wt.title = GAL_W[w].name + " to run — " + c.cost.toFixed(1) + " ms a frame on a fast PC";
+      wt.setAttribute("aria-label", GAL_W[w].name + " to run");
+      for (let i = 0; i < GAL_W.length; i++) {
+        const b = document.createElement("i");
+        if (i <= w) b.className = "on";
+        wt.appendChild(b);
+      }
+      wt.dataset.w = String(w);
+      card.appendChild(wt);
+    }
     // The clip plays while the card is hovered (mouse, pen) or focused (keyboard). On touch
     // there is no hover, so the FIRST tap plays it and the second loads the scene. A tap
     // focuses the card before its click arrives, so focus must not start the preview then, or
@@ -1703,6 +1757,9 @@
   if (el("signindlg")) el("signindlg").addEventListener("click", e => { if (e.target === el("signindlg")) closeSignIn(); });
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
   if (el("gal-more")) el("gal-more").addEventListener("click", galMore);
+  gal.weight = galWeightStored();
+  if (el("gal-weight")) el("gal-weight").addEventListener("input", e => galSetWeight(+e.target.value));
+  galSyncWeight();
   if (el("gal-link")) el("gal-link").addEventListener("click", e => galCopyLink(null, e.currentTarget));
   // The profile button is gated like ▦: with no API there is nothing to sign in to.
   if (el("profbtn")) el("profbtn").classList.toggle("hidden", !cloudOn());

@@ -922,6 +922,16 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   sliced by its two marker lines) swaps in in-memory storage seeded with the scene, the fixed-step
   rAF and the xorshift `Math.random`; the app reads it as `THUMB` (`boot-globals.js`: no API, no
   analytics, no front door, `thumbBeat` from `frame()`); `thumbRun` hands frames out via `cfg.sink`.
+- **WEIGHT = a card's `cost`**: ms a frame, the larger of the median GPU time (timer query
+  around each frame) and the median CPU time of 180 frames at 1920×1080, in its OWN Edge run
+  (`thumbPrelude` cfg `cost`, `thumbCost`), measured on the thumbs.js PC (a 4090). It only
+  ranks scenes against each other. `CONFIG.cloud.galleryWeights` cuts it into steps (Light ≤1.5,
+  Medium ≤5, Heavy ≤15, Very heavy); the gallery's Weight slider (`#gal-weight`, in the tab
+  row, stored in `kt.galWeight`) sends `maxcost` and filters the built-ins locally; its last
+  stop is Any. **An unmeasured card is ALWAYS kept**, on both sides. Every render measures
+  (`--server` PUTs `cost`; a card on the todo with `render: 0` is measured only, PUT `{cost}`
+  alone); built-ins keep theirs in `thumbs/costs.json`, which `ai-scenes.js --emit` writes into
+  `BUILTIN_SCENES`. gallery-check `case-weight`.
 - **The first visitor renders a missing thumbnail** (no GPU on the server): a placeholder in view
   (`galImgObs`) queues `galRenderWant` — this page's own HTML (`fetch(location.pathname)`) + the
   prelude in a **`sandbox="allow-scripts"` srcdoc iframe** (opaque origin: never the visitor's
@@ -957,6 +967,7 @@ talks to it since M2.
   only while the card NEEDS one (none, or `thumb_at < pub_at`), first wins (409), size read from the
   WebP header (`webpSize`). It sets `thumb_clip = 0` (listing `clip: null`) and keeps the card on
   the admin todo, so `thumbs.js --server` replaces it — which is also what undoes a vandal's upload.
+  Migration 7 `cost` (NULL = unmeasured, on the todo); `GET /api/gallery?maxcost=` keeps NULLs.
 - Routing: talebindery's Caddy owns 80/443. KickTro is its OWN compose project (`/srv/kicktro`,
   container `kicktro-api` on the external `edge` network) and drops `server/kicktro.caddy` into
   `/srv/caddy-sites`. The one-time talebindery change is LIVE (talebindery `15c18da8`,

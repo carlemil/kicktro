@@ -25,6 +25,12 @@
 //   down two, ONE request); the lit 💔 again, or the score, take a dislike back (DELETE);
 //   My favourites asks the server with mine=favs and adds your built-ins. 🔗
 //   copies a #g= link (server card and built-in) without loading the card or asking the API.
+// case-weight (kt.galWeight stored as Medium): the Weight slider sits in the tab row after the
+//   tabs; the stored step comes back and the FIRST request already carries maxcost; heavier
+//   cards (server rows and built-ins) are left out, unmeasured ones kept; a measured card wears
+//   its bars with the ms in the title, an unmeasured one none (NEGATIVE); Light asks for
+//   maxcost=1.5 and is remembered; Collections turns the slider off; Any sends no maxcost and
+//   the very heavy card is back (NEGATIVE).
 // case-link-b / case-link-s (#g=builtin:neon-reef, #g=srv-7): the link alone installs the
 //   scene into "Shared with you", credited to its author, selected, with no second load -- the
 //   built-in with NO request, the published one through GET /api/gallery/srv-7.
@@ -162,12 +168,15 @@ const head = [
   "  else localStorage.removeItem('burnTheWeb.cloud.v2');",
   "  if (CASE === 'case-sync-in') localStorage.setItem('burnTheWeb.profile.v1', 'Dee Tester'); else localStorage.removeItem('burnTheWeb.profile.v1');",
   "  localStorage.removeItem('kt.anon.v1');",
+  "  if (CASE === 'case-weight') localStorage.setItem('kt.galWeight', '1'); else localStorage.removeItem('kt.galWeight');",
   // ---- the stub API: 30 published scenes, loves and dislikes counted, mine=favs honoured ----
   "  var T0 = Date.UTC(2026, 9, 1);",
   "  var rows = [];",
   "  for (var i = 0; i < 30; i++) rows.push({ id: 'srv-' + i, name: i === 7 ? 'Coral Reef Dawn' : 'Scene ' + i, author: 'Author ' + (i % 4),",
   "    owner: i === 2 || i === 12 ? 'me-uid' : 'other-' + i, created: T0 + i * 3600000, favs: 40 - i, hates: i === 10 ? 30 : i === 29 ? 20 : i === 8 ? 1 : 0,",
   "    poster: i === 1 ? null : '/thumbs/srv-' + i + '-1.webp', clip: i === 1 ? null : '/thumbs/srv-' + i + '-1.mp4' });",
+  // how heavy each is (ms a frame): light / medium / very heavy in turn; srv-1 never measured
+  "  rows.forEach(function (r, i) { if (i !== 1) r.cost = [0.8, 4, 20][i % 3]; });",
   "  var builtin = { 'builtin:neon-reef': 25, 'builtin:storm-front': 3 }, builtinHates = { 'builtin:storm-front': 5 };",
   "  var mine = { 'srv-3': true, 'srv-9': true }, hated = { 'srv-8': true };",
   "  window.__req = [];",
@@ -231,7 +240,8 @@ const head = [
   "    if (path === '/api/gallery') {",
   "      var q = (sp.get('q') || '').toLowerCase(), favOnly = sp.get('mine') === 'favs', ownOnly = sp.get('mine') === 'own';",
   "      if ((favOnly || ownOnly) && !auth) return answer(401, { error: 'sign in' });",
-  "      var list = rows.filter(function (r) { return (!q || (r.name + ' ' + r.author).toLowerCase().indexOf(q) >= 0) && (!favOnly || mine[r.id]) && (!ownOnly || r.owner === (auth === 'Bearer anon-tok' ? 'anon-uid' : 'me-uid')); });",
+  "      var mc = sp.has('maxcost') ? +sp.get('maxcost') : -1;",
+  "      var list = rows.filter(function (r) { return (mc < 0 || r.cost == null || r.cost <= mc) && (!q || (r.name + ' ' + r.author).toLowerCase().indexOf(q) >= 0) && (!favOnly || mine[r.id]) && (!ownOnly || r.owner === (auth === 'Bearer anon-tok' ? 'anon-uid' : 'me-uid')); });",
   "      list.sort(sp.get('sort') === 'new' ? function (a, b) { return b.created - a.created; }",
   "        : sp.get('sort') === 'name' ? function (a, b) { var x = a.name.toLowerCase(), y = b.name.toLowerCase(); return x < y ? -1 : x > y ? 1 : a.id < b.id ? -1 : 1; }",
   "        : function (a, b) { return (b.favs - b.hates) - (a.favs - a.hates) || b.favs - a.favs || b.created - a.created; });",
@@ -655,6 +665,7 @@ const tail = [
   "    ok('Most loved is the leftmost tab, All beside it', tabs[0] === 'favs' && tabs[1] === 'all', tabs.join(','));",
   "    ok('...and the one the gallery opens on', document.querySelector('.gal-tab[data-tab=favs]').getAttribute('aria-selected') === 'true' && document.querySelectorAll('#galdlg .gal-tab[aria-selected=true]').length === 1);",
   "    ok('...asking for sort=favs', reqs(/sort=favs/).length === 1 && reqs(/sort=name/).length === 0, reqs(/sort=favs/).length);",
+  "    if (CASE !== 'case-weight') ok('with no Weight stored it opens on Any and asks for no maxcost', $('gal-wval').textContent === 'Any' && reqs(/maxcost/).length === 0, $('gal-wval').textContent + ' ' + reqs(/maxcost/).length);",
   "    ok('...with #gallery in the address bar', location.hash === '#gallery', location.hash);",
   "    var hs = scores();",
   "    ok('...highest score first', hs.length > 0 && hs.every(function (v, i) { return !i || hs[i - 1] >= v; }), hs.slice(0, 5).join(','));",
@@ -721,6 +732,48 @@ const tail = [
   "      im.onerror = function () { ok('the poster decodes', false); done(); };",
   "      im.src = img.src;",
   "    }",
+  "  }",
+  // ================= the Weight slider =================
+  "  if (CASE === 'case-weight') {",
+  "    var maxc = function () { var g = reqs(/GET \\/api\\/gallery\\?/); var m = /maxcost=([0-9.]+)/.exec(g[g.length - 1].p); return m ? +m[1] : null; };",
+  "    var costOfCard = function (c) { return c.__card && c.__card.cost; };",
+  "    then(600, function () {",
+  "      var w = $('gal-weight'), lab = w && w.closest('label'), kids = Array.prototype.slice.call(document.querySelector('#galdlg .gal-tabs').children);",
+  "      ok('the Weight slider sits in the tab row, after the tabs and before Copy link', !!lab && kids.indexOf(lab) === kids.indexOf(document.querySelector('.gal-tab[data-tab=people]')) + 1 && kids.indexOf(lab) + 1 === kids.indexOf($('gal-link')), kids.map(function (k) { return k.className || k.id; }).join(','));",
+  "      ok('...with four stops', w.min === '1' && w.max === '4' && w.step === '1', w.min + '..' + w.max);",  "      ok('a stored choice comes back: Up to medium', w.value === '2' && $('gal-wval').textContent === 'Up to medium', w.value + ' ' + $('gal-wval').textContent);",
+  "      ok('...and the first request already asks for maxcost=5', maxc() === 5, reqs(/GET \\/api\\/gallery\\?/).map(function (r) { return r.p; }).join(' | '));",
+  "      var cs = cards();",
+  "      ok('...so nothing heavier than Medium is listed', cs.length > 0 && cs.every(function (c) { var v = costOfCard(c); return v == null || v <= 5; }), cs.map(costOfCard).join(','));",
+  "      ok('...an unmeasured card is kept', !!card('srv-1'));",
+  "      ok('...and the built-ins are filtered too: Galaxy Bloom out, Neon Reef in', !card('builtin:galaxy-bloom') && !!card('builtin:neon-reef'));",
+  "      var b0 = card('srv-0').querySelector('.gal-wt');",
+  "      ok('a measured card wears its weight: four bars, one lit for Light', !!b0 && b0.querySelectorAll('i').length === 4 && b0.querySelectorAll('i.on').length === 1 && b0.dataset.w === '0', b0 && b0.outerHTML);",
+  "      ok('...with its ms in the title', !!b0 && /Light/.test(b0.title) && /0\\.8 ms/.test(b0.title), b0 && b0.title);",
+  "      ok('NEGATIVE: an unmeasured card has no bars', !card('srv-1').querySelector('.gal-wt'));",
+  "      ok('...and a built-in shows its weight too', !!card('builtin:neon-reef').querySelector('.gal-wt'));",
+  "      w.value = '1'; w.dispatchEvent(new Event('input', { bubbles: true }));",
+  "    });",
+  "    then(500, function () {",
+  "      ok('Light asks for maxcost=1.5', maxc() === 1.5, maxc());",
+  "      ok('...says Light', $('gal-wval').textContent === 'Light', $('gal-wval').textContent);",
+  "      ok('...is remembered', localStorage.getItem('kt.galWeight') === '0', localStorage.getItem('kt.galWeight'));",
+  "      var cs = cards();",
+  "      ok('...and lists only light (or unmeasured) scenes', cs.length > 0 && cs.every(function (c) { var v = costOfCard(c); return v == null || v <= 1.5; }) && !card('srv-4'), cs.map(costOfCard).join(','));",
+  "      document.querySelector('.gal-tab[data-tab=people]').click();",
+  "    });",
+  "    then(400, function () {",
+  "      ok('Collections lists profiles, which carry no weight: the slider is off', $('gal-weight').disabled === true);",
+  "      document.querySelector('.gal-tab[data-tab=new]').click();",
+  "    });",
+  "    then(400, function () {",
+  "      ok('...and back on for scenes, still Light', $('gal-weight').disabled === false && maxc() === 1.5, maxc());",
+  "      var w = $('gal-weight'); w.value = '4'; w.dispatchEvent(new Event('input', { bubbles: true }));",
+  "    });",
+  "    then(500, function () {",
+  "      ok('Any asks for no maxcost at all', maxc() === null && $('gal-wval').textContent === 'Any', maxc() + ' ' + $('gal-wval').textContent);",
+  "      ok('NEGATIVE: and a very heavy card is back', !!card('srv-29') && card('srv-29').querySelector('.gal-wt').dataset.w === '3', card('srv-29') && card('srv-29').innerHTML.slice(0, 80));",
+  "      done();",
+  "    });",
   "  }",
   // ================= signed out =================
   "  if (CASE === 'case-out') {",
@@ -987,7 +1040,7 @@ function build(c) {
   fs.writeFileSync(path.join(outDir, c + ".html"), html);
   console.log("wrote " + c + ".html");
 }
-const CASES = { "case-out": "", "case-in": "", "case-admin": "", "case-errors": "","case-lazy": "", "case-render": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
+const CASES = { "case-out": "", "case-weight": "", "case-in": "", "case-admin": "", "case-errors": "","case-lazy": "", "case-render": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
   "case-cred-new": "", "case-cred-recent": "", "case-cred-old": "", "case-cred-hook": "?credits=4",
   "case-sync-anon": "?api=http://127.0.0.1:9", "case-sync-in": "?api=http://127.0.0.1:9", "case-sync-off": "" };
 for (const c in CASES) build(c);

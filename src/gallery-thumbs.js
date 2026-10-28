@@ -111,8 +111,46 @@
             T.out("f", i + "|" + shot("image/jpeg", 0.93));
           }
           if (T.clip && THUMB_POSTER + i * THUMB_STEP < THUMB_END) { setTimeout(clip, 0); return; }
-          T.out("done", T.errs + "|" + (T.gl ? T.gl.getError() : "nogl"));
+          const done = () => T.out("done", T.errs + "|" + (T.gl ? T.gl.getError() : "nogl"));
+          if (T.cost) thumbCost(done); else done();
         })();
+      })();
+    })();
+  }
+  // HOW HEAVY the scene is (cfg.cost, tools/thumbs.js only): THUMB_COST_N more frames, each
+  // timed on the GPU (EXT_disjoint_timer_query_webgl2 around the whole frame) and on the CPU
+  // (the point effects stamp there, and a GPU-only number calls them free). Out goes
+  // "cost|<gpu ms>|<cpu ms>|<canvas WxH>", medians, gpu -1 without the timer. A DISJOINT
+  // (the GPU was interrupted) spoils that frame's sample, which is dropped.
+  const THUMB_COST_N = 180;
+  function thumbCost(done) {
+    const T = THUMB, g = T.gl, ext = g && g.getExtension("EXT_disjoint_timer_query_webgl2");
+    const cpu = [], gpu = [], open = [];
+    const med = a => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[s.length >> 1] : -1; };
+    let i = 0;
+    (function run() {
+      for (let k = 0; k < 10 && i < THUMB_COST_N; k++, i++) {
+        const q = ext ? g.createQuery() : null;
+        if (q) g.beginQuery(ext.TIME_ELAPSED_EXT, q);
+        const t = performance.now();
+        T.pump(1);
+        cpu.push(performance.now() - t);
+        if (q) { g.endQuery(ext.TIME_ELAPSED_EXT); open.push(q); }
+      }
+      if (i < THUMB_COST_N) { setTimeout(run, 0); return; }
+      const t0 = Date.now();
+      (function drain() {
+        const dis = ext && g.getParameter(ext.GPU_DISJOINT_EXT);
+        for (let j = open.length - 1; j >= 0; j--) {
+          if (!g.getQueryParameter(open[j], g.QUERY_RESULT_AVAILABLE)) continue;
+          if (!dis) gpu.push(g.getQueryParameter(open[j], g.QUERY_RESULT) / 1e6);
+          g.deleteQuery(open[j]);
+          open.splice(j, 1);
+        }
+        if (open.length && Date.now() - t0 < 10000) { setTimeout(drain, 20); return; }
+        const r = x => Math.round(x * 1000) / 1000;
+        T.out("cost", r(med(gpu)) + "|" + r(med(cpu)) + "|" + canvas.width + "x" + canvas.height);
+        done();
       })();
     })();
   }
