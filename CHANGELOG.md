@@ -15,6 +15,21 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.98.0] — 2026-10-28
+
+### Added
+- **Error reports, for moderators.** Signed in as a gallery moderator, the profile popover
+  has an Error reports button that opens the crash reports the page sends: one row per kind
+  of error, with how often it happened, how often it stopped the picture, when it was first
+  and last seen, the version, scene, browser and stack. Sort by last seen or most often, and
+  Forget one once it is fixed (or Forget all). Nobody else sees the button, and the server
+  refuses the reports to anyone who is not a moderator.
+
+### Internal
+- The gallery check gains `case-errors` (a stub moderator opens the dialog through the real
+  button); the signed-in and signed-out cases assert the button stays hidden. The dialog is
+  in all four of uiprobe's lists.
+
 ## [1.97.0] — 2026-10-28
 
 ### Added

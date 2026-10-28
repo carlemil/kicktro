@@ -287,8 +287,12 @@ async function main() {
   r = await call("GET", "/api/gallery?mine=own");
   ok("gallery: mine=own needs a session", r.status === 401, r.status);
   r = await call("GET", "/api/gallery?mine=own&sort=new", { token: A.token });
+  // Newest first, the id breaking a tie: both are often published in the same millisecond, and
+  // demanding publish order there made this flake (the server's order is `created desc, g.id`).
+  const own = (r.json && r.json.items) || [];
   ok("gallery: mine=own lists only the scenes I published, newest first", r.status === 200 && r.json.total === 2
-    && r.json.items.map(x => x.id).join() === [a2, a1].join(), r.text);
+    && own.map(x => x.id).sort().join() === [a1, a2].sort().join()
+    && own.every((x, i) => i === 0 || own[i - 1].created > x.created || (own[i - 1].created === x.created && own[i - 1].id < x.id)), r.text);
   ok("gallery: ...privately", /no-store/.test(r.headers.get("cache-control") || ""), r.headers.get("cache-control"));
   r = await call("GET", "/api/gallery?mine=own", { token: B.token });
   ok("gallery: ...someone else's are not mine", r.json.total === 1 && r.json.items[0].id === b1, r.text);
