@@ -15,6 +15,14 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.100.1] — 2026-10-28
+
+### Fixed
+- Switching scenes is smoother: the hitch at the start of the crossfade is two to three times shorter (about 15–40 ms, it was 40–185 ms), because the editor now only updates what actually changed.
+
+### Internal
+- Browser checks pin motion on (headless Edge reports reduced motion, which pauses the app); `transperf-check` gains a `--dur` A/B mode.
+
 ## [1.100.0] — 2026-10-28
 
 ### Added

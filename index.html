@@ -2839,7 +2839,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.100.0",
+    version: "1.100.1",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -16524,6 +16524,10 @@
       const sec = mySecs[id];
       if (!sec) continue;
       const muted = !!(off && off.has(id));
+      // Every section of every block runs through here on each scene switch, nearly all of
+      // them unchanged: re-parsing the eye's SVG for each was a measurable share of a switch.
+      if (sec.__muted === muted) continue;
+      sec.__muted = muted;
       sec.classList.toggle("bypassed", muted);
       const dot = sec.querySelector(".filter-by");
       if (!dot) continue;
@@ -16541,6 +16545,12 @@
       const host = ctlIn(slot, L.hostId);
       if (!host) return;
       const ids = listIdsFor(slot, L.key), added = new Set(ids);
+      // Every block re-renders on each scene switch, and most chains come back as they were:
+      // the same list in the same order is already on screen, so leave the DOM alone. (Only
+      // this function orders a host's children; a drag reorders on release, through here.)
+      const sig = Object.keys(mySecs).length + ":" + ids.join(",");   // + the sections built so far
+      if (host.__sig === sig) return;
+      host.__sig = sig;
       const cap = host.querySelector(".filter-grp");
       if (cap) host.appendChild(cap);                       // caption stays on top
       // Rows go wherever you put them — the chain is a sequence, not two sorted groups. The
@@ -16818,6 +16828,10 @@
     refreshBreakout();                // show/hide the pop-out boxes to match
   }
   // One block, against its own layer's effect and filters.
+  // Runs for every control of every block on each scene switch, nearly all unchanged: an
+  // unchanged write is skipped rather than handed to the style system.
+  function setDisp(n, disp) { if (n.style.display !== disp) n.style.display = disp; }
+  var grpKeys;                        // group -> its CONTROLS keys, built on first use (var: no TDZ)
   function refreshBlockVisibility(slot) {
     const shown = shownKeysFor(slot);
     CONTROLS.forEach(c => {           // poppable sliders toggle their menu row; other controls toggle themselves
@@ -16825,20 +16839,25 @@
       // back. Folding is deliberately not the same thing as "this effect does not use it":
       // `shown` decides what exists here at all, the fold decides what you are looking at.
       const vis = (shown.has(c.key) && !foldedGroups.has(c.group)) ? "" : "none";
-      const row = ctlIn(slot, "row-" + c.key), box = ctlIn(slot, "ctl-" + c.key);
-      if (row) row.style.display = vis;
-      else if (box) box.style.display = vis;
+      const row = ctlIn(slot, "row-" + c.key);
+      if (row) { setDisp(row, vis); return; }
+      const box = ctlIn(slot, "ctl-" + c.key);
+      if (box) setDisp(box, vis);
       // A scene control has one row and one box, both outside every block; slot 0 owns them.
-      else if (slot === 0 && rows[c.key]) rows[c.key].style.display = vis;
-      else if (slot === 0 && el("ctl-" + c.key)) el("ctl-" + c.key).style.display = vis;
+      else if (slot === 0 && rows[c.key]) setDisp(rows[c.key], vis);
+      else if (slot === 0 && el("ctl-" + c.key)) setDisp(el("ctl-" + c.key), vis);
     });
+    if (!grpKeys) {
+      grpKeys = {};
+      for (const c of CONTROLS) (grpKeys[c.group] || (grpKeys[c.group] = [])).push(c.key);
+    }
     for (const g in CTL_GROUPS) {     // a heading shows only if something under it is shown
       const hdr = ctlIn(slot, "grp-" + g);
       if (!hdr) continue;
       // Against `shown`, NOT the fold: a folded group hid its own rows a moment ago, so asking
       // "is anything visible under me" would hide the heading too and strip the only way to
       // unfold it.
-      hdr.style.display = CONTROLS.some(c => c.group === g && shown.has(c.key)) ? "" : "none";
+      setDisp(hdr, (grpKeys[g] || []).some(k => shown.has(k)) ? "" : "none");
       hdr.classList.toggle("folded", foldedGroups.has(g));
     }
     markFirstGroup(slot);              // ...and the topmost visible one loses its divider
@@ -17963,6 +17982,7 @@
     const nm = (lbl && lbl.childNodes[0] ? lbl.childNodes[0].nodeValue : id).trim();
     lo.setAttribute("aria-label", single ? nm : nm + " (low)");
     if (!single) hi.setAttribute("aria-label", nm + " (high)");
+    const uiLast = {};                    // what ui() last wrote; only ui() writes these nodes
     function ui() {
       // min/max are read live, not closed over: each box's range editor
       // rewrites them at runtime and the fill must follow.
@@ -17970,8 +17990,11 @@
       const A = Math.min(+lo.value, +hi.value), B = Math.max(+lo.value, +hi.value);
       // A single control's band is always zero-wide, so the ordinary [A,B] fill would be a
       // 0px sliver. Paint min→value instead and it reads as an ordinary slider.
-      fill.style.left = single ? "0%" : (A - mn) / span * 100 + "%";
-      fill.style.width = (single ? (A - mn) : (B - A)) / span * 100 + "%";
+      // Every slider of every block repaints on a scene switch: write only what moved.
+      const left = single ? "0%" : (A - mn) / span * 100 + "%";
+      const width = (single ? (A - mn) : (B - A)) / span * 100 + "%";
+      if (left !== uiLast.left) fill.style.left = uiLast.left = left;
+      if (width !== uiLast.width) fill.style.width = uiLast.width = width;
       // READOUT ONLY — never the applied value, which stays a free float (see stepAnim).
       // A slider whose range spans more than 1 gets at most one decimal: three significant
       // digits is right for a 0–1 knob but absurd on a wider one, where it produced readouts
@@ -17979,7 +18002,8 @@
       // control's own units and suffixes intact, and sig3 of an already-1dp number is that
       // same number, so nothing narrower than 1 changes.
       const show = v => fmt(mx - mn > 1 ? Math.round(v * 10) / 10 : v);
-      out.textContent = A === B ? show(A) : show(A) + "–" + show(B);
+      const txt = A === B ? show(A) : show(A) + "–" + show(B);
+      if (txt !== uiLast.txt) out.textContent = uiLast.txt = txt;
     }
     // Single ⇒ MIRROR (both ways, so no site has to know which thumb moved); otherwise the
     // usual cross-clamp that stops the thumbs crossing over.
@@ -21601,11 +21625,16 @@
     let any = false;
     const put = (rowKey, v, fmt, isOwn, show) => {
       const row = r.rows[rowKey]; if (!row) return;
-      row.style.display = show ? "" : "none";
+      // Every row of every box runs through here on each scene switch: touch only what changed.
+      // The last value written is kept on the node (only this function writes these rows) —
+      // even READING style.display on thousands of rows was a measurable share of a switch.
+      const disp = show ? "" : "none";
+      if (row.__disp !== disp) { row.style.display = disp; row.__disp = disp; }
       if (!show) return;
       const f = r.fields[rowKey];
-      if (document.activeElement !== f) f.value = String(v);
-      if (r.vals[rowKey]) r.vals[rowKey].textContent = fmt(v);
+      if (document.activeElement !== f && f.value !== String(v)) f.value = String(v);
+      const txt = fmt(v);
+      if (r.vals[rowKey] && r.vals[rowKey].textContent !== txt) r.vals[rowKey].textContent = txt;
       // FOLLOWING THE DEFAULT = DIMMED, overridden = full brightness. A class on the ROW,
       // not the disabled/.off path: this control is entirely live and keyboard-reachable,
       // and setOff() exists to switch a control OFF. Conflating "dimmed" with "disabled"
@@ -21627,10 +21656,10 @@
     // Something armed AND not folded away by hand. The fold is the second condition and
     // it wins: an armed slider you have finished tuning should still be able to give the
     // box back (see trigFolded).
-    const show = any && !trigFolded.has(id);
-    r.wrap.style.display = show ? "" : "none";
+    const show = any && !trigFolded.has(id), disp = show ? "" : "none";
+    if (r.wrap.__disp !== disp) { r.wrap.style.display = disp; r.wrap.__disp = disp; }
     // The whole trigger body — Shape, Duration and Tuning — folds as ONE element.
-    if (r.body) r.body.style.display = show ? "" : "none";
+    if (r.body && r.body.__disp !== disp) { r.body.style.display = disp; r.body.__disp = disp; }
   }
   function syncTrigTune() {
     try { for (const id in refEls) paintTuneRows(id); } catch (e) {}
@@ -21685,7 +21714,14 @@
   function savePlen(e) { for (const id in pulseLen) plenStates[e][id] = pulseLen[id]; }
   function loadPlen(e) { for (const id in pulseLen) pulseLen[id] = plenOk(plenStates[e][id]) ? plenStates[e][id] : PULSE_DROP; syncPlen(); }
   function syncPlen() {
-    for (const id in plenEls) { plenEls[id].inp.value = pulseLen[id]; plenEls[id].out.textContent = plenFmt(pulseLen[id]); drawPulsePlots(id); }
+    for (const id in plenEls) {
+      // Every key on every scene switch: write the field only when the duration moved.
+      const e = plenEls[id], v = String(pulseLen[id]);
+      if (e.inp.value !== v) e.inp.value = v;
+      const txt = plenFmt(pulseLen[id]);
+      if (e.out.textContent !== txt) e.out.textContent = txt;
+      drawPulsePlots(id);
+    }
   }
 
   // Per-effect DETECTOR TUNING per slider, exactly parallel to plenStates above. Seeded EMPTY
@@ -22788,8 +22824,9 @@
   // "Fire" the filter can't be read as Fire the effect family.
   // ...and WHICH LAYER'S, since two layers running the same effect would otherwise give two
   // boxes with identical titles sitting side by side in the column.
+  const CTL_BY_KEY = new Map(CONTROLS.map(c => [c.key, c]));
   function ctlOwner(slot, key) {
-    const c = CONTROLS.find(x => x.key === key);
+    const c = CTL_BY_KEY.get(key);
     const g = c && c.group;
     const own = (!g || !CTL_GROUPS[g]) ? "" : (g.startsWith("f_") ? "Filter · " : "") + CTL_GROUPS[g];
     // SCENE, spelled out. These controls are one value for the WHOLE picture -- change Bloom
@@ -22809,9 +22846,11 @@
       for (const key of POPPABLE) {
         const box = ctlIn(slot, "ctl-" + key);
         if (!box) continue;
-        if (col) setTintVars(box, col);
-        const t = box.querySelector(".ctl-owner .own-txt");
-        if (t) t.textContent = ctlOwner(slot, key);
+        // Stamped on every scene switch for every box of every slot: touch only what changed.
+        if (col && box.__tint !== col) { setTintVars(box, col); box.__tint = col; }
+        if (box.__ownTxt === undefined) box.__ownTxt = box.querySelector(".ctl-owner .own-txt");
+        const t = box.__ownTxt, txt = t && ctlOwner(slot, key);
+        if (t && t.textContent !== txt) t.textContent = txt;
       }
     }
   }
@@ -22856,8 +22895,16 @@
   // The rects the overlap checks run against: every directly-placed visible box in the
   // grid (slider boxes, scene boxes, layer boxes). Direct children only — the never-popped
   // .ctl check rows nested inside a layer block are not placed boxes.
+  // The placed boxes are #breakout's own CHILDREN: walk those, never query the subtree — it
+  // holds every control of every layer block (thousands of nodes), and that search was the
+  // largest single line of a scene switch.
+  function brkBoxes() {
+    const out = [];
+    for (const n of breakout.children) if (n.classList.contains("ctl") && n.classList.contains("poppable")) out.push(n);
+    return out;
+  }
   function brkRects(except) {
-    return [...breakout.querySelectorAll(":scope > .ctl.poppable")]
+    return brkBoxes()
       .filter(n => n !== except && n.style.display !== "none")
       .map(n => n.getBoundingClientRect());
   }
@@ -22963,15 +23010,18 @@
   // column for the rest. Called from refreshBreakout (which knows what is visible), from
   // the end of a drag, and on resize.
   function layoutBreakout() {
-    const boxes = [...breakout.querySelectorAll(":scope > .ctl.poppable")];
+    const boxes = brkBoxes();
     if (!brkFree()) {                       // bottom sheet: hand the boxes back to the CSS
       for (const box of boxes)
         box.style.left = box.style.right = box.style.top = box.style.bottom =
           box.style.minHeight = box.style.minWidth = "";
       return;
     }
-    const g = brkGrid();
     const vis = boxes.filter(b => b.style.display !== "none");
+    // Nothing to place: skip the measuring, which forces a whole layout right after a scene
+    // switch's DOM writes (most of the cost of a switch with no box out).
+    if (!vis.length && !brkFloats.some(f => brkPos.has(f.key))) return;
+    const g = brkGrid();
     // Size every visible box to the grid first: clear the previous stretch (content may
     // have shrunk), measure, round up to the quarter cell. Placement below then reads the
     // rounded heights, so the spacing between stacked boxes is a uniform BRK_GAP.
@@ -23679,6 +23729,13 @@
     const slot = +box.dataset.slot;
     if (slot !== stackSel && stack[slot]) selectStack(slot);
   }, true);
+  // A sweep over every box of every slot (hundreds) runs on each scene switch, and nearly all
+  // of them are hidden before and after: write `display` only when it changes.
+  var brkLit;                                   // the boxes refreshBreakout showed last; var: no TDZ
+  function brkShow(box, vis) {
+    const want = vis ? "" : "none";
+    if (box.style.display !== want) box.style.display = want;
+  }
   function refreshBreakout() {
     if (applyingPreset) { refreshBreakout.later = true; return; }   // laid out once by presetUiCatchUp
     let anyVisible = false;
@@ -23690,43 +23747,58 @@
     // The LAYER boxes: a whole layer's settings block, open while its slot is in openSlots
     // (the same set the rows' +/- toggles). Shown here so they go through the one layout
     // pass with the slider boxes and snap on the same grid.
-    for (const box of breakout.querySelectorAll(".lyr-box")) {
+    for (const box of brkBoxes().filter(n => n.classList.contains("lyr-box"))) {
       const slot = +box.dataset.slot;
       const vis = !!stack[slot] && openSlots.has(slot);
-      box.style.display = vis ? "" : "none";
+      brkShow(box, vis);
       if (vis) { anyVisible = true; placeLayerBox(slot, box); }
     }
-    for (let slot = 0; slot < STACK_MAX; slot++) {
-      const shown = shownKeysFor(slot);
-      for (const key of POPPABLE) {
-        const box = ctlIn(slot, "ctl-" + key);
-        if (!box) continue;
+    // A box can only be visible if it is POPPED, so only popped boxes are looked at, plus
+    // whatever this pass lit last time (a box docked since must go down). The first pass
+    // sweeps every box of every slot (STACK_MAX × POPPABLE, hundreds): the DOM's own state.
+    const lit = new Set(), shownBy = [];
+    const shownIn = s => shownBy[s] || (shownBy[s] = shownKeysFor(s));
+    let sceneShown = null;
+    const look = (slot, key) => {
+      const box = slot < 0 ? el("ctl-" + key) : ctlIn(slot, "ctl-" + key);
+      if (!box) return;
+      let vis = false;
+      if (slot >= 0) {
         // ...AND the layer has to be open. Closing a layer with the row's − now takes its
         // slider boxes down with it, which is what "close this layer" plainly means when the
         // sliders are the layer's own controls sitting around its box. Nothing is forgotten:
         // `popped` still holds which ones were out and `brkPos` still holds where each one
         // was put, so the next + brings the whole arrangement back exactly as it was.
-        const vis = isPopped(slot, key) && shown.has(key) && !!stack[slot] && openSlots.has(slot);
-        box.style.display = vis ? "" : "none";
-        if (vis) { anyVisible = true; drawStalePlot(slot, key); }
+        vis = isPopped(slot, key) && !!stack[slot] && openSlots.has(slot) && shownIn(slot).has(key);
+      } else if (isPopped(-1, key)) {
+        // ...and the scene controls, which have one box outside every block. Gated on the
+        // UNION of every live layer's shown keys, not the selected layer's: a scene-wide
+        // filter param (Bloom, Scanlines…) belongs to the whole picture, so the Strength box
+        // you popped from layer 2's section must not vanish because you clicked layer 1,
+        // whose chain lacks Bloom — the filter is still rendering.
+        if (!sceneShown) {
+          sceneShown = new Set(shownIn(stackSel));
+          for (let s = 0; s < STACK_MAX; s++)
+            if (s !== stackSel && stack[s]) for (const k of shownIn(s)) sceneShown.add(k);
+        }
+        vis = sceneShown.has(key);
       }
+      if (vis) {
+        lit.add(box); brkShow(box, true); anyVisible = true;
+        drawStalePlot(slot < 0 ? 0 : slot, key);   // a scene control is wired in slot 0 only
+      } else brkShow(box, false);
+    };
+    if (!brkLit) {
+      for (let slot = 0; slot < STACK_MAX; slot++) for (const key of POPPABLE) look(slot, key);
+      for (const key of POPPABLE) look(-1, key);
+    } else {
+      for (const pk of popped) {
+        const i = pk.indexOf("/");
+        look(pk.slice(0, i) === "s" ? -1 : +pk.slice(0, i), pk.slice(i + 1));
+      }
+      for (const box of brkLit) if (!lit.has(box)) brkShow(box, false);
     }
-    // ...and the scene controls, which have one box outside every block. Gated on the UNION
-    // of every live layer's shown keys, not the selected layer's: a scene-wide filter param
-    // (Bloom, Scanlines…) belongs to the whole picture, so the Strength box you popped from
-    // layer 2's section must not vanish because you clicked layer 1, whose chain lacks Bloom
-    // — the filter is still rendering. (`stackSel` alone was fine while these boxes could not
-    // be constructed; the scene-filter-params fix made them real.)
-    const sceneShown = new Set(shownKeysFor(stackSel));
-    for (let s = 0; s < STACK_MAX; s++)
-      if (s !== stackSel && stack[s]) for (const k of shownKeysFor(s)) sceneShown.add(k);
-    for (const key of POPPABLE) {
-      const box = el("ctl-" + key);
-      if (!box) continue;
-      const vis = isPopped(-1, key) && sceneShown.has(key);
-      box.style.display = vis ? "" : "none";
-      if (vis) { anyVisible = true; drawStalePlot(0, key); }   // a scene control is wired in slot 0 only
-    }
+    brkLit = lit;
     breakout.classList.toggle("empty", !anyVisible);
     // Position what is now visible. After the visibility pass: a box that was display:none
     // has no measurable height, so laying out before it would stack the column on zeros.
