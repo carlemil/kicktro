@@ -2702,7 +2702,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.95.1",
+    version: "1.95.2",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -8302,8 +8302,8 @@
       float k = 1.0 - abs(2.0 * t - 1.0);        // 0 at the ends, 1 at the midpoint
       float half_ = step(0.5, t);                 // 0 = still showing the old scene
       vec3 a = texture(uPrev, vUv).rgb, b = texture(uNew, vUv).rgb, c;
-      if (uMode == 0) {                           // crossfade
-        c = mix(a, b, t);
+      if (uMode == 0) {                           // crossfade, eased in and out
+        c = mix(a, b, t * t * (3.0 - 2.0 * t));
       } else if (uMode == 1) {                    // dip to black through the middle
         c = mix(a, b, half_) * (1.0 - k);
       } else if (uMode == 2) {                    // flash
@@ -14510,8 +14510,8 @@
       const t = Math.max(0, Math.min(1, trans.t)), k = 1 - Math.abs(2 * t - 1), m = trans.mode;
       const g = offCtx, W = off.width, H = off.height;
       g.save();
-      if (m === 0) {                                   // crossfade
-        g.globalAlpha = 1 - t; g.drawImage(transOff, 0, 0);
+      if (m === 0) {                                   // crossfade, eased like FS_TRANS's
+        g.globalAlpha = 1 - t * t * (3 - 2 * t); g.drawImage(transOff, 0, 0);
       } else if (m === 3 || m === 4) {                 // pixelate / blur through
         if (t < 0.5) { g.globalAlpha = 1; g.drawImage(transOff, 0, 0); }
         if (m === 3) {                                  // down- then up-sample
@@ -17720,6 +17720,11 @@
   // on it moves nothing until the thumbs are spread.
   function drawPulsePlot(w, shapeKey, lenS) {
     const cv = w && w.pplot; if (!cv) return;
+    // A plot in a box that is not shown is only marked: refreshBreakout draws it as it shows the
+    // box (drawStalePlot). Every scene load re-drew all of them, for every layer, unseen.
+    const box = w.pbox || (w.pbox = cv.closest(".poppable"));
+    if (box && box.style.display === "none") { w.pplotStale = true; return; }
+    w.pplotStale = false;
     const c = cv.getContext("2d"), W2 = cv.width, H = cv.height;
     const fn = PULSE_FN[shapeKey] || PULSE_FN[PULSE_DEFAULT];
     const len = lenS > 0 ? lenS : PULSE_DROP;
@@ -17768,10 +17773,15 @@
   // non-selected layer's box shows ITS setting and not the live one. Called on a shape or
   // duration change, and from syncPulse/syncPlen so a layer switch repaints too.
   function drawPulsePlots(id) {
+    if (applyingPreset) { (drawPulsePlots.later || (drawPulsePlots.later = new Set())).add(id); return; }   // presetUiCatchUp
     for (let s2 = 0; s2 < STACK_MAX; s2++) {
       const ww = W[s2] && W[s2][id];
       if (ww && ww.pplot) drawPulsePlot(ww, ww.psel ? ww.psel.value : pulseShape[id], ww.plen ? +ww.plen.inp.value : pulseLen[id]);
     }
+  }
+  function drawStalePlot(slot, id) {          // a box just shown: catch its plot up
+    const ww = W[slot] && W[slot][id];
+    if (ww && ww.pplotStale) drawPulsePlot(ww, ww.psel ? ww.psel.value : pulseShape[id], ww.plen ? +ww.plen.inp.value : pulseLen[id]);
   }
   // Wiring a control splits in two, because several open layers need one set of DOM nodes
   // EACH against one shared definition.
@@ -20456,6 +20466,14 @@
     for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }
     return pool[0];
   }
+  // THE SCENE SWITCH IS A CROSSFADE (by request, 1.95.2): both scenes render, live, and the mix
+  // slides from all of the old one to all of the new. The weighted menu above (flash, pixelate,
+  // checker…) read as glitches on an auto-cycle, and its picker is switched off for good, so
+  // nothing reaches pickTransition from here; it and every `fits` stay for the registry. A
+  // remembered "none of these" (the cut-only set) is still honoured.
+  function scenePick(a, b) {
+    return transUse && transUse.size === 1 && transUse.has("cut") ? TRANS_BY_ID.cut : TRANS_BY_ID.crossfade;
+  }
   // Live transition state. `t` counts 0→1 in RENDERED time, like the credits, so a
   // backgrounded tab doesn't burn through it unseen.
   const trans = { on: false, t: 0, dur: 0, mode: -1, burn: false, id: "cut" };
@@ -20475,7 +20493,7 @@
     // The outgoing side is the live stack, not just the selected item.
     const from = sceneInfo(effect, extras[effect] && extras[effect].filters, +paletteSel.value,
       stack.filter(L => !L.mute).map(L => L.fx));
-    const pick = pickTransition(from, to);
+    const pick = scenePick(from, to);
     const scale = (len.a + Math.random() * (len.b - len.a)) / TRANS_DUR.slow;
     trans.on = true; trans.t = 0; trans.id = pick.id;
     trans.mode = pick.mode; trans.burn = !!pick.burn;
@@ -20516,9 +20534,16 @@
     }
   }
   let transOff = null, transTmp = null;      // CPU path's frozen copy + downsample scratch
+  // At most TRANS_MAX_STEP seconds of blend per frame. The scene switch is a synchronous task
+  // that runs INSIDE the frame that begins the blend (cyclePresets precedes transStep), so the
+  // next frame arrives carrying the whole switch as its dt — clamped to 0.25 s, which against
+  // a 0.45-0.9 s blend skipped a third to a half of it in one frame. Capped, a hitch (that one,
+  // or the incoming scene's first draws) pauses the blend instead of jumping it. 1/20 s leaves
+  // every frame rate from 20 fps up exactly as it was.
+  const TRANS_MAX_STEP = 1 / 20;
   function transStep(dt) {
     if (!trans.on) return;
-    trans.t += dt / trans.dur;
+    trans.t += Math.min(dt, TRANS_MAX_STEP) / trans.dur;
     if (trans.t >= 1) {
       trans.on = false; trans.t = 0; trans.mode = -1; trans.burn = false;
       prevStack = null;                      // stop rendering the scene that has gone
@@ -21318,6 +21343,7 @@
   function syncStackUI() {
     const host = el("stacklist");
     if (!host) return;
+    if (applyingPreset) { syncStackUI.later = true; return; }   // painted once by presetUiCatchUp
     // The single choke point for a STRUCTURAL stack change — add, remove, reorder, mute — and
     // triggers are keyed by slot, so any of those repoints them. Cheaper to invalidate here
     // than to remember it at four call sites.
@@ -21725,9 +21751,18 @@
   // zoom) and scene-wide otherwise (camera rotation, palette cycle, banding, TTL, scene
   // filters) — the same split as isSceneCtl / the value store, so a custom bound stays with
   // the exact layer + effect + slider it tunes instead of being shared across every layer.
+  // Memoised: the answer is fixed by the schema, and the range loops ask it for every key in
+  // RNG_ORIG several times per scene switch — a CONTROLS.find each time was a quarter of the
+  // auto-cycle hitch (tools/transperf-check.js). The memo hangs off the hoisted function, not a
+  // const beside it, so a caller from an earlier slice cannot land in the TDZ.
   function rangeIsLayer(id) {
-    const c = CONTROLS.find(x => x.key === id.replace(/-(lo|hi)$/, ""));
-    return !!c && !isSceneCtl(c);
+    const memo = rangeIsLayer.memo || (rangeIsLayer.memo = new Map());
+    let v = memo.get(id);
+    if (v === undefined) {
+      const c = CONTROLS.find(x => x.key === id.replace(/-(lo|hi)$/, ""));
+      memo.set(id, v = !!c && !isSceneCtl(c));
+    }
+    return v;
   }
   // A shipped bound can be PER EFFECT. Fractal flames wants a Points slider an order of
   // magnitude longer than Tetrafyer's, and the schema carries exactly one range per key, so
@@ -21784,7 +21819,10 @@
   // a blob (restore / share link) show up in the fields. Declared beside applyRanges
   // because applyRanges calls it, and applyBlob can run before the boxes are built.
   const rngSyncs = [];
-  function rngSyncAll() { rngSyncs.forEach(f => f()); }
+  function rngSyncAll() {
+    if (applyingPreset) { rngSyncAll.later = true; return; }   // once, from presetUiCatchUp
+    rngSyncs.forEach(f => f());
+  }
   // Put one slider back the way it ships for the CURRENT effect: bounds, value,
   // beat chips, pulse shape and pulse length. The box's ↺ used to restore only the
   // range, which left a slider you had wandered off into a strange place still
@@ -21848,7 +21886,13 @@
     for (const id in RNG_ORIG) {
       if (!want(id)) continue;
       const inp = g(id), o = rngShipped(id, fx);
-      if (inp) { inp.min = o.min; inp.max = o.max; inp.step = o.step; }
+      // Only what differs: every write re-sanitises the slider, and this loop covers every
+      // slider in the page on every scene load. Writing an unchanged bound is a no-op anyway.
+      if (inp) {
+        if (inp.min !== o.min) inp.min = o.min;
+        if (inp.max !== o.max) inp.max = o.max;
+        if (inp.step !== o.step) inp.step = o.step;
+      }
     }
     if (r && typeof r === "object") for (const id in r) {
       if (!want(id)) continue;
@@ -22392,7 +22436,9 @@
     // Fade pixel) to decay it. With none, `applyFilters`/`glBeginHeat` rewrite the whole
     // buffer on the first frame anyway, so the old image is gone immediately — that is
     // the clean-slate contract those paths already have, not a regression here.
-    persist();
+    // A scene load persists once, at its end; this one would only be a second full
+    // serialise + localStorage write inside the auto-cycle hitch.
+    if (!applyingPreset) persist();
   }
 
   // ---- Break-out boxes -------------------------------------------------------
@@ -22541,7 +22587,13 @@
       box.appendChild(cell);
       fields[which] = f;
     }
-    const sync = () => { for (const w in fields) fields[w].value = w === "step" ? stepFieldVal(els[0].step) : els[0][w]; };
+    // Writes only what changed: rngSyncAll runs every editor in the page on every scene load.
+    const sync = () => {
+      for (const w in fields) {
+        const v = w === "step" ? stepFieldVal(els[0].step) : els[0][w];
+        if (fields[w].value !== String(v)) fields[w].value = v;
+      }
+    };
     rngSyncs.push(sync);
     const rst = document.createElement("button");
     rst.type = "button"; rst.className = "rng-rst"; rst.textContent = "↺";
@@ -23619,6 +23671,7 @@
     if (slot !== stackSel && stack[slot]) selectStack(slot);
   }, true);
   function refreshBreakout() {
+    if (applyingPreset) { refreshBreakout.later = true; return; }   // laid out once by presetUiCatchUp
     let anyVisible = false;
     // Un-hide the host BEFORE anything measures: placeLayerBox reads the freshly-shown
     // box's size mid-pass, and inside a display:none host every box measures 0×0 — which
@@ -23646,7 +23699,7 @@
         // was put, so the next + brings the whole arrangement back exactly as it was.
         const vis = isPopped(slot, key) && shown.has(key) && !!stack[slot] && openSlots.has(slot);
         box.style.display = vis ? "" : "none";
-        if (vis) anyVisible = true;
+        if (vis) { anyVisible = true; drawStalePlot(slot, key); }
       }
     }
     // ...and the scene controls, which have one box outside every block. Gated on the UNION
@@ -23663,7 +23716,7 @@
       if (!box) continue;
       const vis = isPopped(-1, key) && sceneShown.has(key);
       box.style.display = vis ? "" : "none";
-      if (vis) anyVisible = true;
+      if (vis) { anyVisible = true; drawStalePlot(0, key); }   // a scene control is wired in slot 0 only
     }
     breakout.classList.toggle("empty", !anyVisible);
     // Position what is now visible, then repaint the thumbnails. Layout first: a box that
@@ -23727,7 +23780,7 @@
     if (!nextSwitch) { nextSwitch = now + ttlMs(); return; }
     if (now >= nextSwitch) {
       let n; do { n = pool[(Math.random() * pool.length) | 0]; } while (n === curPreset && pool.length > 1);
-      applyPreset(n);
+      applyPreset(n, true);
       nextSwitch = now + ttlMs();
     }
   }
@@ -24759,7 +24812,25 @@
     // applyPreset reads no field snapshotScene does not capture — still holds by construction.
     repaintAllBlocks();
   }
-  function applyPreset(i) {
+  // A scene load repaints the editor ONCE, at its end. Inside it, setEffect, installStack and
+  // the map loads each asked for the stack rows, the break-out layout and the pulse plots again
+  // (several times per switch, for a panel that is usually hidden): measured as most of the
+  // 250-500 ms freeze that opened every auto-cycle transition (tools/transperf-check.js). While
+  // applyingPreset is set those three only note that they are wanted; this does the work.
+  // syncStackUI ends in refreshBreakout itself, so a load that wanted both lays out once.
+  function presetUiCatchUp() {
+    const rows = syncStackUI.later, brk = refreshBreakout.later;
+    syncStackUI.later = refreshBreakout.later = false;
+    if (rows) syncStackUI(); else if (brk) refreshBreakout();
+    if (rngSyncAll.later) { rngSyncAll.later = false; rngSyncAll(); }
+    const ids = drawPulsePlots.later; drawPulsePlots.later = null;
+    if (ids) for (const id of ids) drawPulsePlots(id);
+  }
+  // `cycled`: the auto-cycle's switch, which is not an edit and is not persisted. What is stored
+  // still agrees with itself (the last scene you put up, with its live state), so a reload lands
+  // there; the cloud and gallery hear nothing; and the frame loses the full serialise +
+  // localStorage write it used to pay at the start of every blend.
+  function applyPreset(i, cycled) {
     const p = presets[i]; if (!p) return;
     applyingPreset = true;
     // Start the transition BEFORE anything is swapped: it freezes the frame that is
@@ -24802,9 +24873,10 @@
     curPreset = i; presetSel.value = String(i);
     syncSceneTitle();                 // covers the auto-cycle too,
     applyingPreset = false;            // which sets the value without firing `change`
+    presetUiCatchUp();
     sceneTitleFor(i);                  // name the scene on screen (queues behind the credits)
     sceneMark();                       // as loaded: what a later fold is compared with
-    persist();
+    if (!cycled) persist();
   }
   function createPreset() {           // save the current scene as a new preset
     // New nearly always means "a variation on the one I am editing", so it proposes that

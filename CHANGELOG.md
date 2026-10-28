@@ -15,6 +15,17 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.95.2] — 2026-10-28
+
+### Fixed
+- **Auto-cycle no longer stutters between scenes.** Switching scene used to freeze the picture for up to half a second (the hidden editor was being rebuilt and the library saved twice), and the blend then jumped most of the way in one frame. The switch now pauses for well under a tenth of a second, and the blend runs its whole length.
+
+### Changed
+- **Scenes always crossfade** into each other on a scene switch, smoothly easing from the old scene to the new one. Ticking only "cut" (or setting the transition length to 0) still cuts.
+- An automatic scene switch no longer saves: reloading the page brings back the last scene you picked yourself.
+
+### Internal
+- New `tools/transperf-check.js` measures the switch freeze, the largest blend step and the GPU cost of the double render in real time on the real GPU.
 ## [1.95.1] — 2026-10-28
 
 ### Changed
