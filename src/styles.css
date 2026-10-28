@@ -1210,14 +1210,7 @@
     vertical-align: middle;
   }
   #breakout .trig-chev:hover { opacity: 1; }
-  /* Shape thumbnail at the top of a break-out box: the figure the box's sliders make.
-     Floated so the label and readout keep their own line beside it. */
-  #breakout canvas.shape-prev {
-    float: right; width: 48px; height: 48px; margin: 0 0 4px 8px;
-    background: rgba(255, 140, 40, 0.07);
-    border: 1px solid rgba(255, 140, 40, 0.30); border-radius: 5px;
-  }
-  /* ...so the handle starts below it. Every row has a chevron, so every handle drops a row. */
+  /* Every row has a chevron, so every handle drops a row. */
   #panel .lyr > .lyr-grab { grid-row: 2 / 4; }
   /* A LAYER BOX in the grid: the .lyrblock wrapped in a .ctl like a popped slider's, so the
      break-out engine drags, snaps and selects it without knowing what it holds. Wider than a

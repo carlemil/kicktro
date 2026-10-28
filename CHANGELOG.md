@@ -15,6 +15,16 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.99.2] — 2026-10-28
+
+### Removed
+- The small 3×3 shape picture at the top of the slider boxes for Polygon, Concentric rings,
+  Shape grid, Bouncing shapes, Bouncing solids and Vector balls. It looked like a drawing of
+  the pulse Shape further down the box, which it was not.
+
+### Internal
+- breakout-check asserts the picture is gone (red on 1.99.1).
+
 ## [1.99.1] — 2026-10-28
 
 ### Fixed

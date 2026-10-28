@@ -424,9 +424,8 @@ the `#ctl-<key>` node lives in `#breakout`. A box belongs to a LAYER: `popped` k
   the shape, dimmed + dashed with a tooltip; a flat line read as broken, by request), Duration (`.plen`), Tuning (`.trig-refs`: per-band Sensitivity, Floor, Refractory,
   shown for armed bands, `↺`); then `.ctl-div` + the Reset row, always visible. The range editor is
   inserted before the FIRST `.trig-t`. A `single` control has no trigger section or chevron.
-- A SHAPE THUMBNAIL heads the box for the groups in `SHAPE_PREVIEW` (`polygon`, `concentric`,
-  `shapegrid`, `bounce`, `solids`, `vballs`), keyed by GROUP, reading the slider values for its
-  slot, redrawn on `input`/`refreshBreakout`, never per frame.
+- **No shape thumbnail** (removed by request, 1.99.2 — read as a picture of the pulse Shape);
+  `breakout-check` asserts its absence.
 - The Triggers heading folds (`trigFolded`), hiding chips and body; `paintTuneRows` ANDs with it.
 
 **ONE DRAG ENGINE.** Boxes and every floating tool panel (`#carddlg`, `#paledlg`, `#paldlg`, the
