@@ -125,6 +125,8 @@
         <summary title="Scenes you shared as #c= links from this browser">My shared links</summary>
         <div id="cloud-linklist"></div>
       </details>
+      <!-- Moderators only (gal.admin): shown by errLinkSync once /api/me/favs says so. -->
+      <button id="cloud-errors" class="audbtn" type="button" hidden title="What went wrong in visitors' browsers: the crash reports the page sends">Error reports</button>
       <div class="presetrow grid2">
         <button id="cloud-signout" class="audbtn" type="button" title="Sign out on this device. Your profile stays in the cloud.">Sign out</button>
         <button id="cloud-delete" class="audbtn" type="button" title="Permanently delete your cloud profile and everything in it">Delete profile</button>
@@ -608,6 +610,24 @@
     <p>Sign in with your Google account to vote, keep favourites and pick your scenes up on another machine. Scenes you made signed out move to your account.</p>
     <div id="signin-gsi"></div>
     <p id="signin-msg" class="sign-note"></p>
+  </div>
+</div>
+
+<!-- Error reports: what the page's crash reporter (armCrashReport) posted to the API, read
+     with a moderator's own session. Opened from the profile popover's "Error reports" button,
+     which only a moderator ever sees (gal.admin, from /api/me/favs); the API refuses everyone
+     else anyway. Written by ui-errors.js. -->
+<div id="errdlg" class="hidden">
+  <div class="err-box" role="dialog" aria-modal="true" aria-labelledby="err-title">
+    <button id="err-close" class="pal-close" type="button" aria-label="Close">×</button>
+    <h2 id="err-title">Error reports</h2>
+    <div class="err-bar">
+      <label>Sort <select id="err-sort" data-nopersist><option value="last">Last seen</option><option value="count">Most often</option></select></label>
+      <button id="err-refresh" class="audbtn" type="button">Refresh</button>
+      <button id="err-clear" class="audbtn" type="button" title="Forget every report. One that happens again comes back as new.">Forget all</button>
+    </div>
+    <p id="err-sum" class="err-note"></p>
+    <div id="err-list"></div>
   </div>
 </div>
 

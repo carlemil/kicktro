@@ -985,6 +985,11 @@ file:// or localhost without `?api=`.
 - **`node tools/errors.js [--stack] [--sort count]`** lists them (token over ssh, as thumbs.js);
   `--forget <fp>` once fixed. **`tools/crash-check.js`** is the gate: self-driving (its own stub
   API, one Edge per case, real time) with an old-build negative control that goes red.
+- **In the page: `#errdlg` (`src/ui-errors.js`)**, opened by `#cloud-errors` in the profile
+  popover, which only a moderator sees: `errLinkSync()` (a declaration — cloud-profile calls it
+  during startup) shows it iff `cloudSess && gal.admin`, from `galMineFetch` (now also run at
+  startup and on every sign-in, and `cloudSignOut` drops `gal.admin`). The API is the guard;
+  the button is tidiness. gallery-check `case-errors` drives it; case-in/out assert it hidden.
 
 ### Audio & beat reactivity
 `startAudio("capture"|"mic")` must run inside a user gesture. **The MIC is armed by default**:

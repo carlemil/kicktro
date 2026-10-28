@@ -40,4 +40,5 @@ audio-tuning-ui.js
 ui-diagnostics.js
 ui-help-misc.js
 ui-tutorial.js
+ui-errors.js
 ui-menubar.js

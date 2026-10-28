@@ -119,9 +119,10 @@
         gsyncSoon();
         track("cloud_sign_in", {});
         cloudSyncUI();
+        const mine = galMineFetch();      // votes, and whether this is a moderator (Error reports)
         if (signInOpen()) {
           closeSignIn();
-          if (!el("galdlg").classList.contains("hidden")) galMineFetch().then(galReset);
+          if (!el("galdlg").classList.contains("hidden")) mine.then(galReset);
         }
         // ...and, if this account has no profile yet, put this machine's library into it.
         cloudFetchProfileMeta(true);      // pick up the profile name, if there is one already
@@ -131,6 +132,7 @@
   function cloudSignOut() {
     cloudSess = null;
     cloudLinks = [];
+    gal.admin = false;                     // the next account proves it again (galMineFetch)
     cloudSaveSess();
     cloudSyncUI();
   }
@@ -1093,7 +1095,7 @@
     for (const c of gal.pend) if (c.id === id) { c.favs = favs; c.hates = hates; }
   }
   function galMineFetch() {
-    if (!cloudSess) { gal.mine = new Set(); gal.hate = new Set(); gal.admin = false; return Promise.resolve(); }
+    if (!cloudSess) { gal.mine = new Set(); gal.hate = new Set(); gal.admin = false; errLinkSync(); return Promise.resolve(); }
     return apiFetch("/api/me/favs", { method: "GET" })
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
@@ -1101,6 +1103,7 @@
         gal.mine = new Set(j.ids);
         gal.hate = new Set(Array.isArray(j.hates) ? j.hates : []);
         gal.admin = j.admin === true;          // a moderator (the API's ADMIN_UIDS): ✕ on every card
+        errLinkSync();                         // ...and the profile popover's Error reports
       })
       .catch(() => { /* offline: votes just show unmarked */ });
   }
@@ -1584,6 +1587,7 @@
     if (pubBox) pubBox.checked = !!(cloudSess && cloudSess.pub);
     cloudNameShow();                     // signing in/out always lands back on the label
     cloudLinksRender();                  // the list only shows YOUR links, so it follows the session
+    errLinkSync();                       // moderators' Error reports: off the moment you sign out
     if (!inS) cloudMsg("");
   }
 
@@ -1630,7 +1634,8 @@
     if (cloudSess) cloudFetchProfileMeta();
     if (cloudSess) cloudLinksFetch();
     if (cloudSess) gsyncOwn();            // signed in before uploads began: never anonymous here
-    sceneMark(true);                      // the startup scene as loaded, unless a load already marked it
+    if (cloudSess) galMineFetch();        // votes, and whether this is a moderator (Error reports)
+    sceneMark(true);                     // the startup scene as loaded, unless a load already marked it
     gsyncReady = true;
     if (gsyncOn()) setTimeout(gsyncSoon, 6000);   // whatever changed while uploads were off
     if (!CLOUD.clientId) { cloudMsg("Sign-in is not configured for this build.", true); return; }

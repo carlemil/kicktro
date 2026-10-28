@@ -59,6 +59,7 @@ const DIALOGS = [
   { id: "syncpop",      box: "sync-box", title: "sync-title",      modal: true,  closer: "dismissSyncIfOpen",sticky: true  },
   { id: "tutdlg",       box: "tut-box",  title: "tut-title",       modal: true,  closer: "closeTutorial",    sticky: true  },
   { id: "signindlg",    box: "sign-box", title: "signin-title",    modal: true,  closer: "closeSignIn",      sticky: true  },
+  { id: "errdlg",       box: "err-box",  title: "err-title",       modal: true,  closer: "closeErrors",      sticky: true  },
   // #help alone is built by JS on every open (four different openers), so its markup is
   // asserted against the HELP_HEAD string rather than the body.
   { id: "help",         box: "help-box", title: "help-title",      modal: true,  closer: "closeHelp",        sticky: true, js: true },

@@ -260,8 +260,8 @@
      the canvas already has a pause (click it) and Hide all UI for anyone who wants stillness. */
   @media (prefers-reduced-motion: reduce) {
     #panel, #menubar, #breakout, #help, #syncpop, #toprow > button, #scenebanner, #uihint, #tutdlg,
-    #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg, #signindlg,
-    #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg *, #signindlg * {
+    #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg, #signindlg, #errdlg,
+    #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg *, #signindlg *, #errdlg * {
       transition: none !important;
       animation: none !important;
       scroll-behavior: auto !important;
@@ -296,7 +296,7 @@
   body.ui-hidden #panel, body.ui-hidden #breakout, body.ui-hidden #syncpop,
   body.ui-hidden #carddlg, body.ui-hidden #paldlg, body.ui-hidden #paledlg,
   body.ui-hidden #fltdlg, body.ui-hidden #palpickdlg,
-  body.ui-hidden #transpickdlg, body.ui-hidden #galdlg, body.ui-hidden #signindlg,
+  body.ui-hidden #transpickdlg, body.ui-hidden #galdlg, body.ui-hidden #signindlg, body.ui-hidden #errdlg,
   body.ui-hidden #help, body.ui-hidden #restoredlg,
   body.ui-hidden #tutdlg { display: none !important; }
   #paused {
@@ -1557,7 +1557,7 @@
   #galdlg .gal-box > h2, #paldlg .pal-box > h2, #paledlg .pale-box > h2,
   #fltdlg .flt-box > h2, #palpickdlg .flt-box > h2, #transpickdlg .flt-box > h2,
   #help .help-box > h2, #syncpop .sync-box > h2, #tutdlg .tut-box > h2,
-  #restoredlg .rst-box > h2, #signindlg .sign-box > h2 {
+  #restoredlg .rst-box > h2, #signindlg .sign-box > h2, #errdlg .err-box > h2 {
     position: sticky; top: 0; z-index: 2; padding: 18px 0 9px;
     /* Near-opaque AND backdrop-blurred: at 0.97 alone the line of text passing underneath
        still ghosted through legibly. The blur matches the box's own, so the header reads as
@@ -1752,6 +1752,38 @@
   }
   #signindlg #signin-gsi { display: flex; justify-content: center; min-height: 44px; margin: 14px 0 8px; }
   #signindlg .sign-note { opacity: .62; font-size: 11.5px; text-align: center; margin: 0; }
+  /* Error reports (moderators): the same backdrop and box as Sign in, wider, for stacks. */
+  #errdlg {
+    position: fixed; inset: 0; z-index: 26; display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  }
+  #errdlg.hidden { display: none; }
+  #errdlg .err-box {
+    position: relative; width: min(820px, calc(100vw - 32px)); max-height: 86vh; overflow-y: auto;
+    box-sizing: border-box; margin: 16px; padding: 20px 22px; background: rgba(14, 8, 5, 0.97);
+    border: 1px solid rgba(255, 140, 40, 0.45); border-radius: 12px;
+    color: #ffdcb0; font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    box-shadow: 0 0 40px rgba(255, 90, 20, 0.25);
+  }
+  #errdlg h2 { margin: 0 26px 10px 0; color: #ffb15a; font-size: 16px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.7); }
+  #errdlg .err-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 8px; }
+  #errdlg .err-bar select { font: inherit; background: #1a0f08; color: #ffcf87; border: 1px solid rgba(255, 140, 40, 0.5); border-radius: 6px; padding: 2px 4px; }
+  #errdlg .err-bar #err-clear { margin-left: auto; }
+  #errdlg .err-note { opacity: .7; margin: 0 0 8px; }
+  #errdlg .err-item { border: 1px solid rgba(255, 140, 40, 0.25); border-radius: 8px; margin: 0 0 6px; background: rgba(255, 122, 26, 0.05); }
+  #errdlg .err-item > summary { cursor: pointer; padding: 6px 10px; list-style: none; display: flex; gap: 8px; align-items: baseline; }
+  #errdlg .err-item > summary::-webkit-details-marker { display: none; }
+  #errdlg .err-n { flex: 0 0 auto; min-width: 3.2em; text-align: right; color: #ffb15a; font-variant-numeric: tabular-nums; }
+  #errdlg .err-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #errdlg .err-item[open] .err-msg { white-space: normal; word-break: break-word; }
+  #errdlg .err-when { flex: 0 0 auto; opacity: .6; }
+  #errdlg .err-stop { flex: 0 0 auto; padding: 0 6px; border-radius: 5px; background: rgba(255, 70, 40, 0.3); color: #ffd0c0; }
+  #errdlg .err-body { padding: 0 10px 8px; }
+  #errdlg .err-body dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 0 0 6px; }
+  #errdlg .err-body dt { opacity: .6; }
+  #errdlg .err-body dd { margin: 0; word-break: break-word; }
+  #errdlg .err-body pre { margin: 0 0 6px; padding: 6px 8px; max-height: 240px; overflow: auto; background: rgba(0, 0, 0, 0.35); border-radius: 6px; font-size: 11px; white-space: pre; }
+  #menubar #cloud-errors, #panel #cloud-errors { width: 100%; margin-top: 6px; }
   #syncpop .sync-actions .ghost { flex: 0 0 auto; background: transparent; opacity: .75; }
 
   /* First-run tutorial — the eight-step tour (ui-tutorial.js).
@@ -1917,7 +1949,7 @@
   #galdlg .gal-box, #paldlg .pal-box, #paledlg .pale-box,
   #fltdlg .flt-box, #palpickdlg .flt-box, #transpickdlg .flt-box,
   #help .help-box, #syncpop .sync-box, #tutdlg .tut-box,
-  #carddlg, #restoredlg .rst-box, #signindlg .sign-box { padding-top: 0; }
+  #carddlg, #restoredlg .rst-box, #signindlg .sign-box, #errdlg .err-box { padding-top: 0; }
 
   /* ---- NARROW VIEWPORTS — KEEP THIS LAST TOO ----------------------------------------
      Five dialogs dock top-left at the #breakout column's 298px line, and the column itself

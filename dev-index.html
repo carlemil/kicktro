@@ -278,8 +278,8 @@
      the canvas already has a pause (click it) and Hide all UI for anyone who wants stillness. */
   @media (prefers-reduced-motion: reduce) {
     #panel, #menubar, #breakout, #help, #syncpop, #toprow > button, #scenebanner, #uihint, #tutdlg,
-    #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg, #signindlg,
-    #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg *, #signindlg * {
+    #restoredlg, #galdlg, #carddlg, #paledlg, #paldlg, #fltdlg, #palpickdlg, #transpickdlg, #signindlg, #errdlg,
+    #panel *, #menubar *, #breakout *, #help *, #syncpop *, #tutdlg *, #restoredlg *, #galdlg *, #signindlg *, #errdlg * {
       transition: none !important;
       animation: none !important;
       scroll-behavior: auto !important;
@@ -314,7 +314,7 @@
   body.ui-hidden #panel, body.ui-hidden #breakout, body.ui-hidden #syncpop,
   body.ui-hidden #carddlg, body.ui-hidden #paldlg, body.ui-hidden #paledlg,
   body.ui-hidden #fltdlg, body.ui-hidden #palpickdlg,
-  body.ui-hidden #transpickdlg, body.ui-hidden #galdlg, body.ui-hidden #signindlg,
+  body.ui-hidden #transpickdlg, body.ui-hidden #galdlg, body.ui-hidden #signindlg, body.ui-hidden #errdlg,
   body.ui-hidden #help, body.ui-hidden #restoredlg,
   body.ui-hidden #tutdlg { display: none !important; }
   #paused {
@@ -1575,7 +1575,7 @@
   #galdlg .gal-box > h2, #paldlg .pal-box > h2, #paledlg .pale-box > h2,
   #fltdlg .flt-box > h2, #palpickdlg .flt-box > h2, #transpickdlg .flt-box > h2,
   #help .help-box > h2, #syncpop .sync-box > h2, #tutdlg .tut-box > h2,
-  #restoredlg .rst-box > h2, #signindlg .sign-box > h2 {
+  #restoredlg .rst-box > h2, #signindlg .sign-box > h2, #errdlg .err-box > h2 {
     position: sticky; top: 0; z-index: 2; padding: 18px 0 9px;
     /* Near-opaque AND backdrop-blurred: at 0.97 alone the line of text passing underneath
        still ghosted through legibly. The blur matches the box's own, so the header reads as
@@ -1770,6 +1770,38 @@
   }
   #signindlg #signin-gsi { display: flex; justify-content: center; min-height: 44px; margin: 14px 0 8px; }
   #signindlg .sign-note { opacity: .62; font-size: 11.5px; text-align: center; margin: 0; }
+  /* Error reports (moderators): the same backdrop and box as Sign in, wider, for stacks. */
+  #errdlg {
+    position: fixed; inset: 0; z-index: 26; display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  }
+  #errdlg.hidden { display: none; }
+  #errdlg .err-box {
+    position: relative; width: min(820px, calc(100vw - 32px)); max-height: 86vh; overflow-y: auto;
+    box-sizing: border-box; margin: 16px; padding: 20px 22px; background: rgba(14, 8, 5, 0.97);
+    border: 1px solid rgba(255, 140, 40, 0.45); border-radius: 12px;
+    color: #ffdcb0; font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    box-shadow: 0 0 40px rgba(255, 90, 20, 0.25);
+  }
+  #errdlg h2 { margin: 0 26px 10px 0; color: #ffb15a; font-size: 16px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.7); }
+  #errdlg .err-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 8px; }
+  #errdlg .err-bar select { font: inherit; background: #1a0f08; color: #ffcf87; border: 1px solid rgba(255, 140, 40, 0.5); border-radius: 6px; padding: 2px 4px; }
+  #errdlg .err-bar #err-clear { margin-left: auto; }
+  #errdlg .err-note { opacity: .7; margin: 0 0 8px; }
+  #errdlg .err-item { border: 1px solid rgba(255, 140, 40, 0.25); border-radius: 8px; margin: 0 0 6px; background: rgba(255, 122, 26, 0.05); }
+  #errdlg .err-item > summary { cursor: pointer; padding: 6px 10px; list-style: none; display: flex; gap: 8px; align-items: baseline; }
+  #errdlg .err-item > summary::-webkit-details-marker { display: none; }
+  #errdlg .err-n { flex: 0 0 auto; min-width: 3.2em; text-align: right; color: #ffb15a; font-variant-numeric: tabular-nums; }
+  #errdlg .err-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #errdlg .err-item[open] .err-msg { white-space: normal; word-break: break-word; }
+  #errdlg .err-when { flex: 0 0 auto; opacity: .6; }
+  #errdlg .err-stop { flex: 0 0 auto; padding: 0 6px; border-radius: 5px; background: rgba(255, 70, 40, 0.3); color: #ffd0c0; }
+  #errdlg .err-body { padding: 0 10px 8px; }
+  #errdlg .err-body dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 0 0 6px; }
+  #errdlg .err-body dt { opacity: .6; }
+  #errdlg .err-body dd { margin: 0; word-break: break-word; }
+  #errdlg .err-body pre { margin: 0 0 6px; padding: 6px 8px; max-height: 240px; overflow: auto; background: rgba(0, 0, 0, 0.35); border-radius: 6px; font-size: 11px; white-space: pre; }
+  #menubar #cloud-errors, #panel #cloud-errors { width: 100%; margin-top: 6px; }
   #syncpop .sync-actions .ghost { flex: 0 0 auto; background: transparent; opacity: .75; }
 
   /* First-run tutorial — the eight-step tour (ui-tutorial.js).
@@ -1935,7 +1967,7 @@
   #galdlg .gal-box, #paldlg .pal-box, #paledlg .pale-box,
   #fltdlg .flt-box, #palpickdlg .flt-box, #transpickdlg .flt-box,
   #help .help-box, #syncpop .sync-box, #tutdlg .tut-box,
-  #carddlg, #restoredlg .rst-box, #signindlg .sign-box { padding-top: 0; }
+  #carddlg, #restoredlg .rst-box, #signindlg .sign-box, #errdlg .err-box { padding-top: 0; }
 
   /* ---- NARROW VIEWPORTS — KEEP THIS LAST TOO ----------------------------------------
      Five dialogs dock top-left at the #breakout column's 298px line, and the column itself
@@ -2081,6 +2113,8 @@
         <summary title="Scenes you shared as #c= links from this browser">My shared links</summary>
         <div id="cloud-linklist"></div>
       </details>
+      <!-- Moderators only (gal.admin): shown by errLinkSync once /api/me/favs says so. -->
+      <button id="cloud-errors" class="audbtn" type="button" hidden title="What went wrong in visitors' browsers: the crash reports the page sends">Error reports</button>
       <div class="presetrow grid2">
         <button id="cloud-signout" class="audbtn" type="button" title="Sign out on this device. Your profile stays in the cloud.">Sign out</button>
         <button id="cloud-delete" class="audbtn" type="button" title="Permanently delete your cloud profile and everything in it">Delete profile</button>
@@ -2564,6 +2598,24 @@
     <p>Sign in with your Google account to vote, keep favourites and pick your scenes up on another machine. Scenes you made signed out move to your account.</p>
     <div id="signin-gsi"></div>
     <p id="signin-msg" class="sign-note"></p>
+  </div>
+</div>
+
+<!-- Error reports: what the page's crash reporter (armCrashReport) posted to the API, read
+     with a moderator's own session. Opened from the profile popover's "Error reports" button,
+     which only a moderator ever sees (gal.admin, from /api/me/favs); the API refuses everyone
+     else anyway. Written by ui-errors.js. -->
+<div id="errdlg" class="hidden">
+  <div class="err-box" role="dialog" aria-modal="true" aria-labelledby="err-title">
+    <button id="err-close" class="pal-close" type="button" aria-label="Close">×</button>
+    <h2 id="err-title">Error reports</h2>
+    <div class="err-bar">
+      <label>Sort <select id="err-sort" data-nopersist><option value="last">Last seen</option><option value="count">Most often</option></select></label>
+      <button id="err-refresh" class="audbtn" type="button">Refresh</button>
+      <button id="err-clear" class="audbtn" type="button" title="Forget every report. One that happens again comes back as new.">Forget all</button>
+    </div>
+    <p id="err-sum" class="err-note"></p>
+    <div id="err-list"></div>
   </div>
 </div>
 
@@ -25781,9 +25833,10 @@
         gsyncSoon();
         track("cloud_sign_in", {});
         cloudSyncUI();
+        const mine = galMineFetch();      // votes, and whether this is a moderator (Error reports)
         if (signInOpen()) {
           closeSignIn();
-          if (!el("galdlg").classList.contains("hidden")) galMineFetch().then(galReset);
+          if (!el("galdlg").classList.contains("hidden")) mine.then(galReset);
         }
         // ...and, if this account has no profile yet, put this machine's library into it.
         cloudFetchProfileMeta(true);      // pick up the profile name, if there is one already
@@ -25793,6 +25846,7 @@
   function cloudSignOut() {
     cloudSess = null;
     cloudLinks = [];
+    gal.admin = false;                     // the next account proves it again (galMineFetch)
     cloudSaveSess();
     cloudSyncUI();
   }
@@ -26755,7 +26809,7 @@
     for (const c of gal.pend) if (c.id === id) { c.favs = favs; c.hates = hates; }
   }
   function galMineFetch() {
-    if (!cloudSess) { gal.mine = new Set(); gal.hate = new Set(); gal.admin = false; return Promise.resolve(); }
+    if (!cloudSess) { gal.mine = new Set(); gal.hate = new Set(); gal.admin = false; errLinkSync(); return Promise.resolve(); }
     return apiFetch("/api/me/favs", { method: "GET" })
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
@@ -26763,6 +26817,7 @@
         gal.mine = new Set(j.ids);
         gal.hate = new Set(Array.isArray(j.hates) ? j.hates : []);
         gal.admin = j.admin === true;          // a moderator (the API's ADMIN_UIDS): ✕ on every card
+        errLinkSync();                         // ...and the profile popover's Error reports
       })
       .catch(() => { /* offline: votes just show unmarked */ });
   }
@@ -27246,6 +27301,7 @@
     if (pubBox) pubBox.checked = !!(cloudSess && cloudSess.pub);
     cloudNameShow();                     // signing in/out always lands back on the label
     cloudLinksRender();                  // the list only shows YOUR links, so it follows the session
+    errLinkSync();                       // moderators' Error reports: off the moment you sign out
     if (!inS) cloudMsg("");
   }
 
@@ -27292,7 +27348,8 @@
     if (cloudSess) cloudFetchProfileMeta();
     if (cloudSess) cloudLinksFetch();
     if (cloudSess) gsyncOwn();            // signed in before uploads began: never anonymous here
-    sceneMark(true);                      // the startup scene as loaded, unless a load already marked it
+    if (cloudSess) galMineFetch();        // votes, and whether this is a moderator (Error reports)
+    sceneMark(true);                     // the startup scene as loaded, unless a load already marked it
     gsyncReady = true;
     if (gsyncOn()) setTimeout(gsyncSoon, 6000);   // whatever changed while uploads were off
     if (!CLOUD.clientId) { cloudMsg("Sign-in is not configured for this build.", true); return; }
@@ -28274,7 +28331,7 @@
     if (e.key === "Escape") {
       if (signInOpen()) { closeSignIn(); return; }   // over the gallery: only the top one goes
       closeHelp(); closeRestore(); closePalDetail(); closePalEditor(); closePalPick();
-      closeFilterPicker(); closeTransPick(); closeSignIn(); galOpen(false); dismissSyncIfOpen(); closeTutorial();
+      closeFilterPicker(); closeTransPick(); closeSignIn(); closeErrors(); galOpen(false); dismissSyncIfOpen(); closeTutorial();
       cardWanted = false; cardOpen(false);
       return;
     }
@@ -29118,6 +29175,128 @@
       }, 250);
     }
   }
+  // ---- Error reports: the moderators' view of what armCrashReport sent ---------------------
+  // The page posts its own errors to /api/errors (src/config.js); this reads them back with the
+  // moderator's own session -- the API answers GET/DELETE /api/errors to the admin token or a
+  // session whose uid is in ADMIN_UIDS, and refuses everyone else, so hiding the button is
+  // tidiness, not the guard. The button is in the profile popover and shows only while
+  // gal.admin is true (galMineFetch, from /api/me/favs).
+  //
+  // errLinkSync and closeErrors are DECLARATIONS: cloud-profile.js (an earlier slice) calls the
+  // first while it starts up, the Escape branch (ui-diagnostics) the second.
+  function errLinkSync() {
+    const b = el("cloud-errors");
+    const on = !!cloudSess && gal.admin === true;
+    if (b) b.hidden = !on;
+    if (!on) closeErrors();                 // signed out, or no longer a moderator
+  }
+  function closeErrors() {
+    const d = el("errdlg");
+    if (!d || d.classList.contains("hidden")) return;
+    d.classList.add("hidden");
+    dlgRelease(d.querySelector(".err-box"));
+  }
+  function errOpen() {
+    const d = el("errdlg");
+    if (!d || !cloudSess || gal.admin !== true) return;
+    popClose();                             // the profile popover it was opened from
+    d.classList.remove("hidden");
+    dlgModal(d.querySelector(".err-box"));
+    errLoad();
+  }
+
+  // "3 min ago" -- the reports are read to decide what to fix NOW, so recency is the point.
+  function errAgo(t) {
+    const s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 90) return "just now";
+    if (s < 5400) return Math.round(s / 60) + " min ago";
+    if (s < 129600) return Math.round(s / 3600) + " h ago";
+    return Math.round(s / 86400) + " d ago";
+  }
+  function errNote(s, bad) {
+    const n = el("err-sum");
+    if (!n) return;
+    n.textContent = s;
+    n.style.color = bad ? "#ff8b6a" : "";
+  }
+  function errNode(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  let errSeq = 0;                           // a slow answer for an old sort must not win
+  function errLoad() {
+    const sort = el("err-sort") ? el("err-sort").value : "last";
+    const seq = ++errSeq;
+    errNote("Loading…");
+    apiFetch("/api/errors?sort=" + sort + "&limit=200", { method: "GET" })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(r.status === 403 ? "Moderators only." : "The API answered " + r.status + "."))))
+      .then(j => { if (seq === errSeq) errRender(j); })
+      .catch(e => { if (seq === errSeq) { el("err-list").textContent = ""; errNote("Could not load the reports. " + (e.message || ""), true); } });
+  }
+  function errRender(j) {
+    const list = el("err-list");
+    list.textContent = "";
+    const items = Array.isArray(j.items) ? j.items : [];
+    errNote(items.length
+      ? (j.n || items.length) + " kind" + ((j.n || items.length) === 1 ? "" : "s") + " of error, "
+        + (j.reports || 0) + " report" + (j.reports === 1 ? "" : "s") + (j.n > items.length ? " (showing " + items.length + ")" : "") + "."
+      : "No reports. Nothing has gone wrong since the list was last cleared.");
+    for (const it of items) list.appendChild(errItem(it));
+  }
+  function errItem(it) {
+    const d = errNode("details", "err-item");
+    d.dataset.fp = it.fp;
+    const s = errNode("summary");
+    s.appendChild(errNode("span", "err-n", it.count + "×"));
+    if (it.stalled > 0) s.appendChild(errNode("span", "err-stop", "stopped " + it.stalled));
+    s.appendChild(errNode("span", "err-msg", (it.kind === "rejection" ? "(promise) " : "") + it.msg));
+    s.appendChild(errNode("span", "err-when", errAgo(it.last)));
+    d.appendChild(s);
+    const b = errNode("div", "err-body");
+    const dl = errNode("dl");
+    const row = (k, v) => { if (!v) return; dl.appendChild(errNode("dt", "", k)); dl.appendChild(errNode("dd", "", v)); };
+    row("Version", it.version);
+    row("Where", it.src);
+    row("Scene", it.ctx);
+    row("Page", it.path);
+    row("Browser", it.ua);
+    row("First", new Date(it.first).toLocaleString() + " (" + errAgo(it.first) + ")");
+    row("Last", new Date(it.last).toLocaleString() + " (" + errAgo(it.last) + ")");
+    row("Stopped", it.stalled > 0 ? it.stalled + " of " + it.count + " times the picture froze" : "");
+    b.appendChild(dl);
+    if (it.stack) b.appendChild(errNode("pre", "", it.stack));
+    const f = errNode("button", "audbtn", "Forget");
+    f.type = "button";
+    f.title = "Fixed: drop this one. If it happens again it comes back as new.";
+    f.addEventListener("click", () => errForget(it, d));
+    b.appendChild(f);
+    d.appendChild(b);
+    return d;
+  }
+  function errForget(it, node) {
+    apiFetch("/api/errors/" + it.fp, { method: "DELETE" })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error("The API answered " + r.status + "."))))
+      .then(() => { node.remove(); errLoad(); })
+      .catch(e => errNote("Could not forget it. " + (e.message || ""), true));
+  }
+  function errForgetAll() {
+    if (!confirm("Forget every error report?\n\nOnes that happen again come back as new.")) return;
+    apiFetch("/api/errors", { method: "DELETE" })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error("The API answered " + r.status + "."))))
+      .then(() => errLoad())
+      .catch(e => errNote("Could not clear them. " + (e.message || ""), true));
+  }
+
+  if (el("cloud-errors")) el("cloud-errors").addEventListener("click", errOpen);
+  if (el("err-close")) el("err-close").addEventListener("click", closeErrors);
+  if (el("errdlg")) el("errdlg").addEventListener("click", e => { if (e.target === el("errdlg")) closeErrors(); });
+  if (el("err-sort")) el("err-sort").addEventListener("change", errLoad);
+  if (el("err-refresh")) el("err-refresh").addEventListener("click", errLoad);
+  if (el("err-clear")) el("err-clear").addEventListener("click", errForgetAll);
+  errLinkSync();
   // ---- top-row popovers -------------------------------------------------------------
   // The ☰ fold-out menubar is GONE (by request): every item it held is a button in #toprow.
   // Three of those open a POPOVER from here — ♪ the Audio box, the profile button the Cloud

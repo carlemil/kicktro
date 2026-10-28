@@ -85,7 +85,7 @@
     if (e.key === "Escape") {
       if (signInOpen()) { closeSignIn(); return; }   // over the gallery: only the top one goes
       closeHelp(); closeRestore(); closePalDetail(); closePalEditor(); closePalPick();
-      closeFilterPicker(); closeTransPick(); closeSignIn(); galOpen(false); dismissSyncIfOpen(); closeTutorial();
+      closeFilterPicker(); closeTransPick(); closeSignIn(); closeErrors(); galOpen(false); dismissSyncIfOpen(); closeTutorial();
       cardWanted = false; cardOpen(false);
       return;
     }
