@@ -767,6 +767,10 @@
       const sec = mySecs[id];
       if (!sec) continue;
       const muted = !!(off && off.has(id));
+      // Every section of every block runs through here on each scene switch, nearly all of
+      // them unchanged: re-parsing the eye's SVG for each was a measurable share of a switch.
+      if (sec.__muted === muted) continue;
+      sec.__muted = muted;
       sec.classList.toggle("bypassed", muted);
       const dot = sec.querySelector(".filter-by");
       if (!dot) continue;
@@ -784,6 +788,12 @@
       const host = ctlIn(slot, L.hostId);
       if (!host) return;
       const ids = listIdsFor(slot, L.key), added = new Set(ids);
+      // Every block re-renders on each scene switch, and most chains come back as they were:
+      // the same list in the same order is already on screen, so leave the DOM alone. (Only
+      // this function orders a host's children; a drag reorders on release, through here.)
+      const sig = Object.keys(mySecs).length + ":" + ids.join(",");   // + the sections built so far
+      if (host.__sig === sig) return;
+      host.__sig = sig;
       const cap = host.querySelector(".filter-grp");
       if (cap) host.appendChild(cap);                       // caption stays on top
       // Rows go wherever you put them — the chain is a sequence, not two sorted groups. The
@@ -1061,6 +1071,10 @@
     refreshBreakout();                // show/hide the pop-out boxes to match
   }
   // One block, against its own layer's effect and filters.
+  // Runs for every control of every block on each scene switch, nearly all unchanged: an
+  // unchanged write is skipped rather than handed to the style system.
+  function setDisp(n, disp) { if (n.style.display !== disp) n.style.display = disp; }
+  var grpKeys;                        // group -> its CONTROLS keys, built on first use (var: no TDZ)
   function refreshBlockVisibility(slot) {
     const shown = shownKeysFor(slot);
     CONTROLS.forEach(c => {           // poppable sliders toggle their menu row; other controls toggle themselves
@@ -1068,20 +1082,25 @@
       // back. Folding is deliberately not the same thing as "this effect does not use it":
       // `shown` decides what exists here at all, the fold decides what you are looking at.
       const vis = (shown.has(c.key) && !foldedGroups.has(c.group)) ? "" : "none";
-      const row = ctlIn(slot, "row-" + c.key), box = ctlIn(slot, "ctl-" + c.key);
-      if (row) row.style.display = vis;
-      else if (box) box.style.display = vis;
+      const row = ctlIn(slot, "row-" + c.key);
+      if (row) { setDisp(row, vis); return; }
+      const box = ctlIn(slot, "ctl-" + c.key);
+      if (box) setDisp(box, vis);
       // A scene control has one row and one box, both outside every block; slot 0 owns them.
-      else if (slot === 0 && rows[c.key]) rows[c.key].style.display = vis;
-      else if (slot === 0 && el("ctl-" + c.key)) el("ctl-" + c.key).style.display = vis;
+      else if (slot === 0 && rows[c.key]) setDisp(rows[c.key], vis);
+      else if (slot === 0 && el("ctl-" + c.key)) setDisp(el("ctl-" + c.key), vis);
     });
+    if (!grpKeys) {
+      grpKeys = {};
+      for (const c of CONTROLS) (grpKeys[c.group] || (grpKeys[c.group] = [])).push(c.key);
+    }
     for (const g in CTL_GROUPS) {     // a heading shows only if something under it is shown
       const hdr = ctlIn(slot, "grp-" + g);
       if (!hdr) continue;
       // Against `shown`, NOT the fold: a folded group hid its own rows a moment ago, so asking
       // "is anything visible under me" would hide the heading too and strip the only way to
       // unfold it.
-      hdr.style.display = CONTROLS.some(c => c.group === g && shown.has(c.key)) ? "" : "none";
+      setDisp(hdr, (grpKeys[g] || []).some(k => shown.has(k)) ? "" : "none");
       hdr.classList.toggle("folded", foldedGroups.has(g));
     }
     markFirstGroup(slot);              // ...and the topmost visible one loses its divider

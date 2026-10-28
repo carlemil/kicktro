@@ -718,11 +718,16 @@
     let any = false;
     const put = (rowKey, v, fmt, isOwn, show) => {
       const row = r.rows[rowKey]; if (!row) return;
-      row.style.display = show ? "" : "none";
+      // Every row of every box runs through here on each scene switch: touch only what changed.
+      // The last value written is kept on the node (only this function writes these rows) —
+      // even READING style.display on thousands of rows was a measurable share of a switch.
+      const disp = show ? "" : "none";
+      if (row.__disp !== disp) { row.style.display = disp; row.__disp = disp; }
       if (!show) return;
       const f = r.fields[rowKey];
-      if (document.activeElement !== f) f.value = String(v);
-      if (r.vals[rowKey]) r.vals[rowKey].textContent = fmt(v);
+      if (document.activeElement !== f && f.value !== String(v)) f.value = String(v);
+      const txt = fmt(v);
+      if (r.vals[rowKey] && r.vals[rowKey].textContent !== txt) r.vals[rowKey].textContent = txt;
       // FOLLOWING THE DEFAULT = DIMMED, overridden = full brightness. A class on the ROW,
       // not the disabled/.off path: this control is entirely live and keyboard-reachable,
       // and setOff() exists to switch a control OFF. Conflating "dimmed" with "disabled"
@@ -744,10 +749,10 @@
     // Something armed AND not folded away by hand. The fold is the second condition and
     // it wins: an armed slider you have finished tuning should still be able to give the
     // box back (see trigFolded).
-    const show = any && !trigFolded.has(id);
-    r.wrap.style.display = show ? "" : "none";
+    const show = any && !trigFolded.has(id), disp = show ? "" : "none";
+    if (r.wrap.__disp !== disp) { r.wrap.style.display = disp; r.wrap.__disp = disp; }
     // The whole trigger body — Shape, Duration and Tuning — folds as ONE element.
-    if (r.body) r.body.style.display = show ? "" : "none";
+    if (r.body && r.body.__disp !== disp) { r.body.style.display = disp; r.body.__disp = disp; }
   }
   function syncTrigTune() {
     try { for (const id in refEls) paintTuneRows(id); } catch (e) {}
@@ -802,7 +807,14 @@
   function savePlen(e) { for (const id in pulseLen) plenStates[e][id] = pulseLen[id]; }
   function loadPlen(e) { for (const id in pulseLen) pulseLen[id] = plenOk(plenStates[e][id]) ? plenStates[e][id] : PULSE_DROP; syncPlen(); }
   function syncPlen() {
-    for (const id in plenEls) { plenEls[id].inp.value = pulseLen[id]; plenEls[id].out.textContent = plenFmt(pulseLen[id]); drawPulsePlots(id); }
+    for (const id in plenEls) {
+      // Every key on every scene switch: write the field only when the duration moved.
+      const e = plenEls[id], v = String(pulseLen[id]);
+      if (e.inp.value !== v) e.inp.value = v;
+      const txt = plenFmt(pulseLen[id]);
+      if (e.out.textContent !== txt) e.out.textContent = txt;
+      drawPulsePlots(id);
+    }
   }
 
   // Per-effect DETECTOR TUNING per slider, exactly parallel to plenStates above. Seeded EMPTY

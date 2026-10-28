@@ -284,7 +284,11 @@ Own `localStorage` key + "Show author" (`#sceneTitleOn`, `data-nopersist`, Scene
   `setEffect` does not `persist()` mid-load; `applyPreset(i, true)` (the cycler) does not persist at
   all — a reload lands on the last scene the user PICKED. `rangeIsLayer` is memoised; range writes
   touch only changed attributes; a pulse plot in a hidden box is marked stale and drawn on show
-  (`drawStalePlot`). Still ~50–120 ms: whatever remains is `installStack` + shader uniforms.
+  (`drawStalePlot`). **The per-switch sweeps (every control × every block) write only what
+  changed** (`brkShow`, `setDisp`, `__disp`/`__muted`/`__sig` expandos, `ui()`'s `uiLast`):
+  even READING `style.display` on thousands of nodes showed. `refreshBreakout` visits only
+  POPPED boxes plus `brkLit` (what it lit last; the first pass sweeps all); `brkBoxes()` walks
+  `#breakout`'s children — never query its subtree. ~15–40 ms a switch (1.100.1).
 - **`TRANS_MAX_STEP` (1/20 s) caps `trans.t`'s per-frame advance** — the frame after the switch
   carries the freeze in its `dt` and skipped up to 2/3 of the blend in one step.
 

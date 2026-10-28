@@ -192,8 +192,9 @@
   // "Fire" the filter can't be read as Fire the effect family.
   // ...and WHICH LAYER'S, since two layers running the same effect would otherwise give two
   // boxes with identical titles sitting side by side in the column.
+  const CTL_BY_KEY = new Map(CONTROLS.map(c => [c.key, c]));
   function ctlOwner(slot, key) {
-    const c = CONTROLS.find(x => x.key === key);
+    const c = CTL_BY_KEY.get(key);
     const g = c && c.group;
     const own = (!g || !CTL_GROUPS[g]) ? "" : (g.startsWith("f_") ? "Filter · " : "") + CTL_GROUPS[g];
     // SCENE, spelled out. These controls are one value for the WHOLE picture -- change Bloom
@@ -213,9 +214,11 @@
       for (const key of POPPABLE) {
         const box = ctlIn(slot, "ctl-" + key);
         if (!box) continue;
-        if (col) setTintVars(box, col);
-        const t = box.querySelector(".ctl-owner .own-txt");
-        if (t) t.textContent = ctlOwner(slot, key);
+        // Stamped on every scene switch for every box of every slot: touch only what changed.
+        if (col && box.__tint !== col) { setTintVars(box, col); box.__tint = col; }
+        if (box.__ownTxt === undefined) box.__ownTxt = box.querySelector(".ctl-owner .own-txt");
+        const t = box.__ownTxt, txt = t && ctlOwner(slot, key);
+        if (t && t.textContent !== txt) t.textContent = txt;
       }
     }
   }
@@ -260,8 +263,16 @@
   // The rects the overlap checks run against: every directly-placed visible box in the
   // grid (slider boxes, scene boxes, layer boxes). Direct children only — the never-popped
   // .ctl check rows nested inside a layer block are not placed boxes.
+  // The placed boxes are #breakout's own CHILDREN: walk those, never query the subtree — it
+  // holds every control of every layer block (thousands of nodes), and that search was the
+  // largest single line of a scene switch.
+  function brkBoxes() {
+    const out = [];
+    for (const n of breakout.children) if (n.classList.contains("ctl") && n.classList.contains("poppable")) out.push(n);
+    return out;
+  }
   function brkRects(except) {
-    return [...breakout.querySelectorAll(":scope > .ctl.poppable")]
+    return brkBoxes()
       .filter(n => n !== except && n.style.display !== "none")
       .map(n => n.getBoundingClientRect());
   }
@@ -367,15 +378,18 @@
   // column for the rest. Called from refreshBreakout (which knows what is visible), from
   // the end of a drag, and on resize.
   function layoutBreakout() {
-    const boxes = [...breakout.querySelectorAll(":scope > .ctl.poppable")];
+    const boxes = brkBoxes();
     if (!brkFree()) {                       // bottom sheet: hand the boxes back to the CSS
       for (const box of boxes)
         box.style.left = box.style.right = box.style.top = box.style.bottom =
           box.style.minHeight = box.style.minWidth = "";
       return;
     }
-    const g = brkGrid();
     const vis = boxes.filter(b => b.style.display !== "none");
+    // Nothing to place: skip the measuring, which forces a whole layout right after a scene
+    // switch's DOM writes (most of the cost of a switch with no box out).
+    if (!vis.length && !brkFloats.some(f => brkPos.has(f.key))) return;
+    const g = brkGrid();
     // Size every visible box to the grid first: clear the previous stretch (content may
     // have shrunk), measure, round up to the quarter cell. Placement below then reads the
     // rounded heights, so the spacing between stacked boxes is a uniform BRK_GAP.
@@ -1083,6 +1097,13 @@
     const slot = +box.dataset.slot;
     if (slot !== stackSel && stack[slot]) selectStack(slot);
   }, true);
+  // A sweep over every box of every slot (hundreds) runs on each scene switch, and nearly all
+  // of them are hidden before and after: write `display` only when it changes.
+  var brkLit;                                   // the boxes refreshBreakout showed last; var: no TDZ
+  function brkShow(box, vis) {
+    const want = vis ? "" : "none";
+    if (box.style.display !== want) box.style.display = want;
+  }
   function refreshBreakout() {
     if (applyingPreset) { refreshBreakout.later = true; return; }   // laid out once by presetUiCatchUp
     let anyVisible = false;
@@ -1094,43 +1115,58 @@
     // The LAYER boxes: a whole layer's settings block, open while its slot is in openSlots
     // (the same set the rows' +/- toggles). Shown here so they go through the one layout
     // pass with the slider boxes and snap on the same grid.
-    for (const box of breakout.querySelectorAll(".lyr-box")) {
+    for (const box of brkBoxes().filter(n => n.classList.contains("lyr-box"))) {
       const slot = +box.dataset.slot;
       const vis = !!stack[slot] && openSlots.has(slot);
-      box.style.display = vis ? "" : "none";
+      brkShow(box, vis);
       if (vis) { anyVisible = true; placeLayerBox(slot, box); }
     }
-    for (let slot = 0; slot < STACK_MAX; slot++) {
-      const shown = shownKeysFor(slot);
-      for (const key of POPPABLE) {
-        const box = ctlIn(slot, "ctl-" + key);
-        if (!box) continue;
+    // A box can only be visible if it is POPPED, so only popped boxes are looked at, plus
+    // whatever this pass lit last time (a box docked since must go down). The first pass
+    // sweeps every box of every slot (STACK_MAX × POPPABLE, hundreds): the DOM's own state.
+    const lit = new Set(), shownBy = [];
+    const shownIn = s => shownBy[s] || (shownBy[s] = shownKeysFor(s));
+    let sceneShown = null;
+    const look = (slot, key) => {
+      const box = slot < 0 ? el("ctl-" + key) : ctlIn(slot, "ctl-" + key);
+      if (!box) return;
+      let vis = false;
+      if (slot >= 0) {
         // ...AND the layer has to be open. Closing a layer with the row's − now takes its
         // slider boxes down with it, which is what "close this layer" plainly means when the
         // sliders are the layer's own controls sitting around its box. Nothing is forgotten:
         // `popped` still holds which ones were out and `brkPos` still holds where each one
         // was put, so the next + brings the whole arrangement back exactly as it was.
-        const vis = isPopped(slot, key) && shown.has(key) && !!stack[slot] && openSlots.has(slot);
-        box.style.display = vis ? "" : "none";
-        if (vis) { anyVisible = true; drawStalePlot(slot, key); }
+        vis = isPopped(slot, key) && !!stack[slot] && openSlots.has(slot) && shownIn(slot).has(key);
+      } else if (isPopped(-1, key)) {
+        // ...and the scene controls, which have one box outside every block. Gated on the
+        // UNION of every live layer's shown keys, not the selected layer's: a scene-wide
+        // filter param (Bloom, Scanlines…) belongs to the whole picture, so the Strength box
+        // you popped from layer 2's section must not vanish because you clicked layer 1,
+        // whose chain lacks Bloom — the filter is still rendering.
+        if (!sceneShown) {
+          sceneShown = new Set(shownIn(stackSel));
+          for (let s = 0; s < STACK_MAX; s++)
+            if (s !== stackSel && stack[s]) for (const k of shownIn(s)) sceneShown.add(k);
+        }
+        vis = sceneShown.has(key);
       }
+      if (vis) {
+        lit.add(box); brkShow(box, true); anyVisible = true;
+        drawStalePlot(slot < 0 ? 0 : slot, key);   // a scene control is wired in slot 0 only
+      } else brkShow(box, false);
+    };
+    if (!brkLit) {
+      for (let slot = 0; slot < STACK_MAX; slot++) for (const key of POPPABLE) look(slot, key);
+      for (const key of POPPABLE) look(-1, key);
+    } else {
+      for (const pk of popped) {
+        const i = pk.indexOf("/");
+        look(pk.slice(0, i) === "s" ? -1 : +pk.slice(0, i), pk.slice(i + 1));
+      }
+      for (const box of brkLit) if (!lit.has(box)) brkShow(box, false);
     }
-    // ...and the scene controls, which have one box outside every block. Gated on the UNION
-    // of every live layer's shown keys, not the selected layer's: a scene-wide filter param
-    // (Bloom, Scanlines…) belongs to the whole picture, so the Strength box you popped from
-    // layer 2's section must not vanish because you clicked layer 1, whose chain lacks Bloom
-    // — the filter is still rendering. (`stackSel` alone was fine while these boxes could not
-    // be constructed; the scene-filter-params fix made them real.)
-    const sceneShown = new Set(shownKeysFor(stackSel));
-    for (let s = 0; s < STACK_MAX; s++)
-      if (s !== stackSel && stack[s]) for (const k of shownKeysFor(s)) sceneShown.add(k);
-    for (const key of POPPABLE) {
-      const box = el("ctl-" + key);
-      if (!box) continue;
-      const vis = isPopped(-1, key) && sceneShown.has(key);
-      box.style.display = vis ? "" : "none";
-      if (vis) { anyVisible = true; drawStalePlot(0, key); }   // a scene control is wired in slot 0 only
-    }
+    brkLit = lit;
     breakout.classList.toggle("empty", !anyVisible);
     // Position what is now visible. After the visibility pass: a box that was display:none
     // has no measurable height, so laying out before it would stack the column on zeros.

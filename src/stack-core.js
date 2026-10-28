@@ -813,6 +813,7 @@
     const nm = (lbl && lbl.childNodes[0] ? lbl.childNodes[0].nodeValue : id).trim();
     lo.setAttribute("aria-label", single ? nm : nm + " (low)");
     if (!single) hi.setAttribute("aria-label", nm + " (high)");
+    const uiLast = {};                    // what ui() last wrote; only ui() writes these nodes
     function ui() {
       // min/max are read live, not closed over: each box's range editor
       // rewrites them at runtime and the fill must follow.
@@ -820,8 +821,11 @@
       const A = Math.min(+lo.value, +hi.value), B = Math.max(+lo.value, +hi.value);
       // A single control's band is always zero-wide, so the ordinary [A,B] fill would be a
       // 0px sliver. Paint min→value instead and it reads as an ordinary slider.
-      fill.style.left = single ? "0%" : (A - mn) / span * 100 + "%";
-      fill.style.width = (single ? (A - mn) : (B - A)) / span * 100 + "%";
+      // Every slider of every block repaints on a scene switch: write only what moved.
+      const left = single ? "0%" : (A - mn) / span * 100 + "%";
+      const width = (single ? (A - mn) : (B - A)) / span * 100 + "%";
+      if (left !== uiLast.left) fill.style.left = uiLast.left = left;
+      if (width !== uiLast.width) fill.style.width = uiLast.width = width;
       // READOUT ONLY — never the applied value, which stays a free float (see stepAnim).
       // A slider whose range spans more than 1 gets at most one decimal: three significant
       // digits is right for a 0–1 knob but absurd on a wider one, where it produced readouts
@@ -829,7 +833,8 @@
       // control's own units and suffixes intact, and sig3 of an already-1dp number is that
       // same number, so nothing narrower than 1 changes.
       const show = v => fmt(mx - mn > 1 ? Math.round(v * 10) / 10 : v);
-      out.textContent = A === B ? show(A) : show(A) + "–" + show(B);
+      const txt = A === B ? show(A) : show(A) + "–" + show(B);
+      if (txt !== uiLast.txt) out.textContent = uiLast.txt = txt;
     }
     // Single ⇒ MIRROR (both ways, so no site has to know which thumb moved); otherwise the
     // usual cross-clamp that stops the thumbs crossing over.
