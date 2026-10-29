@@ -688,7 +688,8 @@ share, which means a scene you send someone reacts to music the way you set it u
 ## Cloud profile
 
 Your scenes live in this browser by default. The **Cloud profile** box is how you get them
-off it — sign in with Google and your library follows you between machines.
+off it — sign in with Google or Apple and your library follows you between machines. A new
+account is asked once for a profile name (Kicktro keeps no email and no real name).
 
 - **Save to cloud** uploads **your own scenes**, replacing what is stored. It is a straight
   replace, not a merge, so a scene you deleted here is gone from the cloud after the next
@@ -847,8 +848,8 @@ additive GL points. Hosted on GitHub Pages. Settings persist in `localStorage`.
 Cloud profiles live on Kicktro's own API, **`api.kicktro.com`**: a small Node server in
 [`server/`](server/) with no npm packages (built-in `node:http`, `node:sqlite` and
 `node:crypto`), run in Docker on a VPS behind Caddy. The page talks to it with plain
-`fetch()`, so it stays one self-contained file; the only remote script is Google's sign-in
-button. `node tools/serverprobe.js` starts the server locally and runs its checks.
+`fetch()`, so it stays one self-contained file; the only remote scripts are the Google and
+Apple sign-in buttons'. `node tools/serverprobe.js` starts the server locally and runs its checks.
 
 They used to live in Firebase; [`tools/firebase-export.js`](tools/firebase-export.js) moves
 every profile and shared scene across, keeping each share's id so old `#c=` links still open.

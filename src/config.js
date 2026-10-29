@@ -195,6 +195,12 @@
       // -> this client -> Authorized JavaScript origins, and in the API's ALLOWED_ORIGINS. It
       // needs HTTPS too (GIS refuses a non-secure context), so test on the real domain.
       clientId: "180474887753-jf22fn1kgkecamc2inr2eoomh0e1e0j4.apps.googleusercontent.com",
+      // Sign in with Apple: the Services ID (Apple Developer -> Identifiers -> Services IDs),
+      // the same string as the API's APPLE_CLIENT_ID (server/compose.yml). "" = no Apple
+      // button and no Apple script. Apple accepts only the return URL registered on that
+      // Services ID, so the popup works on the real domain alone, never file:// or localhost.
+      appleClientId: "com.kicktro.signin",
+      appleRedirect: "https://kicktro.com/",
       // ┌─ FIREBASE, READ-ONLY AND TEMPORARY (card 825, M2) ───────────────────────────────┐
       // Used for ONE thing: a #c= link the API does not know is tried against its old public
       // Firestore document (cloudFetchScene). Remove both keys, the fallback, firestore.rules

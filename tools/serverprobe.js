@@ -39,6 +39,7 @@ const { spawn } = require("node:child_process");
 const ROOT = path.join(__dirname, "..");
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "ktsrv-"));
 const CLIENT = "probe-client.apps.googleusercontent.com";
+const APPLE = "com.probe.signin";     // the Services ID (APPLE_CLIENT_ID)
 const ADMIN = "probe-admin-token-0123456789abcdef";
 const PENDING = 1500;   // the gallery's hour (PENDING_MS), shortened so the probe can wait it out
 let fails = 0, passes = 0;
@@ -67,6 +68,10 @@ function idToken(sub, over = {}, { key = good.privateKey, kid = "k1", alg = "RS2
   const sig = alg === "none" ? "" : crypto.sign("RSA-SHA256", Buffer.from(h + "." + c), key).toString("base64url");
   return h + "." + c + "." + sig;
 }
+// Sign in with Apple's identity token: Apple's issuer, the Services ID as audience, and the
+// nonce the page passed to AppleID.auth.init. Signed by the same stand-in key (its own JWKS URL).
+const appleToken = (sub, over = {}, opts) =>
+  idToken(sub, { iss: "https://appleid.apple.com", aud: APPLE, nonce: "probe-nonce-1", ...over }, opts);
 
 // ---- the server under test --------------------------------------------------------------
 let proc = null, base = "", extraEnv = {};
@@ -77,6 +82,7 @@ function start(db = path.join(TMP, "kt.db")) {
         ...process.env, PORT: "0", HOST: "127.0.0.1", QUIET: "1",
         DB_PATH: db, PENDING_MS: String(PENDING), THUMB_DIR: path.join(TMP, "thumbs"),
         GOOGLE_CLIENT_ID: CLIENT, GOOGLE_JWKS_URL: "http://127.0.0.1:" + jwks.address().port + "/certs",
+        APPLE_CLIENT_ID: APPLE, APPLE_JWKS_URL: "http://127.0.0.1:" + jwks.address().port + "/apple",
         SESSION_SECRET: "probe-session-secret-0123456789abcdef", ADMIN_TOKEN: ADMIN,
         ALLOWED_ORIGINS: "https://kicktro.com", ALLOW_DEV_ORIGINS: "0", GIT_REV: "probe", ...extraEnv,
       },
@@ -154,6 +160,7 @@ async function main() {
   const B = await signIn("google-sub-B");
   ok("auth: another Google account gets another uid", B.uid && B.uid !== A.uid);
   ok("ids are 20 characters of [A-Za-z0-9]", /^[A-Za-z0-9]{20}$/.test(A.uid), A.uid);
+
 
   r = await call("GET", "/api/me", { token: A.token });
   ok("me: signed in", r.status === 200 && r.json.uid === A.uid, r.text);
@@ -763,6 +770,39 @@ async function main() {
   ok("restart: data and sessions survive a restart", r.status === 200 && r.json.name === "Alice", r.text);
   r = await call("GET", "/api/gallery?sort=name&limit=100&q=Dyze");
   ok("restart: ...the cards too", r.json.total === 2, r.text);
+  // ---- Sign in with Apple (POST /api/auth/apple), after the restart: the auth rate limit is fresh
+  const apple = (tok, nonce = "probe-nonce-1", extra = {}) => call("POST", "/api/auth/apple", { body: { idToken: tok, nonce, ...extra } });
+  r = await apple(appleToken("apple-sub-1"));
+  const P = r.json;
+  ok("apple: a good identity token signs in and creates the account", r.status === 200 && P.token && P.uid && P.created === true, r.text);
+  r = await apple(appleToken("apple-sub-1"));
+  ok("apple: the same Apple account gets the same uid", r.status === 200 && r.json.uid === P.uid && r.json.created === false, r.text);
+  r = await apple(appleToken("google-sub-A"));
+  ok("apple: an Apple subject never lands on the Google account with the same string", r.status === 200 && r.json.uid !== A.uid, r.text);
+  r = await apple(appleToken("apple-sub-1", { aud: CLIENT }));
+  ok("apple: Google's client id as audience is 401", r.status === 401 && /audience/.test(r.json.error), r.text);
+  r = await apple(idToken("apple-sub-1", { aud: APPLE }));
+  ok("apple: Google's issuer is 401", r.status === 401 && /issuer/.test(r.json.error), r.text);
+  r = await call("POST", "/api/auth/google", { body: { idToken: appleToken("google-sub-A", { aud: CLIENT }) } });
+  ok("apple: an Apple token is no good for the Google route", r.status === 401 && /issuer/.test(r.json.error), r.text);
+  r = await apple(appleToken("apple-sub-1"), "another-nonce");
+  ok("apple: a nonce that does not match is 401", r.status === 401 && /nonce/.test(r.json.error), r.text);
+  r = await apple(appleToken("apple-sub-1", { nonce: undefined }));
+  ok("apple: a token without the nonce is 401", r.status === 401 && /nonce/.test(r.json.error), r.text);
+  r = await apple(appleToken("apple-sub-1"), "");
+  ok("apple: no nonce in the request is 401", r.status === 401, r.text);
+  r = await apple(appleToken("apple-sub-1", { exp: Math.floor(Date.now() / 1000) - 600 }));
+  ok("apple: an expired token is 401", r.status === 401 && /expired/.test(r.json.error), r.text);
+  r = await apple(appleToken("apple-sub-1", {}, { key: rogue.privateKey }));
+  ok("apple: a token signed by another key is 401", r.status === 401 && /signature/.test(r.json.error), r.text);
+  r = await call("PATCH", "/api/me", { token: P.token, body: { name: "Appleseed" } });
+  ok("apple: an Apple account is a full account (it may name itself)", r.status === 200 && r.json.name === "Appleseed", r.text);
+  r = await apple(appleToken("apple-sub-1"));
+  ok("apple: ...and the sign-in answer carries that name", r.json.name === "Appleseed", r.text);
+  const N3 = (await call("POST", "/api/auth/anon")).json;
+  r = await call("POST", "/api/auth/apple", { body: { idToken: appleToken("apple-sub-1"), nonce: "probe-nonce-1", anon: N3.token } });
+  ok("apple: signing in with Apple claims the anonymous browser too", r.status === 200 && r.json.uid === P.uid
+    && (await call("PUT", "/api/me/gallery", { token: N3.token, body: { payload: lib([]) } })).status === 401, r.text);
 
   // ---- admins (ADMIN_UIDS) delete any card; an anonymous account never is one ---------------
   r = await call("GET", "/api/me/favs", { token: A.token });
@@ -855,7 +895,10 @@ async function main() {
   odb.prepare("insert into users (uid, google_sub, name, created) values ('OldUser0001', 'old-sub', 'Olga', 1)").run();
   odb.prepare("insert into gallery (id, owner, name, payload, created) values ('OldCard00001', 'OldUser0001', 'Vintage', ?, 1)").run(PAY);
   odb.close();
+  extraEnv = { APPLE_CLIENT_ID: "" };
   await start(oldFile);
+  r = await call("POST", "/api/auth/apple", { body: { idToken: appleToken("apple-sub-1"), nonce: "probe-nonce-1" } });
+  ok("apple: with no APPLE_CLIENT_ID the route answers 404", r.status === 404, r.text);
   r = await call("GET", "/api/health");
   ok("migrate: a v2 database comes up at the current schema", r.json.schema === MIGRATIONS.length, r.text);
   r = await call("GET", "/api/gallery?q=Vintage");

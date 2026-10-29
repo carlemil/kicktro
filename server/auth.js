@@ -1,14 +1,17 @@
 "use strict";
-// Sign-in: verify a Google ID token ourselves, then hand out our OWN session token.
+// Sign-in: verify a Google or Apple ID token ourselves, then hand out our OWN session token.
 //
-// The client still gets the ID token from Google Identity Services with the same clientId as
-// before; what changed is who checks it. We verify the RS256 signature against Google's
-// published keys (JWKS) and the claims that make the token OURS: issuer, audience (our
-// clientId), expiry. No npm package -- node:crypto reads a JWK directly.
+// The page gets the ID token from Google Identity Services or from Sign in with Apple's popup;
+// what we check is the same for both. We verify the RS256 signature against the provider's
+// published keys (JWKS) and the claims that make the token OURS: issuer, audience (our client
+// id: Google's OAuth client, Apple's Services ID), expiry. No npm package -- node:crypto reads
+// a JWK directly.
 const crypto = require("node:crypto");
 
 const GOOGLE_JWKS = "https://www.googleapis.com/oauth2/v3/certs";
 const GOOGLE_ISS = new Set(["accounts.google.com", "https://accounts.google.com"]);
+const APPLE_JWKS = "https://appleid.apple.com/auth/keys";
+const APPLE_ISS = new Set(["https://appleid.apple.com"]);
 
 class AuthError extends Error {}
 
@@ -16,14 +19,16 @@ function b64uJson(s) {
   return JSON.parse(Buffer.from(s, "base64url").toString("utf8"));
 }
 
-function makeGoogleVerifier({ clientId, jwksUrl = GOOGLE_JWKS, fetchImpl = fetch }) {
+// One provider's verifier. `issuers` is the set its tokens may name; the answer is the
+// subject, plus the nonce the token carries (Apple's popup echoes the one the page passed).
+function makeJwtVerifier({ clientId, jwksUrl, issuers, fetchImpl = fetch }) {
   let keys = new Map();
   let expires = 0;
   let lastFetch = 0;
   let inflight = null;
 
-  // force = an unknown kid (Google rotated keys). Allowed at most every 30 s, so a stream of
-  // tokens with junk kids cannot make us hammer Google.
+  // force = an unknown kid (the provider rotated keys). Allowed at most every 30 s, so a stream
+  // of tokens with junk kids cannot make us hammer the provider.
   function load(force) {
     if (!force && keys.size && Date.now() < expires) return Promise.resolve();
     if (inflight) return inflight;
@@ -68,14 +73,18 @@ function makeGoogleVerifier({ clientId, jwksUrl = GOOGLE_JWKS, fetchImpl = fetch
       throw new AuthError("bad signature");
     }
     const now = Date.now() / 1000;
-    if (!claims || !GOOGLE_ISS.has(claims.iss)) throw new AuthError("wrong issuer");
+    if (!claims || !issuers.has(claims.iss)) throw new AuthError("wrong issuer");
     if (claims.aud !== clientId) throw new AuthError("wrong audience");
     if (typeof claims.exp !== "number" || claims.exp < now - 60) throw new AuthError("token expired");
     if (typeof claims.iat === "number" && claims.iat > now + 300) throw new AuthError("token from the future");
     if (typeof claims.sub !== "string" || !claims.sub || claims.sub.length > 255) throw new AuthError("no subject");
-    return { sub: claims.sub };
+    return { sub: claims.sub, nonce: typeof claims.nonce === "string" ? claims.nonce : "" };
   };
 }
+const makeGoogleVerifier = ({ clientId, jwksUrl = GOOGLE_JWKS, fetchImpl }) =>
+  makeJwtVerifier({ clientId, jwksUrl, issuers: GOOGLE_ISS, fetchImpl });
+const makeAppleVerifier = ({ clientId, jwksUrl = APPLE_JWKS, fetchImpl }) =>
+  makeJwtVerifier({ clientId, jwksUrl, issuers: APPLE_ISS, fetchImpl });
 
 // Our session token: "kt1.<base64url JSON {u, v, e}>.<HMAC-SHA256>". u = uid, v = the user's
 // token_ver (bumped to sign every device out), e = expiry in ms. Stateless to check; the
@@ -126,4 +135,4 @@ function newId(len = 20) {
   return out;
 }
 
-module.exports = { makeGoogleVerifier, makeSessions, secretEqual, newId, AuthError, GOOGLE_JWKS };
+module.exports = { makeGoogleVerifier, makeAppleVerifier, makeSessions, secretEqual, newId, AuthError, GOOGLE_JWKS, APPLE_JWKS };

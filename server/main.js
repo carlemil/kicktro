@@ -9,7 +9,7 @@
 // waits for that line, which is how PORT=0 works there).
 const http = require("node:http");
 const { openDb } = require("./db");
-const { makeGoogleVerifier, makeSessions, GOOGLE_JWKS } = require("./auth");
+const { makeGoogleVerifier, makeAppleVerifier, makeSessions, GOOGLE_JWKS, APPLE_JWKS } = require("./auth");
 const { HttpError, sendJson, makeCors, Limiter } = require("./http");
 const { makeRoutes, LIMIT } = require("./routes");
 
@@ -22,6 +22,9 @@ const cfg = {
   thumbDir: env.THUMB_DIR || "",
   clientId: env.GOOGLE_CLIENT_ID || "",
   jwksUrl: env.GOOGLE_JWKS_URL || GOOGLE_JWKS,
+  // Sign in with Apple's Services ID (CONFIG.cloud.appleClientId). Empty = the route answers 404.
+  appleClientId: env.APPLE_CLIENT_ID || "",
+  appleJwksUrl: env.APPLE_JWKS_URL || APPLE_JWKS,
   sessionSecret: env.SESSION_SECRET || "",
   sessionDays: +env.SESSION_DAYS || 60,
   adminToken: env.ADMIN_TOKEN || "",
@@ -53,6 +56,7 @@ const limiter = new Limiter();
 const ctx = {
   db, cfg, limiter,
   verifyGoogle: makeGoogleVerifier({ clientId: cfg.clientId, jwksUrl: cfg.jwksUrl }),
+  verifyApple: cfg.appleClientId ? makeAppleVerifier({ clientId: cfg.appleClientId, jwksUrl: cfg.appleJwksUrl }) : null,
   sessions: makeSessions(cfg.sessionSecret, cfg.sessionDays * 86400000),
 };
 const routes = makeRoutes(ctx);

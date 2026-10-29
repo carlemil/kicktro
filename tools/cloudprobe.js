@@ -216,9 +216,26 @@ console.log("--- Cloud profiles: the API client (" + file + ")\n");
     const startupCall = src.match(/if \(cloudSess\) cloudFetchProfileMeta\(([^)]*)\)/);
     ok("...and the STARTUP meta fetch never seeds", !!startupCall && startupCall[1].trim() === "",
        startupCall ? "cloudFetchProfileMeta(" + startupCall[1] + ")" : "startup call not found");
-    const signIn = slice("function cloudSignIn(googleIdToken) {", "function cloudSignOut()");
-    ok("sign-in hands Google's ID token to the API, and seeds", /\/api\/auth\/google/.test(signIn)
-       && /idToken: googleIdToken/.test(signIn) && /cloudFetchProfileMeta\(true\)/.test(signIn));
+    const signIn = slice("function cloudSignIn(path, body, nameHint) {", "function cloudSignOut()");
+    ok("sign-in hands the provider's token to the API, and seeds", /fetch\(API \+ path/.test(signIn)
+       && /\.\.\.body/.test(signIn) && /cloudFetchProfileMeta\(true\)/.test(signIn));
+    ok("...Google's callback goes to /api/auth/google",
+       /cloudSignIn\("\/api\/auth\/google", \{ idToken: res\.credential \}\)/.test(src));
+    // A new account with no name is asked for one — but never one whose profile carries it.
+    ok("...and a nameless NEW account is asked for a profile name",
+       /if \(!j\.name && !j\.hasProfile\) nameAsk\(/.test(signIn));
+    // SIGN IN WITH APPLE. The nonce is what binds Apple's token to THIS press: the same value
+    // must go to Apple's init AND to the API, which refuses a token whose nonce differs.
+    const apple = slice("// ---- Sign in with Apple", "// ---- share the running scene");
+    ok("Apple's script loads only when configured and signed out",
+       /if \(!CLOUD\.appleClientId \|\| cloudSess \|\| appleState\) return/.test(apple) && /APPLE_SRC/.test(apple));
+    ok("...the nonce goes to Apple's init and to the API alike",
+       /usePopup: true, nonce, state/.test(apple)
+       && /cloudSignIn\("\/api\/auth\/apple", \{ idToken: a\.id_token, nonce \}/.test(apple));
+    ok("...from crypto.getRandomValues, not Math.random", /crypto\.getRandomValues/.test(apple) && !/Math\.random/.test(apple));
+    const init0 = slice("function cloudInit() {", "if (el(\"cloud-delete\")");
+    ok("...and its buttons stay hidden without a Services ID",
+       /h\.hidden = !CLOUD\.appleClientId/.test(init0));
     // ONE decode path for every transport. It lives in a helper rather than inside cloudLoad,
     // which is a seam worth keeping even with a single caller: the moment anything else needs to
     // turn a stored payload into a library, it must come through here, or a cloud payload stops

@@ -1784,6 +1784,28 @@
   }
   #signindlg #signin-gsi { display: flex; justify-content: center; min-height: 44px; margin: 14px 0 8px; }
   #signindlg .sign-note { opacity: .62; font-size: 11.5px; text-align: center; margin: 0; }
+  #signindlg #signin-name {
+    box-sizing: border-box; width: 100%; margin: 4px 0 10px; padding: 7px 9px;
+    background: rgba(255, 140, 40, 0.08); border: 1px solid rgba(255, 140, 40, 0.45); border-radius: 7px;
+    color: #ffe6c8; font: inherit; font-size: 13.5px;
+  }
+  #signindlg #signin-name:focus { outline: 2px solid #ffb15a; outline-offset: 1px; }
+  #signindlg .sign-actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
+  /* Sign in with Apple. OUR button, drawn to Apple's rules for a custom one (black, the logo
+     at the left, "Sign in with Apple", the system font), the same pill and height as Google's
+     filled_black button beside it. Keyed on the class: it sits in the profile popover and in
+     #signindlg alike. */
+  .apple-host { display: flex; justify-content: center; margin: 8px 0 4px; }
+  .apple-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    box-sizing: border-box; width: 260px; max-width: 100%; height: 40px; padding: 0 16px;
+    background: #000; color: #fff; border: 1px solid #5f5f5f; border-radius: 20px; cursor: pointer;
+    font: 500 15px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .apple-btn svg { width: 16px; height: 16px; margin-top: -2px; flex: none; }
+  .apple-btn:hover { background: #1a1a1a; }
+  .apple-btn:focus-visible { outline: 2px solid #ffb15a; outline-offset: 2px; }
+  .apple-host[hidden], #cloudrow.signed-in .apple-host { display: none; }
   /* Error reports (moderators): the same backdrop and box as Sign in, wider, for stacks. */
   #errdlg {
     position: fixed; inset: 0; z-index: 26; display: flex; align-items: center; justify-content: center;

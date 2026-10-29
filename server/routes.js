@@ -133,7 +133,7 @@ function thumbUrls(id, ver, clip) {
 const AUTHOR = "case when u.name = '' then 'Anonymous' else u.name end author";
 
 function makeRoutes(ctx) {
-  const { db, cfg, verifyGoogle, sessions, limiter } = ctx;
+  const { db, cfg, verifyGoogle, verifyApple, sessions, limiter } = ctx;
   const q = sql => db.prepare(sql);
   const gsync = makeSync({ db, cfg, CAP, newId, clean });
 
@@ -243,12 +243,12 @@ function makeRoutes(ctx) {
   function maybeUser(r) {
     try { return r.req.headers.authorization ? user(r) : null; } catch (e) { return null; }
   }
-  // A Google-signed-in account. An anonymous one (a signed-out browser, POST /api/auth/anon)
-  // may push its scenes and read its own cards, nothing else: no profile, no links, no votes
-  // -- minting accounts must not be a way to stuff the score.
+  // A signed-in account (Google or Apple). An anonymous one (a signed-out browser, POST
+  // /api/auth/anon) may push its scenes and read its own cards, nothing else: no profile, no
+  // links, no votes -- minting accounts must not be a way to stuff the score.
   function account(r) {
     const u = user(r);
-    if (u.anon) throw new HttpError(403, "sign in with Google for this");
+    if (u.anon) throw new HttpError(403, "sign in for this");
     return u;
   }
   function admin(r) {
@@ -282,6 +282,24 @@ function makeRoutes(ctx) {
   });
 
   // -- auth
+  // users.google_sub is the account's SIGN-IN SUBJECT, whatever signed it in: a Google subject
+  // as it is, "apple:<Apple subject>" for Sign in with Apple, "anon:<id>" for a signed-out
+  // browser. Google's are digits, so no prefix can collide with one, and an Apple account
+  // needs no column of its own. Apple and Google are SEPARATE accounts, even for one person.
+  function signIn(r, sub, body) {
+    let created = false, claimed = 0;
+    const u = tx(db, () => {
+      let row = S.userBySub.get(sub);
+      if (!row) {
+        S.userIns.run(newId(), sub, null, "", Date.now());
+        row = S.userBySub.get(sub);
+        created = true;
+      }
+      claimed = claimAnon(row, body.anon);
+      return row;
+    });
+    sendJson(r.res, 200, { ...sessionOut(u), created, claimed, hasProfile: !!S.profGet.get(u.uid) });
+  }
   on("POST", "/api/auth/google", async r => {
     limit(r.ip, "auth");
     const body = await readJson(r.req, BODY.small);
@@ -292,18 +310,27 @@ function makeRoutes(ctx) {
       if (e instanceof AuthError) throw new HttpError(401, "Google sign-in was not accepted: " + e.message);
       throw e;
     }
-    let created = false, claimed = 0;
-    const u = tx(db, () => {
-      let row = S.userBySub.get(claims.sub);
-      if (!row) {
-        S.userIns.run(newId(), claims.sub, null, "", Date.now());
-        row = S.userBySub.get(claims.sub);
-        created = true;
+    signIn(r, claims.sub, body);
+  });
+  // Sign in with Apple: the identity token from the page's popup (usePopup). No code exchange
+  // and so no Apple key on the server; the email and the name Apple may send are never stored.
+  // nonce = the one the page passed to AppleID.auth.init, which Apple writes into the token:
+  // a token lifted from another sign-in does not carry this request's.
+  on("POST", "/api/auth/apple", async r => {
+    if (!verifyApple) throw new HttpError(404, "Sign in with Apple is not configured");
+    limit(r.ip, "auth");
+    const body = await readJson(r.req, BODY.small);
+    let claims;
+    try {
+      claims = await verifyApple(body.idToken);
+      if (typeof body.nonce !== "string" || !body.nonce || claims.nonce !== body.nonce) {
+        throw new AuthError("nonce does not match");
       }
-      claimed = claimAnon(row, body.anon);
-      return row;
-    });
-    sendJson(r.res, 200, { ...sessionOut(u), created, claimed, hasProfile: !!S.profGet.get(u.uid) });
+    } catch (e) {
+      if (e instanceof AuthError) throw new HttpError(401, "Apple sign-in was not accepted: " + e.message);
+      throw e;
+    }
+    signIn(r, "apple:" + claims.sub, body);
   });
   // Signing in from a browser that was anonymous: its cards become the account's (votes and
   // thumbnails kept), except where the account already has a card for the same scene; the

@@ -23,6 +23,8 @@ services:
       ALLOW_DEV_ORIGINS: "1"
       # Moderators: may delete any gallery card (uids are public; Erbsman's).
       ADMIN_UIDS: "666spKnVQyDtwAypdXMo"
+      # Sign in with Apple's Services ID (not a secret: the page names it too).
+      APPLE_CLIENT_ID: "com.kicktro.signin"
     volumes:
       - kicktro-data:/data
       - kicktro-thumbs:/thumbs

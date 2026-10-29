@@ -795,8 +795,8 @@ a builder.
 
 ### Cloud profiles (the Kicktro API, since M2 of card 825)
 `src/cloud-profile.js` is the client of `server/` (next section), which is the whole security
-boundary. Plain `fetch()` through `apiFetch` (bearer) / `apiGet` (public); the one remote script is
-Google Identity Services. **`CONFIG.cloud.apiBase` is the kill switch** (empty ⇒ no script, no
+boundary. Plain `fetch()` through `apiFetch` (bearer) / `apiGet` (public); the remote scripts are
+Google Identity Services and Apple's `appleid.auth.js`. **`CONFIG.cloud.apiBase` is the kill switch** (empty ⇒ no script, no
 request). `?api=<origin>` overrides it ONLY on `file://`/localhost (`cloudprobe` asserts a real
 host ignores it).
 
@@ -806,6 +806,17 @@ added). `maxPayload` must equal the server's `CAP.profilePayload`. Session =
 `{uid, token, expires}` under `burnTheWeb.cloud.v2` (a v1 FIREBASE session is dropped: everyone
 signs in once more); `cloudFresh` renews inside the last 7 days through ONE in-flight
 `/api/auth/refresh`; a 401 signs out, never a retry loop.
+
+**Sign in with Apple (card 826) is the POPUP flow**: `appleid.auth.js` loads only while signed out
+and only with `CONFIG.cloud.appleClientId` (the Services ID `com.kicktro.signin`; `""` hides every
+`.apple-host`), AHEAD of the click — `signIn()` must run inside the gesture. Each press mints a
+`crypto.getRandomValues` nonce, hands it to `AppleID.auth.init` AND posts it with the token; the
+API refuses a mismatch. `redirectURI` is the live site, so it only works on kicktro.com. Both
+providers go through `cloudSignIn(path, body, nameHint)`. **Neither email nor Apple's name is
+stored**: a sign-in answering no `name` and no `hasProfile` opens `#signindlg`'s SECOND STEP
+(`#signin-namestep`, `nameAsk`; a step, not a new dialog — a dialog costs four uiprobe lists),
+prefilled from the name Apple sends on the first authorisation only; Save = `setProfileName` +
+`PATCH /api/me` + a profile save. `tools/signin-check.js` drives it (stub AppleID/GIS/API).
 
 **Shared scenes** (`POST /api/scenes`, server-minted id) are world-readable by id, immutable,
 owner-deletable, unlisted to others; "My shared links" is `GET /api/me/scenes` (every machine's,
@@ -971,7 +982,11 @@ talks to it since M2.
   share keeps its Firestore id verbatim — `#c=` links decode forever.
 - `auth.js`: Google ID token verified against the JWKS (RS256 pinned, `iss`/`aud`/`exp`/`iat`),
   then our own HMAC session `kt1.<payload>.<mac>`; `token_ver` revokes (signout-all). A Firebase
-  uid maps to our uid through `users.firebase_uid`.
+  uid maps to our uid through `users.firebase_uid`. **Apple tokens take the same verifier**
+  (`makeJwtVerifier`, Apple's JWKS/issuer, `aud` = `APPLE_CLIENT_ID` set in `compose.yml` — not a
+  secret; unset ⇒ `/api/auth/apple` 404s) and are stored as `users.google_sub = "apple:" + sub`
+  (anonymous ones are `"anon:"`), so no migration and an Apple subject can never land on a
+  Google account. The two are SEPARATE accounts, never linked.
 - `routes.js` carries every cap (`CAP`, `BODY`, `LIMIT`) — the rules file's job. `onlyKeys` is
   `hasOnly()`. `PUT /api/profile` honours `If-Match`: `none` = create only, `"<updated>"` = that
   version, absent = unguarded; mismatch 412. That is `cloudSess.docTime`'s replacement.
