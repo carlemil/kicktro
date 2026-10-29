@@ -65,6 +65,21 @@
 //   WebP that is NOT black (the scene really drew), shown on the card at once; the iframe is
 //   gone after; this page's localStorage is untouched by the copy's seeded library; and the
 //   NEGATIVE: cards that have a poster, and srv-1 a second time, send nothing.
+// case-hold (signed in, a SEEDED library: your own Scene 2 / Quiet One (rotate:false) / Loud One,
+//   Neon Reef from the followed AI-Generated collection, Scene 5 in Shared with you, Gone Song
+//   from a followed Gone Pal that is no longer listed -- card 832): every card that stands for
+//   a scene of yours wears ↻ In auto-cycle, pressed -- a built-in held through a follow, a card
+//   in Shared with you, your own card -- and the NEGATIVES: a card you do not hold, and your own
+//   card whose scene is not in your library, have none; a click leaves the scene out (stored
+//   rotate:false), does NOT load the card and moves nothing else; a second click puts it back
+//   (the flag is gone). My scenes lists, after your cards, your scenes with NO card as local
+//   cards (exactly those: not one with a card, not a borrowed one), with no vote/link/✕; a
+//   stored rotate:false shows as Left out; clicking a local card switches to it in place.
+//   Collections: Unfollow on a collection you follow, NOT on one you do not; one no longer
+//   listed still gets a row (Unfollow, no Load); a cancelled Unfollow removes nothing
+//   (NEGATIVE), a confirmed one removes its scenes and the follow, keeps yours and the
+//   selection. Then a RELOAD (the seed is skipped): every choice came back from storage.
+//   Against a build without card 832 this case goes red (no toggle, no Unfollow).
 // No backtick in the injected source; lines joined by an explicit newline.
 const fs = require("fs");
 const path = require("path");
@@ -98,12 +113,23 @@ const PAYLOAD = zlib.deflateRawSync(Buffer.from(JSON.stringify({ presets: [one],
   palettes: (lib.palettes || []).concat([RAMP]) })))
   .toString("base64url");
 
+// case-hold's library, in the wire format localStorage keeps (string effect ids).
+const scene = (i, name, extra) => Object.assign(JSON.parse(JSON.stringify(lib.presets[i])), { name }, extra || {});
+const HOLD_SEED = { presets: [scene(2, "Scene 2"), scene(3, "Quiet One", { rotate: false }), scene(4, "Loud One"),
+  scene(0, "Neon Reef", { collection: "AI-Generated" }), scene(1, "Scene 5", { collection: "Shared with you" }),
+  scene(5, "Gone Song", { collection: "Gone Pal" })], curPreset: 3,
+  collections: [{ key: "AI-Generated", uid: "builtin:ai-generated" }, { key: "Gone Pal", uid: "x-gone" }] };
+const HOLD_JSON = JSON.stringify(HOLD_SEED);
+if (/[`<]/.test(HOLD_JSON)) { console.error("case-hold seed carries a backtick or <"); process.exit(2); }
+
 const head = [
   "<script>",
   "(function () {",
   "  var CASE = document.currentScript.dataset.c;",
   "  var fails = 0;",
-  "  function ok(name, cond, extra) {",
+  "  var HOLD2 = CASE === 'case-hold' && sessionStorage.getItem('galhold') === '2';",
+  "  if (HOLD2) { fails = +sessionStorage.getItem('galholdfails') || 0; sessionStorage.removeItem('galhold'); }",
+  "  window.__hold2 = HOLD2;",  "  function ok(name, cond, extra) {",
   "    if (typeof name !== 'string') throw new Error('ok(name, cond): name must be a string');",
   "    if (!cond) fails++;",
   "    console.log((cond ? 'PASS ' : 'FAIL ') + ' ' + CASE + ' :: ' + name + (extra ? '  [' + extra + ']' : ''));",
@@ -154,7 +180,8 @@ const head = [
   // the FRONT DOOR cases (?frontdoor): no audio answer stored (case-armed: the mic, from an
   // earlier visit), and every source REFUSED -- a stub that records what was asked for.
   "  var DOOR = /^case-(door|picked|armed)$/.test(CASE);",
-  "  localStorage.setItem('burnTheWeb.v1', JSON.stringify(!DOOR ? { panelOpen: false, cycle: false, audio: 'off' }",
+  "  if (CASE === 'case-hold' && !HOLD2) localStorage.setItem('burnTheWeb.v1', JSON.stringify(Object.assign({ panelOpen: false, cycle: false, audio: 'off' }, " + HOLD_JSON + ")));",
+  "  else if (CASE !== 'case-hold') localStorage.setItem('burnTheWeb.v1', JSON.stringify(!DOOR ? { panelOpen: false, cycle: false, audio: 'off' }",
   "    : CASE === 'case-armed' ? { panelOpen: false, cycle: false, audio: 'mic' } : { panelOpen: false, cycle: false }));",
   "  if (CASE === 'case-picked') sessionStorage.setItem('kt.picked', '1');",
   "  window.__media = [];",
@@ -163,7 +190,7 @@ const head = [
   "    try { Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: refuse('mic'), getDisplayMedia: refuse('capture') } }); } catch (e) {}",
   "    window.AudioContext = function () { return { resume: function () { return Promise.resolve(); } }; };",
   "  }",
-  "  if (CASE === 'case-in' || CASE === 'case-admin' || CASE === 'case-errors') localStorage.setItem('burnTheWeb.cloud.v2', JSON.stringify({ uid: 'me-uid', token: 'tok-1', expires: Date.now() + 3600000 }));",
+  "  if (CASE === 'case-in' || CASE === 'case-admin' || CASE === 'case-errors' || CASE === 'case-hold') localStorage.setItem('burnTheWeb.cloud.v2', JSON.stringify({ uid: 'me-uid', token: 'tok-1', expires: Date.now() + 3600000 }));",
   "  else if (CASE === 'case-sync-in') localStorage.setItem('burnTheWeb.cloud.v2', JSON.stringify({ uid: 'me-uid', token: 'tok-1', expires: Date.now() + 60 * 86400000 }));",
   "  else localStorage.removeItem('burnTheWeb.cloud.v2');",
   "  if (CASE === 'case-sync-in') localStorage.setItem('burnTheWeb.profile.v1', 'Dee Tester'); else localStorage.removeItem('burnTheWeb.profile.v1');",
@@ -225,7 +252,7 @@ const head = [
   "      return answer(200, { added: 1, changed: 0, same: 0, hidden: 0, stock: 0 });",
   "    }",
   "    if (path === '/api/me/favs') return answer(auth ? 200 : 401, { ids: Object.keys(mine).concat(['builtin:storm-front']), hates: Object.keys(hated), admin: CASE === 'case-admin' || CASE === 'case-errors' || undefined });",
-  "    if (path === '/api/profiles') return answer(200, { items: [] });",
+  "    if (path === '/api/profiles') return answer(200, { items: CASE === 'case-hold' ? [{ uid: 'p-1', name: 'Pat', count: 3, updated: T0 }] : [] });",
   // the crash reports, as GET /api/errors answers them (server/routes.js)
   "    if (path.indexOf('/api/errors') === 0) {",
   "      if (auth !== 'Bearer tok-1' || CASE !== 'case-errors') return answer(403, { error: 'moderators only' });",
@@ -280,7 +307,8 @@ const tail = [
   "  var CASE = document.currentScript.dataset.c, ok = window.__ok;",
   "  var $ = function (id) { return document.getElementById(id); };",
   "  if (window.__done) return;",
-  "  var cards = function () { return Array.prototype.slice.call(document.querySelectorAll('#gal-list .gal-card')); };",
+  "  var cards = function () { return Array.prototype.slice.call(document.querySelectorAll('#gal-list .gal-card:not(.gal-local)')); };",
+  "  var locals = function () { return Array.prototype.slice.call(document.querySelectorAll('#gal-list .gal-card.gal-local')); };",
   "  var card = function (id) { return document.querySelector('#gal-list .gal-card[data-id=\"' + id + '\"]'); };",
   "  var seg = function (id, k) { var c = card(id); return c && c.querySelector('.gal-' + k); };",
   "  var heart = function (id) { return seg(id, 'heart'); };",
@@ -999,6 +1027,111 @@ const tail = [
   "      done();",
   "    });",
   "  }",
+  // ================= what you hold: auto-cycle and unfollow (card 832) =================
+  "  if (CASE === 'case-hold') {",
+  "    var cyc = function (id) { var c = card(id); return c && c.querySelector('.gal-cyc'); };",
+  "    var pressed = function (id) { var b = cyc(id); return b && !b.hidden ? b.getAttribute('aria-pressed') : 'none'; };",
+  "    var hb = function () { return JSON.parse(localStorage.getItem('burnTheWeb.v1') || '{}'); };",
+  "    var stored = function (n, k) { return (hb().presets || []).filter(function (p) { return p.name === n && (p.collection || '') === k; })[0]; };",
+  "    var held = function () { return (hb().collections || []).map(function (h) { return h.key; }).join(','); };",
+  "    var curName = function () { var b = hb(); return b.presets && b.presets[b.curPreset] ? b.presets[b.curPreset].name : ''; };",
+  "    var rowOf = function (n) { return Array.prototype.filter.call(document.querySelectorAll('#gal-list .gal-row'), function (r) { return r.querySelector('.gal-name').textContent === n; })[0]; };",
+  "    var unf = function (n) { var r = rowOf(n); return r && r.querySelector('.gal-unfollow'); };",
+  "    var tab = function (t) { document.querySelector('.gal-tab[data-tab=' + t + ']').click(); };",
+  "    if (window.__hold2) {",
+  "      then(400, function () {",
+  "        ok('after a reload, the card you put back is still in', pressed('srv-5') === 'true', pressed('srv-5'));",
+  "        ok('NEGATIVE: the built-in of the collection you unfollowed has no toggle any more', pressed('builtin:neon-reef') === 'none', pressed('builtin:neon-reef'));",
+  "        tab('own');",
+  "      });",
+  "      then(600, function () {",
+  "        ok('...the local scene you left out is still out', pressed('local:Loud One') === 'false', pressed('local:Loud One'));",
+  "        ok('...and the one you put back still in', pressed('local:Quiet One') === 'true', pressed('local:Quiet One'));",
+  "        tab('people');",
+  "      });",
+  "      then(500, function () {",
+  "        ok('...the unfollowed collections stay unfollowed', !!rowOf('AI-Generated') && !unf('AI-Generated') && !rowOf('Gone Pal') && held() === '', held());",
+  "        done();",
+  "      });",
+  "      run(); return;",
+  "    }",
+  "    then(400, function () {",
+  "      ok('a built-in you hold through a followed collection wears In auto-cycle, pressed', pressed('builtin:neon-reef') === 'true' && /In auto-cycle/.test((cyc('builtin:neon-reef') || {}).textContent), pressed('builtin:neon-reef'));",
+  "      ok('...so does a card you installed into Shared with you', pressed('srv-5') === 'true', pressed('srv-5'));",
+  "      ok('...and your own card', pressed('srv-2') === 'true', pressed('srv-2'));",
+  "      ok('NEGATIVE: a card you do not hold has none', pressed('srv-0') === 'none' && pressed('builtin:storm-front') === 'none', pressed('srv-0') + ' ' + pressed('builtin:storm-front'));",
+  "      ok('NEGATIVE: nor your own card whose scene is not in your library', !!card('srv-12') && pressed('srv-12') === 'none', pressed('srv-12'));",
+  "      if (cyc('builtin:neon-reef')) cyc('builtin:neon-reef').click();",
+  "    });",
+  "    then(300, function () {",
+  "      ok('a click leaves it out: the toggle says so', pressed('builtin:neon-reef') === 'false' && /Left out/.test(cyc('builtin:neon-reef').textContent), pressed('builtin:neon-reef'));",
+  "      ok('...stored as rotate:false on the scene', !!stored('Neon Reef', 'AI-Generated') && stored('Neon Reef', 'AI-Generated').rotate === false);",
+  "      ok('...and the click loaded nothing', !$('galdlg').classList.contains('hidden') && curName() === 'Neon Reef' && hb().presets.length === 6, curName());",
+  "      ok('NEGATIVE: nothing else moved', !('rotate' in stored('Scene 5', 'Shared with you')) && !('rotate' in stored('Loud One', '')) && stored('Quiet One', '').rotate === false);",
+  "      if (cyc('srv-5')) cyc('srv-5').click();",
+  "    });",
+  "    then(300, function () {",
+  "      ok('a card in Shared with you leaves the show the same way', pressed('srv-5') === 'false' && stored('Scene 5', 'Shared with you').rotate === false, pressed('srv-5'));",
+  "      if (cyc('srv-5')) cyc('srv-5').click();",
+  "    });",
+  "    then(300, function () {",
+  "      ok('a second click puts it back: pressed, and the flag is gone (absent means in)', pressed('srv-5') === 'true' && !('rotate' in stored('Scene 5', 'Shared with you')), pressed('srv-5'));",
+  "      tab('own');",
+  "    });",
+  "    then(600, function () {",
+  "      var ids = cards().map(function (c) { return c.dataset.id; }), ln = locals().map(function (c) { return c.querySelector('.gal-cname').textContent; });",
+  "      ok('My scenes lists your cards first', ids.join(',') === 'srv-12,srv-2', ids.join(','));",
+  "      ok('...then exactly your scenes with no card, as local cards (not one with a card, not a borrowed one)', ln.join(',') === 'Quiet One,Loud One', ln.join(','));",
+  "      ok('...after the cards', !!locals()[0] && !!locals()[0].previousElementSibling && !locals()[0].previousElementSibling.classList.contains('gal-local'));",
+  "      ok('...with no vote, no link and no delete', locals().length === 2 && locals().every(function (c) { return !c.querySelector('.gal-vote, .gal-share, .gal-rm'); }));",
+  "      ok('a stored rotate:false shows as Left out', pressed('local:Quiet One') === 'false', pressed('local:Quiet One'));",
+  "      ok('...the rest as in', pressed('local:Loud One') === 'true' && pressed('srv-2') === 'true', pressed('local:Loud One'));",
+  "      if (cyc('local:Loud One')) cyc('local:Loud One').click();",
+  "      if (cyc('local:Quiet One')) cyc('local:Quiet One').click();",
+  "    });",
+  "    then(300, function () {",
+  "      ok('a local card toggles too, both ways', pressed('local:Loud One') === 'false' && stored('Loud One', '').rotate === false && pressed('local:Quiet One') === 'true' && !('rotate' in stored('Quiet One', '')));",
+  "      ok('...still loading nothing', !$('galdlg').classList.contains('hidden') && curName() === 'Neon Reef', curName());",
+  "      if (card('local:Quiet One')) card('local:Quiet One').click();",
+  "    });",
+  "    then(400, function () {",
+  "      ok('clicking a local card switches to that scene and closes the gallery', $('galdlg').classList.contains('hidden') && curName() === 'Quiet One' && $('scenenow').textContent.indexOf('Quiet One') >= 0, curName() + ' / ' + $('scenenow').textContent);",
+  "      ok('...in place, adding nothing', hb().presets.length === 6 && !document.getElementById('boot'), hb().presets.length);",
+  "      if ($('galdlg').classList.contains('hidden')) $('galbtn').click();",
+  "    });",
+  "    then(600, function () { tab('people'); });",
+  "    then(500, function () {",
+  "      ok('Collections: a collection you follow has Unfollow', !!unf('AI-Generated') && /following/.test(rowOf('AI-Generated').querySelector('.gal-meta').textContent));",
+  "      ok('NEGATIVE: one you do not follow has none', !!rowOf('Pat') && !unf('Pat'));",
+  "      ok('one you hold that is no longer listed still gets a row: Unfollow, no Load', !!unf('Gone Pal') && rowOf('Gone Pal').querySelectorAll('button').length === 1 && /no longer listed/.test(rowOf('Gone Pal').textContent));",
+  "      window.__conf = [];",
+  "      window.confirm = function (m) { window.__conf.push(m); return false; };",
+  "      if (unf('AI-Generated')) unf('AI-Generated').click();",
+  "    });",
+  "    then(300, function () {",
+  "      ok('Unfollow asks first, naming the collection and how many scenes go', window.__conf.length === 1 && /Unfollow .AI-Generated./.test(window.__conf[0]) && /1 of its scene will leave/.test(window.__conf[0]), window.__conf[0]);",
+  "      ok('NEGATIVE: cancelled, nothing goes', !!stored('Neon Reef', 'AI-Generated') && held() === 'AI-Generated,Gone Pal' && !!unf('AI-Generated'), held());",
+  "      window.confirm = function (m) { window.__conf.push(m); return true; };",
+  "      if (unf('AI-Generated')) unf('AI-Generated').click();",
+  "    });",
+  "    then(400, function () {",
+  "      ok('confirmed, its scenes leave your library', !stored('Neon Reef', 'AI-Generated'));",
+  "      ok('...and the follow goes', held() === 'Gone Pal', held());",
+  "      ok('...your own and your shared scenes stay, the selection with them', hb().presets.length === 5 && !!stored('Scene 5', 'Shared with you') && curName() === 'Quiet One', hb().presets.length + ' ' + curName());",
+  "      ok('...the row stays, with Load and no Unfollow', !!rowOf('AI-Generated') && !unf('AI-Generated') && /Load scenes/.test(rowOf('AI-Generated').textContent));",
+  "      if (unf('Gone Pal')) unf('Gone Pal').click();",
+  "    });",
+  "    then(400, function () {",
+  "      ok('an unlisted collection unfollows too, and its row goes', !rowOf('Gone Pal') && !stored('Gone Song', 'Gone Pal') && held() === '', held());",
+  "      sessionStorage.setItem('galholdfails', String(window.__fails()));",
+  "      sessionStorage.setItem('galhold', '2');",
+  "      $('gal-close').click();",
+  "      ok('closing the gallery drops #gallery, so the reload boots as a plain visit', location.hash === '', location.hash);",
+  "      sessionStorage.setItem('galholdfails', String(window.__fails()));",
+  "      location.reload();",
+  "    });",
+  "    run(); return;",
+  "  }",
   // ================= signed in as an admin (the API's ADMIN_UIDS) =================
   "  if (CASE === 'case-admin') {",
   "    then(600, function () {",
@@ -1040,7 +1173,7 @@ function build(c) {
   fs.writeFileSync(path.join(outDir, c + ".html"), html);
   console.log("wrote " + c + ".html");
 }
-const CASES = { "case-out": "", "case-weight": "", "case-in": "", "case-admin": "", "case-errors": "","case-lazy": "", "case-render": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
+const CASES = { "case-out": "", "case-hold": "", "case-weight": "", "case-in": "", "case-admin": "", "case-errors": "","case-lazy": "", "case-render": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
   "case-cred-new": "", "case-cred-recent": "", "case-cred-old": "", "case-cred-hook": "?credits=4",
   "case-sync-anon": "?api=http://127.0.0.1:9", "case-sync-in": "?api=http://127.0.0.1:9", "case-sync-off": "" };
 for (const c in CASES) build(c);

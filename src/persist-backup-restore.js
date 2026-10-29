@@ -257,9 +257,14 @@
         // `keep` (one scene from the gallery, into "Shared with you") keeps the rest of that
         // collection and replaces only a same-named scene in it: loading a second card must
         // not throw away the first.
+        // A scene of that set you had taken out of auto-cycle stays out across the refresh
+        // (rotate is how you USE it, never part of what the sender sends).
+        const outOfShow = new Set(out.presets.filter(x => (x.collection || "") === coll && x.rotate === false).map(x => x.name));
         lib = p.keep ? out.presets.slice() : out.presets.filter(x => (x.collection || "") !== coll);
         for (const q of p.valid) {
           const item = { ...q, collection: coll };
+          delete item.rotate;                  // the sender's own choice is not yours
+          if (outOfShow.has(item.name)) item.rotate = false;
           const at = p.keep ? lib.findIndex(x => x.name === item.name && (x.collection || "") === coll) : -1;
           if (at >= 0) lib[at] = item; else lib.push(item);
         }
@@ -484,7 +489,9 @@
     const at = [];
     for (const q of parsed.valid) {
       const item = { ...q, collection: SHARED_COLLECTION };
+      delete item.rotate;                      // the author's own choice is not yours
       const i = presets.findIndex(x => x.name === item.name && collectionOf(x) === SHARED_COLLECTION);
+      if (i >= 0 && presets[i].rotate === false) item.rotate = false;   // out of auto-cycle stays out
       if (i >= 0) presets[i] = item; else presets.push(item);
       at.push(i >= 0 ? i : presets.length - 1);
     }

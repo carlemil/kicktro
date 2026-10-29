@@ -530,6 +530,18 @@
   #galdlg .gal-wt[data-w="1"] i.on { background: #e8d65a; }
   #galdlg .gal-wt[data-w="2"] i.on { background: #ff9a3c; }
   #galdlg .gal-wt[data-w="3"] i.on { background: #ff5a4a; }
+  /* ↻ In auto-cycle, on a card you hold: the thumbnail's top-right corner, lit while the scene
+     is in the show, dimmed when it is left out. */
+  #galdlg .gal-cyc {
+    position: absolute; right: 6px; top: 6px; z-index: 1; padding: 3px 8px; border-radius: 999px; cursor: pointer;
+    background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.25); color: rgba(255, 255, 255, 0.6);
+    font: 10.5px/1.2 ui-monospace, Consolas, monospace; white-space: nowrap;
+  }
+  #galdlg .gal-cyc.on { color: #9be37a; border-color: rgba(155, 227, 122, 0.7); }
+  #galdlg .gal-cyc:hover { border-color: rgba(255, 160, 60, 0.85); }
+  #galdlg .gal-cyc:focus-visible { outline: 1px solid #ffb15a; outline-offset: 2px; }
+  /* A local card (My scenes: yours, with no gallery card): dashed, so it reads as not published. */
+  #galdlg .gal-card.gal-local { border-style: dashed; }
   #galdlg .gal-thumb.gal-ph { display: flex; align-items: center; justify-content: center; padding: 10px; box-sizing: border-box; }
   /* A card whose thumbnail this browser is rendering (gallery-thumbs.js). */
   #galdlg .gal-thumb.gal-rendering::after {

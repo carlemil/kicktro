@@ -799,9 +799,10 @@
 
   // What the dialog shows. `pend` holds the built-in cards not yet placed; `seq` drops the
   // answer to a request a newer tab or filter has overtaken. `mine` / `hate`: the scenes you
-  // gave a ❤️ / a 💔.
+  // gave a ❤️ / a 💔. `ownNames`: the names of the My scenes cards listed so far, so the
+  // scenes of yours with NO card can follow them as local cards (galLocalCards).
   const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
-    hate: new Set(), shown: new Set(), seq: 0, note: "", admin: false, weight: 0 };
+    hate: new Set(), shown: new Set(), seq: 0, note: "", admin: false, weight: 0, ownNames: new Set() };
   const galSort = () => (gal.tab === "new" || gal.tab === "own" ? "new" : gal.tab === "all" ? "name" : "favs");
   const galAuthed = () => gal.tab === "mine" || gal.tab === "own";   // the tabs that need a session
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
@@ -826,7 +827,7 @@
   }
   function galReset() {
     gal.seq++;
-    gal.offset = 0; gal.total = 0; gal.busy = false; gal.shown = new Set(); gal.order = galSort();
+    gal.offset = 0; gal.total = 0; gal.busy = false; gal.shown = new Set(); gal.ownNames = new Set(); gal.order = galSort();
     if (galImgObs) galImgObs.disconnect();
     el("gal-list").textContent = "";
     el("gal-list").className = gal.tab === "people" ? "gal-rows" : "gal-grid";
@@ -840,6 +841,7 @@
       galHint(gal.tab === "own"
         ? "Every scene you make shows up here, and in the gallery an hour after your last change to it."
         : "Favourites belong to an account — sign in under the profile button, then press ❤️ on any scene.");
+      if (gal.tab === "own") galCards(galLocalCards());   // no account yet: your scenes are all local
       return;
     }
     gal.pend = gal.tab === "own" ? []
@@ -863,6 +865,7 @@
       // An API from before mine=own ignores it and lists EVERYONE's: keep only yours, so the
       // tab can never show you someone else's scene with a ✕ you cannot use.
       if (gal.tab === "own") rows = rows.filter(r => r.owner === galMe());
+      if (gal.tab === "own") for (const r of rows) gal.ownNames.add(r.name);   // before the weight cut
       if (gal.offset === 0 && j && j.builtin) {
         if (j.sort === "new" || j.sort === "name" || j.sort === "favs") gal.order = j.sort;
         for (const c of gal.pend) {
@@ -882,6 +885,7 @@
         out.push(r);
       }
       if (gal.done) out.push(...gal.pend.splice(0));
+      if (gal.done && gal.tab === "own") out.push(...galLocalCards());
       galCards(out);
       gal.busy = false; galSyncMore(); galEmpty();
       galWatchMore();
@@ -890,13 +894,19 @@
       // The built-ins need no network, so an unreachable API still leaves something to show.
       gal.busy = false; gal.done = true;
       galCards(gal.pend.splice(0));
+      if (gal.tab === "own") galCards(galLocalCards(true));   // yours are here whatever the network says
       galSyncMore();
       galHint("Could not reach the gallery: " + e.message);
     });
   }
   function galEmpty() {
-    if (el("gal-list").children.length) { galHint(""); return; }
-    galHint(gal.q ? "Nothing matches “" + gal.q + "”."
+    const list = el("gal-list"), local = list.querySelector(".gal-local");
+    if (list.children.length && !(gal.tab === "own" && local && !list.querySelector(".gal-card:not(.gal-local)"))) { galHint(""); return; }
+    // My scenes with only local cards: none of yours is in the gallery yet.
+    galHint(local ? (gal.q ? "None of yours in the gallery matches “" + gal.q + "” — the ones here are only in your scenes."
+        : galMaxCost() >= 0 ? "None of yours in the gallery is this light — the ones here are only in your scenes. Slide Weight to the right to see heavier ones."
+        : "No scenes of yours yet in the gallery — the ones here are only in your scenes. Press New in the Scene box, change it, and it shows up in the gallery an hour later.")
+      : gal.q ? "Nothing matches “" + gal.q + "”."
       + (galMaxCost() >= 0 ? " Heavier scenes are left out: slide Weight to the right to see them." : "")
       : gal.tab === "mine" ? "No favourites yet — press ❤️ on a scene you like."
       : gal.tab === "own" ? "No scenes of yours yet — press New in the Scene box, change it, and it shows up here."
@@ -960,7 +970,7 @@
     card.tabIndex = 0;
     card.setAttribute("role", "button");
     card.dataset.id = c.id;
-    card.setAttribute("aria-label", "Load " + c.name + " by " + (c.author || "someone"));
+    card.setAttribute("aria-label", c.local ? "Switch to " + c.name : "Load " + c.name + " by " + (c.author || "someone"));
     card.__card = c;
     const th = document.createElement("div");
     th.className = "gal-thumb";
@@ -976,7 +986,7 @@
       const t = document.createElement("span");
       t.textContent = c.name;
       th.appendChild(t);
-      if (c.at == null && window.IntersectionObserver) { th.__card = c; galImgObserver().observe(th); }
+      if (c.at == null && !c.local && window.IntersectionObserver) { th.__card = c; galImgObserver().observe(th); }
     }
     const cap = document.createElement("div");
     cap.className = "gal-cap";
@@ -984,6 +994,77 @@
     nm.className = "gal-cname"; nm.textContent = c.name; nm.title = c.name;
     const by = document.createElement("div");
     by.className = "gal-by"; by.textContent = c.author || "";
+    // A LOCAL card (My scenes: a scene of yours with no card -- a starter scene, or one not
+    // uploaded yet) is nothing the gallery knows: no vote, no link, no ✕, no render.
+    if (c.local) {
+      card.classList.add("gal-local");
+      const w = document.createElement("div");
+      w.className = "gal-wait";
+      w.textContent = c.unsure ? "In your scenes (the gallery could not be reached)" : "Only in your scenes, not in the gallery";
+      w.title = c.unsure ? "The gallery did not answer, so this lists every scene of yours."
+        : "A starter scene you have not changed, or one not uploaded yet — change it and it goes up by itself.";
+      cap.append(nm, by, w);
+      card.append(th, cap);
+    } else galCardCap(c, card, th, cap, nm, by);
+    // ↻ In auto-cycle (card 832): on every card that stands for a scene of your library, over
+    // the thumbnail's top-right corner. It writes `rotate` (setInRotation) and never loads.
+    if (galHeld(c).length) {
+      const cy = document.createElement("button");
+      cy.type = "button"; cy.className = "gal-cyc";
+      cy.addEventListener("click", e => {
+        e.stopPropagation();
+        const held = galHeld(c), on = held.length > 0 && held.every(i => inRotation(presets[i]));
+        setInRotation(held, !on);
+        galPaintCycAll();
+        track("gallery_cycle", { on: !on });
+      });
+      galPaintCyc(cy, c);
+      card.appendChild(cy);
+    }
+    if (!c.local) galCardWeight(c, card);
+    galCardEvents(c, card);
+    return card;
+  }
+  // Which scenes of YOUR LIBRARY a card stands for -- what its ↻ toggle writes. The listing
+  // carries no sid, so by NAME: your own card (or a local one) is your own scene of that name;
+  // anyone else's, or a built-in, is the copy a click installed into "Shared with you", or the
+  // one a followed collection named after its author brought.
+  function galHeld(c) {
+    const own = !!c.local || (!!c.owner && c.owner === galMe()), out = [];
+    for (let i = 0; i < presets.length; i++) {
+      const p = presets[i], k = collectionOf(p);
+      if (p.name !== c.name) continue;
+      if (own ? !k : k === SHARED_COLLECTION || (!!c.author && k === c.author)) out.push(i);
+    }
+    return out;
+  }
+  function galPaintCyc(b, c) {
+    const held = galHeld(c), on = held.length > 0 && held.every(i => inRotation(presets[i]));
+    b.hidden = !held.length;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+    b.setAttribute("aria-label", "In auto-cycle: " + c.name);
+    b.textContent = on ? "↻ In auto-cycle" : "↻ Left out";
+    b.title = on ? "In the auto-cycle show — click to leave it out" : "Left out of the auto-cycle show — click to put it back";
+  }
+  function galPaintCycAll() {
+    for (const n of document.querySelectorAll("#gal-list .gal-card")) {
+      const b = n.querySelector(".gal-cyc");
+      if (b) galPaintCyc(b, n.__card);
+    }
+  }
+  // My scenes: each scene of your own the listing has no card for, after the cards it has.
+  // `unsure`: the listing never arrived, so whether one has a card is not known.
+  function galLocalCards(unsure) {
+    const out = [];
+    for (const p of presets) {
+      if (collectionOf(p) || gal.ownNames.has(p.name)) continue;
+      const c = { id: "local:" + p.name, name: p.name, author: myProfileName(), local: true, unsure: !!unsure };
+      if (galMatch(c)) out.push(c);
+    }
+    return out;
+  }
+  function galCardCap(c, card, th, cap, nm, by) {
     // THE VOTE, a three-way switch: ❤️ love, the score in the middle (neutral -- click it to
     // take your vote back), 💔 dislike. Clicking the lit end again returns to neutral too.
     const vote = document.createElement("span");
@@ -1026,6 +1107,8 @@
       cap.appendChild(rm);
     }
     card.append(th, cap);
+  }
+  function galCardWeight(c, card) {
     // Its weight, as bars over the thumbnail's corner: one per step up to the card's own.
     if (c.cost != null && GAL_W.length) {
       const w = galWeightOf(c.cost), wt = document.createElement("span");
@@ -1040,6 +1123,8 @@
       wt.dataset.w = String(w);
       card.appendChild(wt);
     }
+  }
+  function galCardEvents(c, card) {
     // The clip plays while the card is hovered (mouse, pen) or focused (keyboard). On touch
     // there is no hover, so the FIRST tap plays it and the second loads the scene. A tap
     // focuses the card before its click arrives, so focus must not start the preview then, or
@@ -1058,7 +1143,6 @@
     card.addEventListener("keydown", e => {
       if (e.target === card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); galLoadCard(c); }
     });
-    return card;
   }
   function galPreview(card, on) {
     const c = card.__card;
@@ -1224,6 +1308,17 @@
     }));
   }
   function galLoadCard(c) {
+    // A local card is already in your scenes: switch to it in place, as the cycler would.
+    if (c.local) {
+      const i = galHeld(c)[0];
+      if (i == null) { galHint("“" + c.name + "” is no longer in your scenes."); return; }
+      galOpen(false);
+      autosavePreset();                        // fold pending live edits into the scene you leave
+      stopCycling();                           // ...and the one you picked stays on screen
+      applyPreset(i);
+      track("gallery_local", {});
+      return;
+    }
     galHint("Fetching “" + c.name + "”…");
     galSceneOf(c).then(got => {
       galOpen(false);
@@ -1283,8 +1378,16 @@
       if (seq !== gal.seq) return;
       const host = el("gal-list");
       host.textContent = "";
-      const rows = builtin.concat(items).filter(p => !gal.q || String(p.name).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0);
-      for (const p of rows) host.appendChild(galPersonRow(p));
+      const all = builtin.concat(items);
+      // A collection you hold that is no longer listed (unpublished, renamed, a uid-less
+      // follow) still gets a row, so it can still be unfollowed.
+      const heldAll = galHeldCollections();
+      for (const h of heldAll) {
+        if (all.some(p => galFollows(p, h))) continue;
+        all.push({ uid: h.uid, name: h.key, count: presets.filter(p => collectionOf(p) === h.key).length, updated: "", gone: true });
+      }
+      const rows = all.filter(p => !gal.q || String(p.name).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0);
+      for (const p of rows) host.appendChild(galPersonRow(p, heldAll));
       galHint(rows.length ? "" : "No one matches “" + gal.q + "”.");
     };
     const hit = galMem.profiles;
@@ -1292,7 +1395,7 @@
     galList().then(items => { galMem.profiles = { t: Date.now(), j: items }; show(items); })
       .catch(e => { show([]); galHint("Could not load the collections: " + e.message); });
   }
-  function galPersonRow(p) {
+  function galPersonRow(p, heldAll) {
     const row = document.createElement("div");
     row.className = "gal-row";
     const nm = document.createElement("div");
@@ -1300,20 +1403,50 @@
     nm.textContent = p.name;
     const meta = document.createElement("div");
     meta.className = "gal-meta";
+    const held = (heldAll || galHeldCollections()).find(h => galFollows(p, h));
     meta.textContent = p.count + " scene" + (p.count === 1 ? "" : "s")
-      + (p.updated ? " · " + String(p.updated).slice(0, 10) : "");
-    // ONE button: someone else's scenes are installed as their own collection under their
-    // name, so they cannot overwrite yours and re-loading simply refreshes their set.
+      + (p.updated ? " · " + String(p.updated).slice(0, 10) : "")
+      + (p.gone ? " · no longer listed" : held ? " · following" : "");
+    // Load: someone else's scenes are installed as their own collection under their name, so
+    // they cannot overwrite yours and re-loading simply refreshes their set. Unfollow (card
+    // 832), on a collection you hold: its scenes leave yours and the follow goes.
     const btns = document.createElement("div");
     btns.className = "gal-btns";
-    const b = document.createElement("button");
-    b.type = "button"; b.className = "audbtn"; b.textContent = "Load scenes";
-    b.title = "Add these as a “" + p.name + "” collection in your scenes — your own scenes are untouched";
-    b.addEventListener("click", () => galLoad(p));
-    btns.appendChild(b);
+    if (!p.gone) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "audbtn"; b.textContent = held ? "Reload scenes" : "Load scenes";
+      b.title = held ? "Fetch “" + p.name + "” again — its newest scenes replace the ones you have"
+        : "Add these as a “" + p.name + "” collection in your scenes — your own scenes are untouched";
+      b.addEventListener("click", () => galLoad(p));
+      btns.appendChild(b);
+    }
+    if (held) {
+      const u = document.createElement("button");
+      u.type = "button"; u.className = "audbtn gal-unfollow"; u.textContent = "Unfollow";
+      u.title = "Stop following “" + held.key + "” — its scenes leave your scenes; your own are untouched";
+      u.addEventListener("click", () => {
+        if (!unfollowCollection(held.key)) return;
+        if (p.gone) row.remove(); else row.replaceWith(galPersonRow(p));
+        track("gallery_unfollow", {});
+      });
+      btns.appendChild(u);
+    }
     row.append(nm, meta, btns);
     return row;
   }
+  // The collections you HOLD: every follow (collectionsHeld), plus any label your scenes carry
+  // without one (a library from before follows were noted). "Shared with you" is a folder.
+  function galHeldCollections() {
+    const out = collectionsHeld.map(h => ({ key: h.key, uid: h.uid }));
+    for (const p of presets) {
+      const k = collectionOf(p);
+      if (k && k !== SHARED_COLLECTION && !out.some(h => h.key === k)) out.push({ key: k, uid: "" });
+    }
+    return out;
+  }
+  // A follow with a uid is THAT profile (a renamed one still matches, a namesake does not);
+  // a uid-less one can only go by name.
+  const galFollows = (p, h) => h.uid ? h.uid === p.uid : h.key === p.name;
   // One public profile, fetched and decoded into its blob. Split out of galLoad because
   // refollowCollections needs exactly the same three steps (fetch → payload → unzip → parse)
   // and a second copy is how the two would drift. Rejects with a readable message at each
