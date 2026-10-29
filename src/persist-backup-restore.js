@@ -473,11 +473,23 @@
   // Merge semantics are applyRestore's `keep` branch: replace a same-named scene IN
   // "Shared with you", keep the rest (loading a second card must not drop the first).
   function applyGalleryScene(raw, author) {
+    autosavePreset();                          // fold pending live edits into the scene you leave
+    const at = installGalleryScene(raw, author);
+    if (at < 0) return;
+    curPreset = at;
+    stopCycling();                             // ...and it stays on screen
+    applyPreset(curPreset);
+    rebuildPresetOptions();
+    persist();
+  }
+  // The library half of applyGalleryScene, on its own for the auto-cycle's ❤️ show
+  // (favCycleGo): the card's scenes join "Shared with you" and the index it lands on comes
+  // back (-1: nothing valid). Applies nothing and persists nothing -- the caller does.
+  function installGalleryScene(raw, author) {
     const parsed = sharedLibrary(raw);
-    if (!parsed) return;
+    if (!parsed) return -1;
     const by = originOk(author);
     if (by) for (const q of parsed.valid) if (!originOk(q.origin)) q.origin = by;
-    autosavePreset();                          // fold pending live edits into the scene you leave
     // The card's custom ramps join yours (yours keep their places) and its scenes are remapped
     // onto where they landed -- applyRestore's merge, done on the live PALETTES.
     if (Array.isArray(parsed.palettes) && parsed.palettes.length) {
@@ -498,11 +510,7 @@
     // Land on the scene the blob had selected (a card carries one), else its first.
     const src = parsed.parsed.presets, sel = src && src[parsed.parsed.curPreset];
     const hit = sel ? at.find(i => presets[i].name === sel.name) : undefined;
-    curPreset = hit !== undefined ? hit : at[0];
-    stopCycling();                             // ...and it stays on screen
-    applyPreset(curPreset);
-    rebuildPresetOptions();
-    persist();
+    return hit !== undefined ? hit : at.length ? at[0] : -1;
   }
 
   // Initial paint: setEffect loads the restored effect's per-effect extras (show-box,

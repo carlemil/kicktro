@@ -803,6 +803,7 @@
   // scenes of yours with NO card can follow them as local cards (galLocalCards).
   const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
     hate: new Set(), shown: new Set(), seq: 0, note: "", admin: false, weight: 0, ownNames: new Set() };
+  const favCyc = { busy: false, listed: false, meta: new Map(), miss: new Set() };   // the ❤️ show (favCycleOn)
   const galSort = () => (gal.tab === "new" || gal.tab === "own" ? "new" : gal.tab === "all" ? "name" : "favs");
   const galAuthed = () => gal.tab === "mine" || gal.tab === "own";   // the tabs that need a session
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
@@ -961,6 +962,7 @@
     for (const c of list) {
       if (gal.shown.has(c.id)) continue;           // a row can repeat across pages if favs move
       gal.shown.add(c.id);
+      if (!c.local) favCyc.meta.set(c.id, c);
       host.appendChild(galCard(c));
     }
   }
@@ -1040,7 +1042,7 @@
   }
   function galPaintCyc(b, c) {
     const held = galHeld(c), on = held.length > 0 && held.every(i => inRotation(presets[i]));
-    b.hidden = !held.length;
+    b.hidden = !held.length || favCycleOn();   // with a ❤️ anywhere, the hearts ARE the show
     b.classList.toggle("on", on);
     b.setAttribute("aria-pressed", String(on));
     b.setAttribute("aria-label", "In auto-cycle: " + c.name);
@@ -1213,6 +1215,7 @@
       for (const n of document.querySelectorAll("#gal-list .gal-card")) {
         if (n.dataset.id === c.id) galPaintVote(n.querySelector(".gal-vote"), n.__card);
       }
+      galPaintCycAll();                        // the first heart hides every ↻, the last brings them back
     };
     set(want, Math.max(0, before.favs + (want === 1) - (cur === 1)),
       Math.max(0, before.hates + (want === -1) - (cur === -1)));
@@ -1249,9 +1252,68 @@
         gal.mine = new Set(j.ids);
         gal.hate = new Set(Array.isArray(j.hates) ? j.hates : []);
         gal.admin = j.admin === true;          // a moderator (the API's ADMIN_UIDS): ✕ on every card
+        galPaintCycAll();                      // the hearts may have just taken over the show
         errLinkSync();                         // ...and the profile popover's Error reports
       })
       .catch(() => { /* offline: votes just show unmarked */ });
+  }
+  // AUTO-CYCLE PLAYS YOUR ❤️ (by request, 1.103.0): signed in with at least one heart, the
+  // show is the scenes you hearted, and only those; with none (signed out, or nothing hearted
+  // yet) it is the library minus what ↻ left out, as before. A hearted card is found in the
+  // library the way its ↻ toggle finds it (galHeld, by name); one you do not hold yet is
+  // fetched when its turn comes and joins "Shared with you", as a click on it would, so each
+  // scene downloads once. The switch itself is the cycler's (applyPreset(i, true)): what is
+  // stored still lands on the last scene you PICKED. Declarations: frame-loop is an earlier
+  // slice, and cyclePresets asks these every frame.
+  // `meta`: id → card, from every listing seen and every card fetched (the hearts are ids).
+  // `miss`: hearts that failed to load this visit, skipped so a dead card cannot stall the show.
+  function favCycleOn() { return !!cloudSess && gal.mine.size > 0; }
+  function favCyclePool() {
+    const out = [];
+    for (const id of gal.mine) if (!favCyc.miss.has(id)) out.push(id);
+    return out;
+  }
+  function favCycleCard(id) {
+    if (!favCyc.meta.has(id) && id.indexOf("builtin:") === 0) {
+      const b = galBuiltinCards().find(c => c.id === id);
+      if (b) favCyc.meta.set(id, b);
+    }
+    return favCyc.meta.get(id) || null;
+  }
+  function favCycleIndex(id) {
+    const c = favCycleCard(id), held = c ? galHeld(c) : [];
+    return held.length ? held[0] : -1;
+  }
+  // Put one hearted scene up. false: still fetching the last one, try again next frame.
+  function favCycleGo(id) {
+    if (favCyc.busy) return false;
+    // A heart with no card known yet (the gallery not opened this visit): list your favourites
+    // ONCE, so a scene you already hold is found by name instead of downloaded again.
+    if (!favCycleCard(id) && !favCyc.listed) {
+      favCyc.listed = favCyc.busy = true;
+      galJson("/api/gallery?mine=favs&limit=100&sort=new", true)
+        .then(j => { for (const c of (j && Array.isArray(j.items) ? j.items : [])) if (!favCyc.meta.has(c.id)) favCyc.meta.set(c.id, c); })
+        .catch(() => { /* fetched one by one instead */ })
+        .then(() => { favCyc.busy = false; });
+      return false;
+    }
+    const i = favCycleIndex(id);
+    if (i >= 0) { applyPreset(i, true); return true; }
+    favCyc.busy = true;
+    galSceneOf(favCycleCard(id) || { id }).then(got => {
+      favCyc.busy = false;
+      favCyc.meta.set(id, { id, name: got.name, author: got.author || "", owner: got.owner || "" });
+      if (!cycleOn || !gal.mine.has(id)) return;        // switched off, or un-hearted meanwhile
+      let at = favCycleIndex(id);
+      if (at < 0) {
+        at = installGalleryScene(got.blob, got.author);
+        if (at < 0) throw new Error("no valid scene");
+        rebuildPresetOptions();
+        persist();                             // the library grew; the scene on screen is unchanged
+      }
+      applyPreset(at, true);
+    }).catch(() => { favCyc.busy = false; favCyc.miss.add(id); });
+    return true;
   }
   // The server deletes the card for good (a later upload of the scene, from another device,
   // makes nothing) and names the scene it followed, which leaves your own list here too.
@@ -1294,7 +1356,7 @@
     if (c.at != null) return galFetchLibrary(BUILTIN_GALLERY[0].uid).then(lib => {
       const p = lib && Array.isArray(lib.presets) && lib.presets[c.at];
       if (!p) throw new Error("that scene is missing from this build");
-      return { blob: { presets: [p], curPreset: 0, cycle: false, palettes: lib.palettes }, name: c.name, author: c.author };
+      return { blob: { presets: [p], curPreset: 0, cycle: false, palettes: lib.palettes }, name: c.name, author: c.author, owner: "" };
     });
     return apiGet("/api/gallery/" + encodeURIComponent(c.id)).then(r => {
       if (r.status === 404) throw new Error("it has been taken out of the gallery");
@@ -1304,7 +1366,7 @@
       if (json == null) throw new Error("could not read that scene");
       let blob;
       try { blob = JSON.parse(json); } catch (e) { throw new Error("that scene is corrupt"); }
-      return { blob, name: String(d.name || c.name || "Scene"), author: d.author || c.author };
+      return { blob, name: String(d.name || c.name || "Scene"), author: d.author || c.author, owner: d.owner || c.owner || "" };
     }));
   }
   function galLoadCard(c) {

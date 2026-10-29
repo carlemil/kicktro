@@ -714,6 +714,14 @@ that collection, append the incoming). `#preset` is the hidden store (no visible
 `validatePresetList`. Set from the gallery's **↻ In auto-cycle** toggle (card 832) through `setInRotation(indices, on)`,
 the one writer (in = the key DELETED). A re-install of the same name (`applyGalleryScene`, a collection reload)
 KEEPS a stored `false`. Nothing in rotation ⇒ the cycler idles.
+**AUTO-CYCLE PLAYS YOUR ❤️ (by request, 1.103.0)**: signed in with any heart (`favCycleOn()`: `cloudSess` +
+`gal.mine`), `cyclePresets` draws CARD IDS (`favCyclePool`) and `favCycleGo` puts one up — a held one
+(`galHeld` via `favCyc.meta`, filled from every listing, one `mine=favs` listing when a heart has no card yet)
+by `applyPreset(i, true)`; one not held is fetched (`galSceneOf`), joins Shared with you through
+`installGalleryScene` (the library half of `applyGalleryScene`), `persist()` BEFORE the cycled apply, so each
+downloads once. A failed one goes in `favCyc.miss` for the visit. `rotate` is ignored there and every `.gal-cyc`
+is hidden (`galPaintCyc`); no hearts ⇒ the library rotation above. Declarations: frame-loop is an earlier slice.
+gallery-check `case-favcycle` (REAL TIME — virtual time renders ~two frames after a change; negative control red).
 
 **`autosavePreset` must carry every field beside `name`** — adding one means editing
 `autosavePreset`, `validatePresetList`, and the setter. Third such field: `origin` (original author,

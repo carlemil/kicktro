@@ -79,7 +79,14 @@
 //   listed still gets a row (Unfollow, no Load); a cancelled Unfollow removes nothing
 //   (NEGATIVE), a confirmed one removes its scenes and the follow, keeps yours and the
 //   selection. Then a RELOAD (the seed is skipped): every choice came back from storage.
-//   Against a build without card 832 this case goes red (no toggle, no Unfollow).
+//   Against a build without card 832 this case goes red (no toggle, no Unfollow). It hearts
+//   NOTHING: one heart hands auto-cycle to your hearts and hides every ↻.
+// case-favcycle (REAL TIME: virtual time renders ~two frames after a change; signed in, real frames, Auto-cycle on at a 1 s TTL; hearts on srv-5, held in
+//   Shared with you, and srv-7, not held): the show moves through the two hearted scenes and
+//   never your own; srv-7 is downloaded ONCE and joins Shared with you credited to its author;
+//   srv-5 is never downloaded (NEGATIVE: found by name from the cards the gallery listed); with a
+//   heart no card wears ↻; un-hearting both brings ↻ back and the show is your library again
+//   (NEGATIVE). Against a build without the heart show it goes red (your own scenes play).
 // No backtick in the injected source; lines joined by an explicit newline.
 const fs = require("fs");
 const path = require("path");
@@ -121,6 +128,11 @@ const HOLD_SEED = { presets: [scene(2, "Scene 2"), scene(3, "Quiet One", { rotat
   collections: [{ key: "AI-Generated", uid: "builtin:ai-generated" }, { key: "Gone Pal", uid: "x-gone" }] };
 const HOLD_JSON = JSON.stringify(HOLD_SEED);
 if (/[`<]/.test(HOLD_JSON)) { console.error("case-hold seed carries a backtick or <"); process.exit(2); }
+// case-favcycle's: two scenes of your own and the copy of srv-5 a click installed. Auto-cycle
+// is ON with a 1 s TTL and no blend, so the show moves several times inside the budget.
+const FAV_JSON = JSON.stringify({ panelOpen: false, cycle: true, ttl: [1, 1], tdur: [0, 0], audio: "off",
+  presets: [scene(2, "Loud One"), scene(3, "Quiet One"), scene(1, "Scene 5", { collection: "Shared with you" })], curPreset: 0 });
+if (/[`<]/.test(FAV_JSON)) { console.error("case-favcycle seed carries a backtick or <"); process.exit(2); }
 
 const head = [
   "<script>",
@@ -137,7 +149,9 @@ const head = [
   "  window.__ok = ok; window.__fails = function () { return fails; };",
   "  var CRED = /^case-cred-/.test(CASE);",
   // case-home watches the rendered-frame count, so it keeps the real rAF too.
-  "  if (!CRED && CASE !== 'case-home') requestAnimationFrame = function () { return 0; };",
+  "  if (!CRED && CASE !== 'case-home' && CASE !== 'case-favcycle') requestAnimationFrame = function () { return 0; };",
+  // case-favcycle needs frames past the reduced-motion pause headless Edge asks for
+  "  if (CASE === 'case-favcycle') { var mm0 = window.matchMedia; window.matchMedia = function (q) { return /reduced-motion/.test(q) ? mm0.call(window, 'not all') : mm0.call(window, q); }; }",
   // A pick installs IN PLACE: 'galchk' is set just before it (and on a #g= link's boot), and the
   // in-page verdict clears it. A page that BOOTS with it set has reloaded -- a FAIL, carrying
   // the first page's count.
@@ -181,6 +195,7 @@ const head = [
   // earlier visit), and every source REFUSED -- a stub that records what was asked for.
   "  var DOOR = /^case-(door|picked|armed)$/.test(CASE);",
   "  if (CASE === 'case-hold' && !HOLD2) localStorage.setItem('burnTheWeb.v1', JSON.stringify(Object.assign({ panelOpen: false, cycle: false, audio: 'off' }, " + HOLD_JSON + ")));",
+  "  else if (CASE === 'case-favcycle') localStorage.setItem('burnTheWeb.v1', JSON.stringify(" + FAV_JSON + "));",
   "  else if (CASE !== 'case-hold') localStorage.setItem('burnTheWeb.v1', JSON.stringify(!DOOR ? { panelOpen: false, cycle: false, audio: 'off' }",
   "    : CASE === 'case-armed' ? { panelOpen: false, cycle: false, audio: 'mic' } : { panelOpen: false, cycle: false }));",
   "  if (CASE === 'case-picked') sessionStorage.setItem('kt.picked', '1');",
@@ -190,7 +205,7 @@ const head = [
   "    try { Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: refuse('mic'), getDisplayMedia: refuse('capture') } }); } catch (e) {}",
   "    window.AudioContext = function () { return { resume: function () { return Promise.resolve(); } }; };",
   "  }",
-  "  if (CASE === 'case-in' || CASE === 'case-admin' || CASE === 'case-errors' || CASE === 'case-hold') localStorage.setItem('burnTheWeb.cloud.v2', JSON.stringify({ uid: 'me-uid', token: 'tok-1', expires: Date.now() + 3600000 }));",
+  "  if (CASE === 'case-in' || CASE === 'case-admin' || CASE === 'case-errors' || CASE === 'case-hold' || CASE === 'case-favcycle') localStorage.setItem('burnTheWeb.cloud.v2', JSON.stringify({ uid: 'me-uid', token: 'tok-1', expires: Date.now() + 3600000 }));",
   "  else if (CASE === 'case-sync-in') localStorage.setItem('burnTheWeb.cloud.v2', JSON.stringify({ uid: 'me-uid', token: 'tok-1', expires: Date.now() + 60 * 86400000 }));",
   "  else localStorage.removeItem('burnTheWeb.cloud.v2');",
   "  if (CASE === 'case-sync-in') localStorage.setItem('burnTheWeb.profile.v1', 'Dee Tester'); else localStorage.removeItem('burnTheWeb.profile.v1');",
@@ -205,7 +220,9 @@ const head = [
   // how heavy each is (ms a frame): light / medium / very heavy in turn; srv-1 never measured
   "  rows.forEach(function (r, i) { if (i !== 1) r.cost = [0.8, 4, 20][i % 3]; });",
   "  var builtin = { 'builtin:neon-reef': 25, 'builtin:storm-front': 3 }, builtinHates = { 'builtin:storm-front': 5 };",
-  "  var mine = { 'srv-3': true, 'srv-9': true }, hated = { 'srv-8': true };",
+  // case-hold hearts nothing (a heart hands auto-cycle to your hearts and hides every ↻);
+  // case-favcycle hearts one scene you hold (srv-5) and one you do not (srv-7)
+  "  var mine = CASE === 'case-hold' ? {} : CASE === 'case-favcycle' ? { 'srv-5': true, 'srv-7': true } : { 'srv-3': true, 'srv-9': true }, hated = { 'srv-8': true };",
   "  window.__req = [];",
   "  window.__failFav = {};",
   "  function answer(status, body, delay) {",
@@ -251,7 +268,7 @@ const head = [
   "        created: Date.now(), favs: 0, hates: 0, poster: null, clip: null, synced: true, live: false, pending: Date.now() + 3600000 });",
   "      return answer(200, { added: 1, changed: 0, same: 0, hidden: 0, stock: 0 });",
   "    }",
-  "    if (path === '/api/me/favs') return answer(auth ? 200 : 401, { ids: Object.keys(mine).concat(['builtin:storm-front']), hates: Object.keys(hated), admin: CASE === 'case-admin' || CASE === 'case-errors' || undefined });",
+  "    if (path === '/api/me/favs') return answer(auth ? 200 : 401, { ids: Object.keys(mine).concat(CASE === 'case-hold' || CASE === 'case-favcycle' ? [] : ['builtin:storm-front']), hates: Object.keys(hated), admin: CASE === 'case-admin' || CASE === 'case-errors' || undefined });",
   "    if (path === '/api/profiles') return answer(200, { items: CASE === 'case-hold' ? [{ uid: 'p-1', name: 'Pat', count: 3, updated: T0 }] : [] });",
   // the crash reports, as GET /api/errors answers them (server/routes.js)
   "    if (path.indexOf('/api/errors') === 0) {",
@@ -318,7 +335,7 @@ const tail = [
   "    return on.length === 1 && on[0].getAttribute('aria-checked') === 'true' && c.querySelectorAll('.gal-vote [aria-checked=true]').length === 1 ? on[0].classList[0].slice(4) : 'BAD'; };",
   "  var frames = function () { return parseInt($('frames').textContent, 10) || 0; };",
   "  var reqs = function (re) { return window.__req.filter(function (r) { return re.test(r.m + ' ' + r.p); }); };",
-  "  var done = function () { console.log('DONE ' + CASE + ' fails=' + window.__fails()); if (CASE === 'case-lazy' || CASE === 'case-render') setTimeout(function () { try { window.close(); } catch (e) {} }, 200); };",
+  "  var done = function () { console.log('DONE ' + CASE + ' fails=' + window.__fails()); if (CASE === 'case-lazy' || CASE === 'case-render' || CASE === 'case-favcycle') setTimeout(function () { try { window.close(); } catch (e) {} }, 200); };",
   "  var steps = [], at = 0;",
   "  function then(ms, f) { steps.push([ms, f]); }",
   "  function run() { if (at >= steps.length) return; var s = steps[at++]; setTimeout(function () { s[1](); run(); }, s[0]); }",
@@ -1027,6 +1044,43 @@ const tail = [
   "      done();",
   "    });",
   "  }",
+  // ================= auto-cycle plays your hearts (1.103.0) =================
+  "  if (CASE === 'case-favcycle') {",
+  "    var hb = function () { return JSON.parse(localStorage.getItem('burnTheWeb.v1') || '{}'); };",
+  "    var now = function () { return $('scenenow').textContent; };",
+  "    var seen = [], watch = function () { var n = now(); if (seen[seen.length - 1] !== n) seen.push(n); };",
+  "    var tick = 0;",
+  "    var own = function (l) { return l.filter(function (n) { return /Loud One|Quiet One/.test(n); }); };",
+  // the prologue left the gallery open, and an open gallery HOLDS the scene: close it first
+  "    then(100, function () { $('gal-close').click(); seen = [now()]; tick = setInterval(watch, 100); });",
+  "    then(8000, function () {",
+  "      var shown = seen.slice(1);",
+  "      ok('signed in with hearts, auto-cycle moved', shown.length >= 2, seen.join(' > '));",
+  "      ok('...through your hearted scenes only', shown.length > 0 && own(shown).length === 0, seen.join(' > '));",
+  "      ok('...both of them: the one you hold and the one you did not', shown.some(function (n) { return /Scene 5/.test(n); }) && shown.some(function (n) { return /Coral Reef Dawn/.test(n); }), seen.join(' > '));",
+  "      var cr = (hb().presets || []).filter(function (p) { return p.name === 'Coral Reef Dawn'; });",
+  "      ok('the one you did not hold joined Shared with you, once', cr.length === 1 && cr[0].collection === 'Shared with you' && cr[0].origin === 'Author 3', cr.length + ' ' + (cr[0] && cr[0].collection));",
+  "      ok('...downloaded once, however often it came round', reqs(/GET \\/api\\/gallery\\/srv-7$/).length === 1, reqs(/GET \\/api\\/gallery\\/srv-7$/).length);",
+  "      ok('NEGATIVE: the one you held was never downloaded (found by name)', reqs(/GET \\/api\\/gallery\\/srv-5$/).length === 0);",
+  "      $('galbtn').click();",
+  "    });",
+  "    then(800, function () {",
+  "      ok('with a heart, no card wears the ↻ toggle', !!card('srv-5') && Array.prototype.every.call(document.querySelectorAll('#gal-list .gal-cyc'), function (b) { return b.hidden; }));",
+  "      if (heart('srv-5')) heart('srv-5').click();",
+  "      if (heart('srv-7')) heart('srv-7').click();",
+  "    });",
+  "    then(900, function () {",
+  "      ok('the last heart gone, ↻ is back on the cards you hold', !!card('srv-5').querySelector('.gal-cyc') && !card('srv-5').querySelector('.gal-cyc').hidden);",
+  "      $('gal-close').click();",
+  "      seen = [now()];",
+  "    });",
+  "    then(6000, function () {",
+  "      clearInterval(tick);",
+  "      ok('NEGATIVE: with no hearts the show is your library again', own(seen.slice(1)).length > 0, seen.join(' > '));",
+  "      done();",
+  "    });",
+  "    run(); return;",
+  "  }",
   // ================= what you hold: auto-cycle and unfollow (card 832) =================
   "  if (CASE === 'case-hold') {",
   "    var cyc = function (id) { var c = card(id); return c && c.querySelector('.gal-cyc'); };",
@@ -1173,7 +1227,7 @@ function build(c) {
   fs.writeFileSync(path.join(outDir, c + ".html"), html);
   console.log("wrote " + c + ".html");
 }
-const CASES = { "case-out": "", "case-hold": "", "case-weight": "", "case-in": "", "case-admin": "", "case-errors": "","case-lazy": "", "case-render": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
+const CASES = { "case-out": "", "case-hold": "", "case-favcycle": "", "case-weight": "", "case-in": "", "case-admin": "", "case-errors": "","case-lazy": "", "case-render": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
   "case-cred-new": "", "case-cred-recent": "", "case-cred-old": "", "case-cred-hook": "?credits=4",
   "case-sync-anon": "?api=http://127.0.0.1:9", "case-sync-in": "?api=http://127.0.0.1:9", "case-sync-off": "" };
 for (const c in CASES) build(c);
@@ -1181,6 +1235,6 @@ const abs = path.resolve(outDir).split(path.sep).join("/");
 console.log(NL + "run each with:");
 for (const c in CASES) {
   console.log('  msedge --headless=new --disable-extensions --enable-logging=stderr --v=0'
-    + (c === "case-lazy" || c === "case-render" ? "" : /^case-sync-/.test(c) ? ' --virtual-time-budget=35000' : ' --virtual-time-budget=20000') + ' --user-data-dir="' + abs + '/ud-' + c + '"'
+    + (c === "case-lazy" || c === "case-render" || c === "case-favcycle" ? "" : /^case-sync-/.test(c) ? ' --virtual-time-budget=35000' : ' --virtual-time-budget=20000') + ' --user-data-dir="' + abs + '/ud-' + c + '"'
     + ' "file:///' + abs + '/' + c + '.html' + CASES[c] + '" 2>&1 | grep -oE ' + Q + '"(PASS|FAIL|DONE)[^"]*"' + Q);
 }

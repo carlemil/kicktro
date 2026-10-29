@@ -1214,18 +1214,24 @@
   // Auto-cycle runs whether or not the editor is on screen. It WAS gated on the panel being
   // hidden (1.5x-1.72), and that gate was reverted by request in 1.73.0: a show that stops
   // the moment you open the panel reads as a broken checkbox.
+  // Signed in with a ❤️ on anything, the show is your hearted scenes instead (favCycleOn,
+  // cloud-profile.js): the pool is card ids and favCycleGo puts one up, fetching it first when
+  // it is not in your library yet.
   function cyclePresets(now) {
-    const pool = rotationPool();
+    const favs = favCycleOn();
+    const pool = favs ? favCyclePool() : rotationPool();
+    const onScreen = favs ? id => favCycleIndex(id) === curPreset : n => n === curPreset;
     // Something to switch TO: two or more ticked scenes, or exactly one that isn't the one
     // already on screen (having hand-picked an unticked scene, the cycle should still take
     // you back into the show). Untick everything and the cycler simply idles — it does not
     // fall back to the whole library, because "none in the rotation" is a real choice.
-    const canSwitch = pool.length > 1 || (pool.length === 1 && pool[0] !== curPreset);
+    const canSwitch = pool.length > 1 || (pool.length === 1 && !onScreen(pool[0]));
     if (!cycleOn || !canSwitch || Math.max(+el("ttl-lo").value, +el("ttl-hi").value) <= 0) { nextSwitch = 0; return; }
     if (!nextSwitch) { nextSwitch = now + ttlMs(); return; }
     if (now >= nextSwitch) {
-      let n; do { n = pool[(Math.random() * pool.length) | 0]; } while (n === curPreset && pool.length > 1);
-      applyPreset(n, true);
+      let n; do { n = pool[(Math.random() * pool.length) | 0]; } while (onScreen(n) && pool.length > 1);
+      if (favs) { if (!favCycleGo(n)) return; }        // still fetching: try again next frame
+      else applyPreset(n, true);
       nextSwitch = now + ttlMs();
     }
   }
