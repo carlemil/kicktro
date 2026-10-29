@@ -2672,14 +2672,48 @@
     const px = oc.getImageData(0, 0, out.width, G).data;
     const red = new Uint8Array(out.width * G);
     for (let i = 0; i < red.length; i++) red[i] = px[i * 4];
+    const k = setIdx === undefined ? 0 : setIdx;
+    asciiBuilt[k] = { red, w: out.width, n, buckets: asciiBuckets.slice() };
+    uploadAsciiAtlas(k);
+  }
+  // EACH SCRIPT IS BUILT ONCE A VISIT. The build is ~40 ms of fillText and getImageData (more for
+  // Mixed), and it used to land in the frame that switched into an ASCII scene: the longest
+  // hitch of an auto-cycle lap (tools/transperf-check.js). The pixels are kept per script, so a
+  // later switch -- or a restored context, or two layers on different scripts -- only uploads,
+  // and warmAsciiAtlases builds the scripts the library uses while nothing is switching.
+  const asciiBuilt = [];
+  function uploadAsciiAtlas(k) {
+    const b = asciiBuilt[k];
     gl.bindTexture(gl.TEXTURE_2D, glTex.ascii);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, out.width, G, 0, gl.RED, gl.UNSIGNED_BYTE, red);
-    asciiAtlasSet = setIdx === undefined ? 0 : setIdx; asciiAtlasN = n;
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, b.w, ASCII_GLYPH_PX, 0, gl.RED, gl.UNSIGNED_BYTE, b.red);
+    asciiBuckets.set(b.buckets);
+    asciiAtlasSet = k; asciiAtlasN = b.n;
   }
   function ensureAsciiAtlas() {
     const want = Math.max(0, Math.min(ASCII_SETS.length - 1, Math.round(ascSet)));
-    if (asciiAtlasSet !== want) buildAsciiAtlas(want);
+    if (asciiAtlasSet === want) return;
+    if (asciiBuilt[want]) uploadAsciiAtlas(want); else buildAsciiAtlas(want);
+  }
+  // Build ahead, one script per idle slot, the scripts a scene in the library asks for. The text
+  // test is deliberately loose (every effect carries an ascset): a needless build costs an idle
+  // slot, a missed one only the hitch this exists to move.
+  function warmAsciiAtlases() {
+    if (!useGL || THUMB) return;
+    let txt; try { txt = JSON.stringify(presets); } catch (e) { return; }
+    if (txt.indexOf("ascii") < 0) return;
+    const want = new Set();
+    for (const m of txt.matchAll(/"ascset":\[(\d+)/g)) want.add(Math.min(ASCII_SETS.length - 1, +m[1]));
+    const idle = window.requestIdleCallback || (cb => setTimeout(cb, 200));
+    const next = () => {
+      const k = [...want].find(i => !asciiBuilt[i]);
+      if (k === undefined || !glReady) return;
+      const was = asciiAtlasSet;
+      try { buildAsciiAtlas(k); } catch (e) { return; }
+      if (was >= 0 && asciiBuilt[was]) uploadAsciiAtlas(was); else asciiAtlasSet = -1;   // the live script stays loaded
+      idle(next, { timeout: 4000 });
+    };
+    idle(next, { timeout: 4000 });
   }
   function postPass(name, src, setU) {
     const P = glProg[name];

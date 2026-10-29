@@ -1106,6 +1106,7 @@
   }
   function refreshBreakout() {
     if (applyingPreset) { refreshBreakout.later = true; return; }   // laid out once by presetUiCatchUp
+    flushOpenBlocks();                            // an open layer's block is painted before it shows
     let anyVisible = false;
     // Un-hide the host BEFORE anything measures: placeLayerBox reads the freshly-shown
     // box's size mid-pass, and inside a display:none host every box measures 0×0 — which

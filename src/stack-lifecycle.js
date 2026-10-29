@@ -47,8 +47,10 @@
   // It sets values and calls that slider's own ui() DIRECTLY; it must never dispatch `input`.
   // A dispatch would reach the delegated onEdit, which persists and autosaves the live scene,
   // so painting three blocks would write the scene three times per selection for no reason.
-  function paintBlock(slot, L) {
+  function paintBlock(slot, L, force) {
     if (!L || slot === stackSel || !W[slot]) return;
+    if (!force && blockUnseen(slot)) { markBlockStale(slot); return; }   // painted when it is next seen
+    if (blockStale) blockStale.delete(slot);
     // Bounds BEFORE values: paint a value into a slider still carrying the shipped bounds and
     // the browser silently clamps it, and the next freezeItem writes the clamped number back.
     applyLayerRangesTo(slot, L.ranges);
@@ -93,14 +95,35 @@
     const own = new Set(filtersOk(L.filters) || presetFilters(L.fx));
     FILTERS.forEach(f => { const cb = ctlIn(slot, "flt-" + f.id); if (cb) cb.checked = own.has(f.id); });
     renderFilterListsFor(slot);
-    refreshBlockVisibility(slot);      // ...against ITS effect and ITS filters
+    refreshBlockVisibility(slot, true);   // ...against ITS effect and ITS filters
   }
+  // A CLOSED LAYER'S BLOCK IS NOT PAINTED. Its controls are on screen only while its layer box
+  // is open (refreshBreakout shows the box and, through it, any slider popped out of it), yet a
+  // scene switch painted all four blocks and ran their visibility passes: up to 20 ms of a
+  // 16-49 ms freeze in applyPreset, for nothing anybody could see. Such a block is only MARKED;
+  // flushBlock paints it from its frozen record when it can next be seen (refreshBreakout, for
+  // every open slot) or used (selectStack, before it becomes the store). Slot 0 is never
+  // deferred: its visibility pass also shows and hides the SCENE controls, which live outside
+  // every block.
+  var blockStale, openSet;              // var: refreshBlockVisibility runs from an earlier slice
+  function blockUnseen(slot) { return !!openSet && slot !== 0 && slot !== stackSel && !openSet.has(slot); }
+  function markBlockStale(slot) { (blockStale || (blockStale = new Set())).add(slot); }
+  function flushBlock(slot) {
+    if (!blockStale || !blockStale.has(slot)) return;
+    blockStale.delete(slot);
+    if (stack[slot] && slot !== stackSel) paintBlock(slot, stack[slot], true);
+    else refreshBlockVisibility(slot, true);
+    // Its pulse plots were drawn from whatever the block held before: draw them as they show.
+    for (const id in W[slot] || {}) if (W[slot][id].pplot) W[slot][id].pplotStale = true;
+  }
+  function flushOpenBlocks() { if (blockStale && openSet) for (const s of openSet) flushBlock(s); }
   // A reorder, an add, a remove and a scene load all change WHICH LAYER a slot holds, so
   // every block has to be repainted. Missing one is silent: the records are still right, so
   // the render is still right and only the panel lies.
   function repaintAllBlocks() { stack.forEach((L, s) => paintBlock(s, L)); }
   function selectStack(j) {
     if (j === stackSel || !stack[j]) return;
+    flushBlock(j);                   // a closed layer's block, painted while it is still not the store
     const prev = stackSel;
     freezeItem(stack[stackSel]);
     stackSel = j;
@@ -194,6 +217,7 @@
   // panel's own box folds — deliberately not persisted and not part of a scene, and
   // deliberately not a field on the stack item, which would risk reaching stackItemOut.
   const openSlots = new Set();
+  openSet = openSlots;                 // blockUnseen's handle, safe to read from any slice
   // Keep the open set pointing at the same ITEMS when the array is spliced.
   function dropOpen(j) {                       // ...after removeStackItem's splice(j, 1)
     const o = [...openSlots];

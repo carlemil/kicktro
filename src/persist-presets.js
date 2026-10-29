@@ -671,12 +671,26 @@
     const ids = drawPulsePlots.later; drawPulsePlots.later = null;
     if (ids) for (const id of ids) drawPulsePlots(id);
   }
+  // ...and on an AUTO-CYCLE switch, not in the frame that switches. cyclePresets runs inside
+  // frame(), and the catch-up (6-10 ms) is editor furniture the next picture never reads, so it
+  // waits for the task after that frame is presented. Any press, key or focus — and the next
+  // load — flushes it first, so nothing you touch is a frame behind. A switch you PICK catches
+  // up at once, as before.
+  var uiCatchT;                        // var: no TDZ
+  function presetUiSoon() { if (!uiCatchT) uiCatchT = setTimeout(presetUiFlush, 0); }
+  function presetUiFlush() {
+    if (!uiCatchT) return;
+    clearTimeout(uiCatchT); uiCatchT = 0;
+    presetUiCatchUp();
+  }
+  for (const t of ["pointerdown", "keydown", "focusin"]) window.addEventListener(t, presetUiFlush, true);
   // `cycled`: the auto-cycle's switch, which is not an edit and is not persisted. What is stored
   // still agrees with itself (the last scene you put up, with its live state), so a reload lands
   // there; the cloud and gallery hear nothing; and the frame loses the full serialise +
   // localStorage write it used to pay at the start of every blend.
   function applyPreset(i, cycled) {
     const p = presets[i]; if (!p) return;
+    presetUiFlush();                   // the previous cycled load's catch-up, before this one's
     applyingPreset = true;
     // Start the transition BEFORE anything is swapped: it freezes the frame that is
     // still on screen, and picks its mode by comparing the outgoing scene to this one.
@@ -718,7 +732,7 @@
     curPreset = i; presetSel.value = String(i);
     syncSceneTitle();                 // covers the auto-cycle too,
     applyingPreset = false;            // which sets the value without firing `change`
-    presetUiCatchUp();
+    if (cycled) presetUiSoon(); else presetUiCatchUp();
     sceneTitleFor(i);                  // name the scene on screen (queues behind the credits)
     sceneMark();                       // as loaded: what a later fold is compared with
     if (!cycled) persist();

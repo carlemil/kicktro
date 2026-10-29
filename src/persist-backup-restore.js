@@ -552,6 +552,7 @@
   syncSceneEnabled();                 // match the rest of the Scene box to the restored cycle toggle
   startCredits();                     // burn the credits into the opening frames
   persistReady = true;
+  warmAsciiAtlases();                 // the library's ASCII scripts, built in idle time, not in a switch
   // Save the opening scene once, so a reload keeps it instead of re-applying (and
   // re-morphing the palette) on every visit until the first edit.
   if (freshVisit) persist();

@@ -1075,7 +1075,8 @@
   // unchanged write is skipped rather than handed to the style system.
   function setDisp(n, disp) { if (n.style.display !== disp) n.style.display = disp; }
   var grpKeys;                        // group -> its CONTROLS keys, built on first use (var: no TDZ)
-  function refreshBlockVisibility(slot) {
+  function refreshBlockVisibility(slot, force) {
+    if (!force && blockUnseen(slot)) { markBlockStale(slot); return; }   // a closed layer: flushBlock
     const shown = shownKeysFor(slot);
     CONTROLS.forEach(c => {           // poppable sliders toggle their menu row; other controls toggle themselves
       // A folded group hides its ROWS but keeps its HEADING (below), which is the only way

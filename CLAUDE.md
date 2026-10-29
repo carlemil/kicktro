@@ -289,6 +289,14 @@ Own `localStorage` key + "Show author" (`#sceneTitleOn`, `data-nopersist`, Scene
   even READING `style.display` on thousands of nodes showed. `refreshBreakout` visits only
   POPPED boxes plus `brkLit` (what it lit last; the first pass sweeps all); `brkBoxes()` walks
   `#breakout`'s children — never query its subtree. ~15–40 ms a switch (1.100.1).
+  **A CLOSED layer's block is not painted** (1.103.1): `paintBlock`/`refreshBlockVisibility` only
+  `markBlockStale` a slot that is not selected, not 0 (its pass also shows the SCENE controls) and
+  not in `openSlots`; `flushBlock` paints it at `selectStack(j)` (before it becomes the store) and
+  `refreshBreakout` flushes every open slot first. `openSet`/`blockStale` are `var`s.
+  **A CYCLED load catches up AFTER its frame**: `applyPreset(i, true)` → `presetUiSoon()`
+  (setTimeout 0, lands after the rAF frame presents); `presetUiFlush` runs it on any
+  pointerdown/keydown/focusin and at the next `applyPreset`. A picked scene catches up at once.
+  ~7–21 ms a switch (1.103.1).
 - **`TRANS_MAX_STEP` (1/20 s) caps `trans.t`'s per-frame advance** — the frame after the switch
   carries the freeze in its `dt` and skipped up to 2/3 of the blend in one step.
 
@@ -338,7 +346,10 @@ ranges; `buildAsciiAtlas` renders, sums ink, sorts by coverage. Brightness picks
 0 is the blank and the darkest level is it. **The atlas is sampled with NO Y flip** (the heat buffer
 is already flipped; `asciiprobe` asserts the flip's absence). Glyph pick uses `ascHash` (integer),
 never `fract(sin())`. Tofu rejection is PER GLYPH against `ASCII_TOFU`. Overflow is sampled evenly
-(`pickChars`), capped by `MAX_TEXTURE_SIZE / 32`. `tools/asciiprobe.js`.
+(`pickChars`), capped by `MAX_TEXTURE_SIZE / 32`. `tools/asciiprobe.js`. **Each script is built
+ONCE a visit** (`asciiBuilt[k]` keeps the pixels + buckets; `uploadAsciiAtlas` re-uploads): the
+~40 ms build used to land in the switch into an ASCII scene (a 147 ms gap). `warmAsciiAtlases()`
+(startup, after `persistReady`) builds the library's scripts one per idle slot.
 
 **Slice glitch, Film grain, Stained glass, Wobble, Heat haze and VHS tracking read `postTime`**
 (accumulated frame `dt`); the three distortion filters are stateless UV remaps, `cpuOk: false`.
