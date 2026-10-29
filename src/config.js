@@ -201,18 +201,6 @@
       // Services ID, so the popup works on the real domain alone, never file:// or localhost.
       appleClientId: "com.kicktro.signin",
       appleRedirect: "https://kicktro.com/",
-      // ┌─ FIREBASE, READ-ONLY AND TEMPORARY (card 825, M2) ───────────────────────────────┐
-      // Used for ONE thing: a #c= link the API does not know is tried against its old public
-      // Firestore document (cloudFetchScene). Remove both keys, the fallback, firestore.rules
-      // and firebase.json together once the import counts are confirmed and the project is
-      // deleted. "" for either drops the fallback; neither turns the feature on.
-      // The apiKey is a public project IDENTIFIER, not a secret (secret scanners flag it
-      // anyway: GitHub alert #1 and a 2026-08-26 GitGuardian incident were both dispositioned
-      // as intentional). It is referrer-locked to the site's origins in Google Cloud console.
-      // projectId is the real Firebase project id and can never be renamed.
-      // └──────────────────────────────────────────────────────────────────────────────────┘
-      apiKey: "AIzaSyB_VfQ6W0ui79rMzHrYvbe8f_1OkSSymRM",
-      projectId: "burntheweb-3cd05",
       // The gallery's answers are kept in memory this long (galJson); a favourite patches them.
       galleryTtlMs: 600000,                       // 10 minutes
       galleryPage: 24,                            // scene cards per request as the grid scrolls

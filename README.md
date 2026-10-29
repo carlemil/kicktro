@@ -853,8 +853,7 @@ Apple sign-in buttons'. `node tools/serverprobe.js` starts the server locally an
 
 They used to live in Firebase; [`tools/firebase-export.js`](tools/firebase-export.js) moves
 every profile and shared scene across, keeping each share's id so old `#c=` links still open.
-Until the Firebase project is deleted, a link the API does not know is tried against its old
-public Firestore document ([`firestore.rules`](firestore.rules) is kept until then).
+The page asks the API alone for them: nothing in it talks to Firebase any more.
 
 A first-run **"Sync with your music"** nudge explains the Capture/Mic audio
 buttons to visitors who haven't tried them yet — shown at three growing gaps of

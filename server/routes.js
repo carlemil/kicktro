@@ -1,7 +1,8 @@
 "use strict";
-// Every endpoint. The caps here are the ones firestore.rules used to enforce (that file was the
-// whole authorization boundary on Firebase); this file is now. Keep them in step with the
-// client's own checks in src/cloud-profile.js and CONFIG.cloud.maxPayload.
+// Every endpoint. The caps here are the ones Firebase's firestore.rules used to enforce (that file
+// was the whole authorization boundary there; deleted in card 831, `git show 03ee03b:firestore.rules`);
+// this file is now. Keep them in step with the client's own checks in src/cloud-profile.js and
+// CONFIG.cloud.maxPayload.
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -12,7 +13,7 @@ const { makeSync } = require("./gallery-sync");
 
 const CAP = {
   profileName: 40,
-  profilePayload: 300000,   // exclusive, as in firestore.rules
+  profilePayload: 300000,   // exclusive, as in the old firestore.rules
   profileCount: 500,
   sceneName: 60,
   scenePayload: 200000,     // exclusive: share links AND gallery scenes

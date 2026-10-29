@@ -2965,18 +2965,6 @@
       // Services ID, so the popup works on the real domain alone, never file:// or localhost.
       appleClientId: "com.kicktro.signin",
       appleRedirect: "https://kicktro.com/",
-      // ┌─ FIREBASE, READ-ONLY AND TEMPORARY (card 825, M2) ───────────────────────────────┐
-      // Used for ONE thing: a #c= link the API does not know is tried against its old public
-      // Firestore document (cloudFetchScene). Remove both keys, the fallback, firestore.rules
-      // and firebase.json together once the import counts are confirmed and the project is
-      // deleted. "" for either drops the fallback; neither turns the feature on.
-      // The apiKey is a public project IDENTIFIER, not a secret (secret scanners flag it
-      // anyway: GitHub alert #1 and a 2026-08-26 GitGuardian incident were both dispositioned
-      // as intentional). It is referrer-locked to the site's origins in Google Cloud console.
-      // projectId is the real Firebase project id and can never be renamed.
-      // └──────────────────────────────────────────────────────────────────────────────────┘
-      apiKey: "AIzaSyB_VfQ6W0ui79rMzHrYvbe8f_1OkSSymRM",
-      projectId: "burntheweb-3cd05",
       // The gallery's answers are kept in memory this long (galJson); a favourite patches them.
       galleryTtlMs: 600000,                       // 10 minutes
       galleryPage: 24,                            // scene cards per request as the grid scrolls
@@ -24109,7 +24097,7 @@
   }
   // Every deflated payload the app ever ingests (?z=, #zp=, cloud profile, #c= scene)
   // decompresses HERE, and deflate expands up to ~1032:1 — so an attacker-authored
-  // payload that fits the Firestore rules' size cap could still balloon to hundreds
+  // payload that fits the server's payload size cap could still balloon to hundreds
   // of MB in this tab before validatePresetList ever sees it. Read the stream with a
   // byte budget instead of Response.arrayBuffer() (which has none); over budget ⇒
   // cancel and return null, the same answer as a corrupt payload.
@@ -24188,7 +24176,7 @@
   // NOT: they are the recipient's own auto-cycle preferences, and sharing a scene is no
   // reason to reach in and change them. Same for resolution, which was never sent.
   // The live scene as a serialized blob. Split out of shareUrl so the cloud scene-share
-  // (which stores this same payload in Firestore instead of in a URL) cannot drift from it —
+  // (which stores this same payload on the API instead of in a URL) cannot drift from it —
   // one definition of "what a shared scene is", two transports.
   function sceneBlob() {
     saveLiveMaps(effect);             // fold the live DOM/singletons into the current effect's maps
@@ -25769,8 +25757,8 @@
   // to do can still be attempted by hand against the API. Client-side checks here are for the
   // user's benefit — clear errors, no pointless round trips — never for security.
   //
-  // Moved off Firebase in card 825 (M2). Firestore is still READ for one thing, a #c= link the
-  // import did not carry (cloudFetchScene), and that fallback goes once the import is confirmed.
+  // Moved off Firebase in card 825 (M2); the last Firestore read (a #c= fallback) went with
+  // card 831. Nothing in this file talks to Firebase any more.
   const CLOUD = CONFIG.cloud;
   // ?api=<origin> points a LOCAL page (file://, localhost) at a dev server, node server/main.js.
   // Ignored on any other host, so a crafted link can never send someone's session elsewhere.
@@ -27408,26 +27396,15 @@
   // needs something to be called. ?z=/?s= have no equivalent — sceneBlob() has no name field —
   // so this is the only path that can supply one.
   //
-  // FIRESTORE FALLBACK, TEMPORARY: a link the API does not know is tried against the old public
-  // /scenes document (CONFIG.cloud.apiKey/projectId), so a #c= minted in the last minutes before
-  // the freeze still opens. Remove it, and the two config keys, once the import is confirmed.
+  // API only: every #c= id ever minted, the Firebase-era ones included (the import kept each id
+  // verbatim), is answered by GET /api/scenes/<id>. Nothing else is asked.
   function cloudFetchScene(id) {
     if (!cloudOn()) return Promise.resolve(null);
-    const unzip = (payload, name) => unzipFromB64(payload).then(json => (json ? { json, name: name || "" } : null));
     return apiGet("/api/scenes/" + encodeURIComponent(id))
       .then(r => (r.ok ? r.json() : null), () => null)
-      .then(d => {
-        if (d && d.payload) return unzip(d.payload, d.name);
-        if (!CLOUD.apiKey || !CLOUD.projectId) return null;
-        return fetch("https://firestore.googleapis.com/v1/projects/" + CLOUD.projectId
-          + "/databases/(default)/documents/scenes/" + encodeURIComponent(id) + "?key=" + encodeURIComponent(CLOUD.apiKey))
-          .then(r => (r.ok ? r.json() : null))
-          .then(doc => {
-            const f = (doc && doc.fields) || {};
-            const payload = f.payload && f.payload.stringValue;
-            return payload ? unzip(payload, f.name && f.name.stringValue) : null;
-          });
-      })
+      .then(d => (d && d.payload
+        ? unzipFromB64(d.payload).then(json => (json ? { json, name: d.name || "" } : null))
+        : null))
       .catch(() => null);
   }
 
