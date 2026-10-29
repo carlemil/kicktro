@@ -15,6 +15,33 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.102.0] — 2026-10-29
+
+### Added
+- **Leave a scene out of auto-cycle, from the Gallery.** Every gallery card whose scene is in
+  your library has a **↻ In auto-cycle** toggle. Untick it and that scene stays in your
+  library, but auto-cycle skips it. **My scenes** also shows your scenes that have no gallery
+  card yet, as dashed "local" cards, so the starter scenes can be taken out too. Your choice is
+  kept when you reload the page, and when you install the card or reload its collection again.
+- **Unfollow a collection.** On the Gallery's **Collections** tab, a collection you follow is
+  marked "following" and has an **Unfollow** button.
+
+### Changed
+- **Transition and + Choose transitions are back.** In the Scene box they now follow
+  **Auto-cycle**, like Scene TTL: tick Auto-cycle and you can set how long a scene change
+  blends and choose which transitions it uses. Out of the box a scene change still crossfades.
+  Tick more in **+ Choose transitions** and each switch picks from those, favouring the ones
+  that suit the two scenes. **Select none** cuts straight over.
+- **Old `#c=` share links open through the Kicktro server alone.** Every link still opens. The
+  page no longer contacts Firebase at all.
+
+### Internal
+- Removed the Firestore fallback in `cloudFetchScene`, the `apiKey`/`projectId` config keys,
+  and `firestore.rules`, `firebase.json` and `firestore.indexes.json` (card 831). `cloudprobe`
+  now checks that no request path to Firestore is left.
+- New `tools/transprobe.js` pins which transition a switch plays. `foldcycle-check` now expects
+  the transition controls to follow Auto-cycle. Both fail against 1.101.0.
+
 ## [1.101.0] — 2026-10-29
 
 ### Added
