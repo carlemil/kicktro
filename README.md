@@ -852,8 +852,8 @@ Cloud profiles live on Kicktro's own API, **`api.kicktro.com`**: a small Node se
 Apple sign-in buttons'. `node tools/serverprobe.js` starts the server locally and runs its checks.
 
 They used to live in Firebase; [`tools/firebase-export.js`](tools/firebase-export.js) moves
-every profile and shared scene across, keeping each share's id so old `#c=` links still open, and the page asks the API alone for
-them: nothing in it talks to Firebase any more.
+every profile and shared scene across, keeping each share's id so old `#c=` links still open.
+The page asks the API alone for them: nothing in it talks to Firebase any more.
 
 A first-run **"Sync with your music"** nudge explains the Capture/Mic audio
 buttons to visitors who haven't tried them yet — shown at three growing gaps of

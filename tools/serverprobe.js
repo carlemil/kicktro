@@ -6,7 +6,7 @@
 //
 // Google ID tokens are minted here with a throwaway RSA key the stand-in JWKS publishes, so the
 // server's REAL verifier runs: signature, algorithm pin, issuer, audience, expiry, unknown kid.
-// What it pins (each one replaces something firestore.rules used to enforce, or is new):
+// What it pins (each one replaces something the old firestore.rules enforced, or is new):
 //   auth: bad/expired/foreign tokens refused; same Google account => same uid; revocation
 //   profile: If-Match none/stale/current (the currentDocument precondition), caps, hasOnly
 //   public profiles: private stays 404, published readable signed out, by legacy uid too

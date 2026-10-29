@@ -28,7 +28,7 @@
   }
   // Every deflated payload the app ever ingests (?z=, #zp=, cloud profile, #c= scene)
   // decompresses HERE, and deflate expands up to ~1032:1 — so an attacker-authored
-  // payload that fits the Firestore rules' size cap could still balloon to hundreds
+  // payload that fits the server's payload size cap could still balloon to hundreds
   // of MB in this tab before validatePresetList ever sees it. Read the stream with a
   // byte budget instead of Response.arrayBuffer() (which has none); over budget ⇒
   // cancel and return null, the same answer as a corrupt payload.
@@ -107,7 +107,7 @@
   // NOT: they are the recipient's own auto-cycle preferences, and sharing a scene is no
   // reason to reach in and change them. Same for resolution, which was never sent.
   // The live scene as a serialized blob. Split out of shareUrl so the cloud scene-share
-  // (which stores this same payload in Firestore instead of in a URL) cannot drift from it —
+  // (which stores this same payload on the API instead of in a URL) cannot drift from it —
   // one definition of "what a shared scene is", two transports.
   function sceneBlob() {
     saveLiveMaps(effect);             // fold the live DOM/singletons into the current effect's maps
