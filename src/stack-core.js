@@ -1115,15 +1115,12 @@
 
   const effectSel = el("effect");
   const sub = el("sub");
-  // The Scene box below Auto-cycle follows it (by request): off grays out Show author and its
-  // hint, Scene TTL and Transition with Choose transitions, blocks the mouse (.ctl-off) and
-  // disables every input and button inside, so the keyboard cannot reach them. New sits ABOVE
-  // Auto-cycle and is never gated: creating a scene stopCycling()s, which would gray New itself.
+  // The Scene box below Auto-cycle follows it (by request): off grays out Scene TTL and
+  // Transition with + Choose transitions, blocks the mouse (.ctl-off) and disables every input
+  // and button inside, so the keyboard cannot reach them. New and Show author sit ABOVE
+  // Auto-cycle and are never gated: creating a scene stopCycling()s, which would gray New itself.
   function syncSceneEnabled() {
-    // Scene TTL follows Auto-cycle; Transition and + Choose transitions are switched off
-    // for good, by request (a stored transition still plays). New and Show author sit above
-    // Auto-cycle and are never gated.
-    const gated = [[el("grp-ttl"), cycleChk.checked], [el("grp-tdur"), false]];
+    const gated = [[el("grp-ttl"), cycleChk.checked], [el("grp-tdur"), cycleChk.checked]];
     for (const [g, on] of gated) {
       g.classList.toggle("ctl-off", !on);
       for (const c of g.querySelectorAll("input, button")) c.disabled = !on;

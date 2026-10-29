@@ -302,11 +302,12 @@ Own `localStorage` key + "Show author" (`#sceneTitleOn`, `data-nopersist`, Scene
   mask-based ones paint a mask + `destination-in`; `dissolve`/`ripple` fall through to crossfade.
 - `transUse` stored by stable id, skipped while `sharing`. `glRender` sends zoom output to
   `glFbo.post[0]` during a transition so the blend precedes the glow.
-- **THE SCENE SWITCH IS A CROSSFADE** (by request, 1.95.2): `transBegin` calls `scenePick(a, b)`,
-  which answers `crossfade` (eased with smoothstep, GL and CPU mirror alike), or `cut` when the
-  stored `transUse` is the one-member `{"cut"}` set. `pickTransition`/`fits` and the other fifteen
-  modes stay (a stored choice still decodes), unreached.
-- Auto-pick (unreached) = `fits(a, b) → weight` over `sceneInfo()`. Transition slider = [min,max] seconds;
+- **THE SCENE SWITCH IS A CROSSFADE UNTIL YOU TICK OTHERS** (1.95.2; picker back by request,
+  1.102.0): `scenePick(a, b)` answers `crossfade` (eased with smoothstep, GL and CPU mirror alike)
+  while `transUse` is null — **null = Crossfade ALONE, never "all"** (the full weighted menu read as
+  glitches); `cut` for the `{"cut"}` set; else `pickTransition` over the ticked set. "Select all"
+  stores a full SET; a set back to `{crossfade}` collapses to null. `tools/transprobe.js`.
+- Auto-pick = `fits(a, b) → weight` over `sceneInfo()`. Transition slider = [min,max] seconds;
   both thumbs 0 = cut; `trans.t` advances in rendered time.
 
 ### Filters (post-FX)
@@ -541,8 +542,8 @@ plus a ✎ (`#scenerename`) that swaps in `#scenename` (`data-nopersist`) → `r
 1.100.0: a taken name is bumped). Everything clickable in that summary swallows its click or it folds
 the box; the field stops key propagation (window shortcuts). `tools/rename-check.js`. **The Scene box is TRIMMED (card 827):**
 New, Show author, Auto-cycle, Scene TTL, Transition, + Choose transitions — nothing else, in that order.
-**Scene TTL follows Auto-cycle; Transition and + Choose transitions are OFF FOR GOOD** (`syncSceneEnabled`:
-`.ctl-off` + `disabled`, both by request; a stored transition still plays). **New and Show author sit
+**Scene TTL, Transition and + Choose transitions follow Auto-cycle** (`syncSceneEnabled`:
+`.ctl-off` + `disabled`, by request; Transition was off for good until 1.102.0). **New and Show author sit
 above Auto-cycle and are never gated** (creating a scene `stopCycling()`s — gated, New grayed itself). `foldcycle-check` case-gate. There is
 no scene list, no Delete/Share (Rename is the title's ✎), no per-scene cycle tick, no collection ✕, no publish hint;
 don't bring them back without the owner. `#preset` is hidden (`display:none` in the template) and
@@ -1225,6 +1226,8 @@ its own). What each pins:
   drains via the real `clearBeats`. The fixture is tuned (rising carrier for a non-zero median).
 - **`singleprobe`** — `SINGLE_KEYS` is exactly the intended 23; collapse behaviour.
 - **`galaxyprobe`** — arms trail and stay arms, measured as arm sharpness, not swept angle.
+- **`transprobe`** — `transUse` semantics (null = crossfade alone, collapse, full set) and that
+  `scenePick` obeys them; negative control = a pre-1.102 build.
 - **`tintprobe`** — tint is a property of the layer across every reorder/delete; hands the slice
   out of a `new Function`, not `eval`.
 - **`slimeprobe`** — drift of a 3×2 block map (not per-cell churn), determinism, field on layer.

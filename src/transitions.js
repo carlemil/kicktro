@@ -86,12 +86,13 @@
   const TRANS_BY_ID = {};
   TRANSITIONS.forEach(t => TRANS_BY_ID[t.id] = t);
   // ---- which transitions the auto-pick may use --------------------------------------
-  // Same shape as `palUse`: `null` means all of them, which is the shipped state and what
-  // every blob saved before this decodes to. Stored by stable id (not index, unlike the
+  // `null` is the shipped state: CROSSFADE ALONE (the whole weighted menu read as glitches on an
+  // auto-cycle, 1.95.2), and what every blob that never ticked anything decodes to. A set is
+  // what was ticked, "Select all" included. Stored by stable id (not index, unlike the
   // palettes) because the registry is a fixed list of named modes, so an id survives
   // reordering it. Global, like auto-cycle and Preset TTL — a shared scene does not carry it.
   let transUse = null;
-  const transInUse = id => !transUse || transUse.has(id);
+  const transInUse = id => (transUse ? transUse.has(id) : id === "crossfade");
   // "cut" IS NOT A CHOICE — it is the floor under the choices. It is not listed in the picker,
   // it is never auto-picked while anything else is ticked, and ticking anything drops it from
   // the set. It survives only as the one-member set `{"cut"}`, which is how "none of these,
@@ -128,20 +129,21 @@
       host.appendChild(lab);
     });
   }
-  // `transUse` is null while everything is in use, so the first untick has to materialise the
-  // full set before removing from it — and a set that ends up full or empty collapses back to
-  // null, which is also how it is stored.
+  // `transUse` is null while only Crossfade is in use, so the first tick has to materialise that
+  // set before changing it — and a set that ends up as Crossfade alone collapses back to null,
+  // which is also how it is stored; one that ends up empty is the cut-only set.
   function setTransUse(id, on) {
-    if (!transUse) transUse = new Set(TRANS_PICKABLE.map(t => t.id));
+    if (!transUse) transUse = new Set(["crossfade"]);
     if (on) transUse.add(id); else transUse.delete(id);
     transUse.delete("cut");                  // ticking anything at all retires the fallback
-    if (!transUse.size) transUse = new Set(["cut"]);         // emptied ⇒ cut-only, not "all"
-    else if (transUse.size === TRANS_PICKABLE.length) transUse = null;
+    if (!transUse.size) transUse = new Set(["cut"]);         // emptied ⇒ cut-only
+    else if (transUse.size === 1 && transUse.has("crossfade")) transUse = null;
     buildTransPick();
     persist();
   }
   function setTransUseAll(on) {
-    transUse = on ? null : new Set(["cut"]);   // "none" still leaves the hard cut available
+    // "none" still leaves the hard cut available
+    transUse = on ? new Set(TRANS_PICKABLE.map(t => t.id)) : new Set(["cut"]);
     buildTransPick();
     persist();
   }
@@ -191,13 +193,13 @@
     for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }
     return pool[0];
   }
-  // THE SCENE SWITCH IS A CROSSFADE (by request, 1.95.2): both scenes render, live, and the mix
-  // slides from all of the old one to all of the new. The weighted menu above (flash, pixelate,
-  // checker…) read as glitches on an auto-cycle, and its picker is switched off for good, so
-  // nothing reaches pickTransition from here; it and every `fits` stay for the registry. A
-  // remembered "none of these" (the cut-only set) is still honoured.
+  // THE SCENE SWITCH IS A CROSSFADE UNLESS YOU TICK OTHERS (1.95.2, picker back by request):
+  // both scenes render, live, and the mix slides from all of the old one to all of the new.
+  // Untouched (null) it is Crossfade alone; a ticked set goes through the weighted pick above;
+  // "none of these" (the cut-only set) cuts.
   function scenePick(a, b) {
-    return transUse && transUse.size === 1 && transUse.has("cut") ? TRANS_BY_ID.cut : TRANS_BY_ID.crossfade;
+    if (!transUse) return TRANS_BY_ID.crossfade;
+    return transUse.size === 1 && transUse.has("cut") ? TRANS_BY_ID.cut : pickTransition(a, b);
   }
   // Live transition state. `t` counts 0→1 in RENDERED time, like the credits, so a
   // backgrounded tab doesn't burn through it unseen.

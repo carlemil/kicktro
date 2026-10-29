@@ -72,7 +72,7 @@
       palettes: customPalettes(),                    // user-authored ramps ({name, stops}); [] when there are none
       palUse: palUse ? [...palUse].sort((a, b) => a - b) : null,   // which ramps the strip shows / the cycle picks (null ⇒ all)
       palGone: [...palGone].sort((a, b) => a - b),   // soft-deleted shipped palettes (indices; [] = none)
-      transUse: transUse ? [...transUse] : null,     // which transitions a scene change picks from (null ⇒ all)
+      transUse: transUse ? [...transUse] : null,     // which transitions a scene change picks from (null ⇒ crossfade alone)
       collections: collectionsHeld.map(c => ({ key: c.key, uid: c.uid })),   // gallery collections you have added (not their scenes — see cloudBlob)
       presets, curPreset,
       cycle: cycleChk.checked,                       // auto-cycle presets (global)
