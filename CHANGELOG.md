@@ -15,6 +15,20 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.103.0] — 2026-10-29
+
+### Changed
+- **Auto-cycle plays the scenes you ❤️ in the Gallery.** Signed in, with a heart on any
+  Gallery scene, Auto-cycle switches between your hearted scenes and only those. A hearted scene
+  you don't have yet is downloaded the first time it comes up and kept under Shared with you.
+  With no hearts, or signed out, Auto-cycle plays your saved scenes as before. While hearts drive
+  the show, the Gallery's ↻ In auto-cycle toggle is hidden, because it has no effect then.
+
+### Internal
+- gallery-check `case-favcycle` drives the heart show in real time: only hearted scenes, a
+  missing one fetched once, ↻ hidden, and back to the library once the hearts are gone. It fails
+  against v1.102.0.
+
 ## [1.102.0] — 2026-10-29
 
 ### Added

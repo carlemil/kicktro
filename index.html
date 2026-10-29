@@ -2222,7 +2222,7 @@
        the state in which this control has nothing it can visibly do. -->
   <label class="check" data-nopersist title="Credit the scene to its author on screen as you switch to it — the name shows either way"><input type="checkbox" id="sceneTitleOn" checked> Show author</label>
   <p class="hint" id="sceneAuthorHint"></p>
-  <label class="check" title="Switch scene on the TTL timer, whether or not this panel is open."><input type="checkbox" id="cycle"> Auto-cycle</label>
+  <label class="check" title="Switch scene on the TTL timer, whether or not this panel is open. Signed in, it plays the scenes you gave a ❤️ in the Gallery."><input type="checkbox" id="cycle"> Auto-cycle</label>
   <div id="grp-ttl">
     <label>Scene TTL <span class="val" id="vTtl"></span></label>
     <div class="dual"><div class="track"></div><div class="fill"></div>
@@ -2448,7 +2448,7 @@
   <div class="gal-box" role="dialog" aria-modal="true" aria-labelledby="gal-title">
     <button type="button" class="pal-close" id="gal-close" aria-label="Close">×</button>
     <h2 id="gal-title">Gallery</h2>
-    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it. <b>❤️</b> says you love a scene and <b>💔</b> that it is not for you (signed in) — the number between them is loves minus dislikes, which <b>Most loved</b> sorts by, and clicking it takes your vote back; <b>🔗</b> copies a link that opens the scene for anyone. The bars in a scene's corner say how heavy it is to run: on a slower device, slide <b>Weight</b> to the left to leave out the heavy ones. Every scene you make goes in by itself, signed in or not (then as <b>Anonymous</b>): a change shows there an hour after your last edit to the scene, so you can play with it first. <b>My scenes</b> lists yours, with how long each still waits, and after them your scenes that are not in the gallery; <b>✕</b> deletes one of yours. <b>↻ In auto-cycle</b> on a scene you hold says whether <b>Auto-cycle</b> shows it: click it to leave the scene out of the show, or put it back. <b>Collections</b> loads someone's whole set, and <b>Unfollow</b> takes a set you hold away again.</p>
+    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it. <b>❤️</b> says you love a scene and <b>💔</b> that it is not for you (signed in) — the number between them is loves minus dislikes, which <b>Most loved</b> sorts by, and clicking it takes your vote back; <b>🔗</b> copies a link that opens the scene for anyone. The bars in a scene's corner say how heavy it is to run: on a slower device, slide <b>Weight</b> to the left to leave out the heavy ones. Every scene you make goes in by itself, signed in or not (then as <b>Anonymous</b>): a change shows there an hour after your last edit to the scene, so you can play with it first. <b>My scenes</b> lists yours, with how long each still waits, and after them your scenes that are not in the gallery; <b>✕</b> deletes one of yours. Signed in, <b>Auto-cycle</b> plays the scenes you gave a ❤️, and only those (one you have not loaded yet is fetched when its turn comes). With no hearts it plays your own scenes, and <b>↻ In auto-cycle</b> on a scene you hold says whether it is in that show: click it to leave the scene out, or put it back. <b>Collections</b> loads someone's whole set, and <b>Unfollow</b> takes a set you hold away again.</p>
     <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
       <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true" title="Highest score first: every ❤️ counts for a scene, every 💔 against it">Most loved</button>
       <button type="button" role="tab" class="gal-tab" data-tab="all" aria-selected="false" title="Every scene, A to Z">All</button>
@@ -2889,7 +2889,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.102.0",
+    version: "1.103.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -23889,18 +23889,24 @@
   // Auto-cycle runs whether or not the editor is on screen. It WAS gated on the panel being
   // hidden (1.5x-1.72), and that gate was reverted by request in 1.73.0: a show that stops
   // the moment you open the panel reads as a broken checkbox.
+  // Signed in with a ❤️ on anything, the show is your hearted scenes instead (favCycleOn,
+  // cloud-profile.js): the pool is card ids and favCycleGo puts one up, fetching it first when
+  // it is not in your library yet.
   function cyclePresets(now) {
-    const pool = rotationPool();
+    const favs = favCycleOn();
+    const pool = favs ? favCyclePool() : rotationPool();
+    const onScreen = favs ? id => favCycleIndex(id) === curPreset : n => n === curPreset;
     // Something to switch TO: two or more ticked scenes, or exactly one that isn't the one
     // already on screen (having hand-picked an unticked scene, the cycle should still take
     // you back into the show). Untick everything and the cycler simply idles — it does not
     // fall back to the whole library, because "none in the rotation" is a real choice.
-    const canSwitch = pool.length > 1 || (pool.length === 1 && pool[0] !== curPreset);
+    const canSwitch = pool.length > 1 || (pool.length === 1 && !onScreen(pool[0]));
     if (!cycleOn || !canSwitch || Math.max(+el("ttl-lo").value, +el("ttl-hi").value) <= 0) { nextSwitch = 0; return; }
     if (!nextSwitch) { nextSwitch = now + ttlMs(); return; }
     if (now >= nextSwitch) {
-      let n; do { n = pool[(Math.random() * pool.length) | 0]; } while (n === curPreset && pool.length > 1);
-      applyPreset(n, true);
+      let n; do { n = pool[(Math.random() * pool.length) | 0]; } while (onScreen(n) && pool.length > 1);
+      if (favs) { if (!favCycleGo(n)) return; }        // still fetching: try again next frame
+      else applyPreset(n, true);
       nextSwitch = now + ttlMs();
     }
   }
@@ -25632,11 +25638,23 @@
   // Merge semantics are applyRestore's `keep` branch: replace a same-named scene IN
   // "Shared with you", keep the rest (loading a second card must not drop the first).
   function applyGalleryScene(raw, author) {
+    autosavePreset();                          // fold pending live edits into the scene you leave
+    const at = installGalleryScene(raw, author);
+    if (at < 0) return;
+    curPreset = at;
+    stopCycling();                             // ...and it stays on screen
+    applyPreset(curPreset);
+    rebuildPresetOptions();
+    persist();
+  }
+  // The library half of applyGalleryScene, on its own for the auto-cycle's ❤️ show
+  // (favCycleGo): the card's scenes join "Shared with you" and the index it lands on comes
+  // back (-1: nothing valid). Applies nothing and persists nothing -- the caller does.
+  function installGalleryScene(raw, author) {
     const parsed = sharedLibrary(raw);
-    if (!parsed) return;
+    if (!parsed) return -1;
     const by = originOk(author);
     if (by) for (const q of parsed.valid) if (!originOk(q.origin)) q.origin = by;
-    autosavePreset();                          // fold pending live edits into the scene you leave
     // The card's custom ramps join yours (yours keep their places) and its scenes are remapped
     // onto where they landed -- applyRestore's merge, done on the live PALETTES.
     if (Array.isArray(parsed.palettes) && parsed.palettes.length) {
@@ -25657,11 +25675,7 @@
     // Land on the scene the blob had selected (a card carries one), else its first.
     const src = parsed.parsed.presets, sel = src && src[parsed.parsed.curPreset];
     const hit = sel ? at.find(i => presets[i].name === sel.name) : undefined;
-    curPreset = hit !== undefined ? hit : at[0];
-    stopCycling();                             // ...and it stays on screen
-    applyPreset(curPreset);
-    rebuildPresetOptions();
-    persist();
+    return hit !== undefined ? hit : at.length ? at[0] : -1;
   }
 
   // Initial paint: setEffect loads the restored effect's per-effect extras (show-box,
@@ -26606,6 +26620,7 @@
   // scenes of yours with NO card can follow them as local cards (galLocalCards).
   const gal = { tab: "favs", order: "favs", q: "", offset: 0, total: 0, done: true, busy: false, pend: [], mine: new Set(),
     hate: new Set(), shown: new Set(), seq: 0, note: "", admin: false, weight: 0, ownNames: new Set() };
+  const favCyc = { busy: false, listed: false, meta: new Map(), miss: new Set() };   // the ❤️ show (favCycleOn)
   const galSort = () => (gal.tab === "new" || gal.tab === "own" ? "new" : gal.tab === "all" ? "name" : "favs");
   const galAuthed = () => gal.tab === "mine" || gal.tab === "own";   // the tabs that need a session
   // `note` is what a failed #g= link has to say: it stands in for an EMPTY hint until the
@@ -26764,6 +26779,7 @@
     for (const c of list) {
       if (gal.shown.has(c.id)) continue;           // a row can repeat across pages if favs move
       gal.shown.add(c.id);
+      if (!c.local) favCyc.meta.set(c.id, c);
       host.appendChild(galCard(c));
     }
   }
@@ -26843,7 +26859,7 @@
   }
   function galPaintCyc(b, c) {
     const held = galHeld(c), on = held.length > 0 && held.every(i => inRotation(presets[i]));
-    b.hidden = !held.length;
+    b.hidden = !held.length || favCycleOn();   // with a ❤️ anywhere, the hearts ARE the show
     b.classList.toggle("on", on);
     b.setAttribute("aria-pressed", String(on));
     b.setAttribute("aria-label", "In auto-cycle: " + c.name);
@@ -27016,6 +27032,7 @@
       for (const n of document.querySelectorAll("#gal-list .gal-card")) {
         if (n.dataset.id === c.id) galPaintVote(n.querySelector(".gal-vote"), n.__card);
       }
+      galPaintCycAll();                        // the first heart hides every ↻, the last brings them back
     };
     set(want, Math.max(0, before.favs + (want === 1) - (cur === 1)),
       Math.max(0, before.hates + (want === -1) - (cur === -1)));
@@ -27052,9 +27069,68 @@
         gal.mine = new Set(j.ids);
         gal.hate = new Set(Array.isArray(j.hates) ? j.hates : []);
         gal.admin = j.admin === true;          // a moderator (the API's ADMIN_UIDS): ✕ on every card
+        galPaintCycAll();                      // the hearts may have just taken over the show
         errLinkSync();                         // ...and the profile popover's Error reports
       })
       .catch(() => { /* offline: votes just show unmarked */ });
+  }
+  // AUTO-CYCLE PLAYS YOUR ❤️ (by request, 1.103.0): signed in with at least one heart, the
+  // show is the scenes you hearted, and only those; with none (signed out, or nothing hearted
+  // yet) it is the library minus what ↻ left out, as before. A hearted card is found in the
+  // library the way its ↻ toggle finds it (galHeld, by name); one you do not hold yet is
+  // fetched when its turn comes and joins "Shared with you", as a click on it would, so each
+  // scene downloads once. The switch itself is the cycler's (applyPreset(i, true)): what is
+  // stored still lands on the last scene you PICKED. Declarations: frame-loop is an earlier
+  // slice, and cyclePresets asks these every frame.
+  // `meta`: id → card, from every listing seen and every card fetched (the hearts are ids).
+  // `miss`: hearts that failed to load this visit, skipped so a dead card cannot stall the show.
+  function favCycleOn() { return !!cloudSess && gal.mine.size > 0; }
+  function favCyclePool() {
+    const out = [];
+    for (const id of gal.mine) if (!favCyc.miss.has(id)) out.push(id);
+    return out;
+  }
+  function favCycleCard(id) {
+    if (!favCyc.meta.has(id) && id.indexOf("builtin:") === 0) {
+      const b = galBuiltinCards().find(c => c.id === id);
+      if (b) favCyc.meta.set(id, b);
+    }
+    return favCyc.meta.get(id) || null;
+  }
+  function favCycleIndex(id) {
+    const c = favCycleCard(id), held = c ? galHeld(c) : [];
+    return held.length ? held[0] : -1;
+  }
+  // Put one hearted scene up. false: still fetching the last one, try again next frame.
+  function favCycleGo(id) {
+    if (favCyc.busy) return false;
+    // A heart with no card known yet (the gallery not opened this visit): list your favourites
+    // ONCE, so a scene you already hold is found by name instead of downloaded again.
+    if (!favCycleCard(id) && !favCyc.listed) {
+      favCyc.listed = favCyc.busy = true;
+      galJson("/api/gallery?mine=favs&limit=100&sort=new", true)
+        .then(j => { for (const c of (j && Array.isArray(j.items) ? j.items : [])) if (!favCyc.meta.has(c.id)) favCyc.meta.set(c.id, c); })
+        .catch(() => { /* fetched one by one instead */ })
+        .then(() => { favCyc.busy = false; });
+      return false;
+    }
+    const i = favCycleIndex(id);
+    if (i >= 0) { applyPreset(i, true); return true; }
+    favCyc.busy = true;
+    galSceneOf(favCycleCard(id) || { id }).then(got => {
+      favCyc.busy = false;
+      favCyc.meta.set(id, { id, name: got.name, author: got.author || "", owner: got.owner || "" });
+      if (!cycleOn || !gal.mine.has(id)) return;        // switched off, or un-hearted meanwhile
+      let at = favCycleIndex(id);
+      if (at < 0) {
+        at = installGalleryScene(got.blob, got.author);
+        if (at < 0) throw new Error("no valid scene");
+        rebuildPresetOptions();
+        persist();                             // the library grew; the scene on screen is unchanged
+      }
+      applyPreset(at, true);
+    }).catch(() => { favCyc.busy = false; favCyc.miss.add(id); });
+    return true;
   }
   // The server deletes the card for good (a later upload of the scene, from another device,
   // makes nothing) and names the scene it followed, which leaves your own list here too.
@@ -27097,7 +27173,7 @@
     if (c.at != null) return galFetchLibrary(BUILTIN_GALLERY[0].uid).then(lib => {
       const p = lib && Array.isArray(lib.presets) && lib.presets[c.at];
       if (!p) throw new Error("that scene is missing from this build");
-      return { blob: { presets: [p], curPreset: 0, cycle: false, palettes: lib.palettes }, name: c.name, author: c.author };
+      return { blob: { presets: [p], curPreset: 0, cycle: false, palettes: lib.palettes }, name: c.name, author: c.author, owner: "" };
     });
     return apiGet("/api/gallery/" + encodeURIComponent(c.id)).then(r => {
       if (r.status === 404) throw new Error("it has been taken out of the gallery");
@@ -27107,7 +27183,7 @@
       if (json == null) throw new Error("could not read that scene");
       let blob;
       try { blob = JSON.parse(json); } catch (e) { throw new Error("that scene is corrupt"); }
-      return { blob, name: String(d.name || c.name || "Scene"), author: d.author || c.author };
+      return { blob, name: String(d.name || c.name || "Scene"), author: d.author || c.author, owner: d.owner || c.owner || "" };
     }));
   }
   function galLoadCard(c) {
@@ -28771,7 +28847,7 @@
     // shader effect with a Banding slider; the rest are per-effect tags.
     sliders: [
       { n: "New", w: "all", t: "A saved scene is a named full snapshot — the effect plus every setting. From the moment one is selected, any change you make is auto-saved straight back into it. New saves what is on screen as a fresh scene, selects it and turns auto-cycle off so it stays up. One scene is always selected, so every change you make is always being saved into something — if you want to experiment without touching a scene you like, press New first and work on the copy. Scenes are browsed and loaded from the Gallery; a scene you load there is kept in a “Shared with you” group of its own, so it can never overwrite a scene of yours." },
-      { n: "Auto-cycle", w: "all", t: "When on, a random saved scene is applied every so often (see Scene TTL) — it cycles whole scenes, not effects, though a scene switch can change the effect too. Turn off to stay put; the settings below it gray out while it is off (New stays live). Needs at least two saved scenes. Creating a scene or restoring a backup switches it off, so the one you just chose stays on screen." },
+      { n: "Auto-cycle", w: "all", t: "When on, a random scene is applied every so often (see Scene TTL). Signed in with a ❤️ on any Gallery scene, it plays the scenes you hearted, and only those; otherwise your saved scenes, minus any you left out with ↻ in the Gallery. It cycles whole scenes, not effects, though a scene switch can change the effect too. Turn off to stay put; the settings below it gray out while it is off (New stays live). Needs at least two scenes to switch between. Creating a scene or restoring a backup switches it off, so the one you just chose stays on screen." },
       { n: "Scene TTL", w: "all", t: "How long auto-cycle holds each scene: a random time in this range (seconds) before applying a random other one." },
       { n: "Transition", w: "all", t: "How long a scene change takes to blend, as a range in seconds — each switch draws a length from it. A suitable transition is chosen automatically for the two scenes involved: a crossfade between two full-screen effects, something that breaks the picture up (pixelate, blur, wipe) when a sparse point cloud meets a dense field, a dip or flash when the palettes jump, and often nothing at all when the scenes already dissolve on their own through Fire or Fade pixel. Collapse both thumbs to 0 to cut straight over instead." },
       { n: "Effect", w: "all", t: "Which visual is running — the chooser at the top of the Effects section, directly above that effect's own sliders. Switching keeps the scene you have selected and folds the change into it, like any other edit — so you carry on working on your scene. The scene keeps its name. Part of a saved scene, so auto-cycle can switch it for you." },
