@@ -1802,6 +1802,28 @@
   }
   #signindlg #signin-gsi { display: flex; justify-content: center; min-height: 44px; margin: 14px 0 8px; }
   #signindlg .sign-note { opacity: .62; font-size: 11.5px; text-align: center; margin: 0; }
+  #signindlg #signin-name {
+    box-sizing: border-box; width: 100%; margin: 4px 0 10px; padding: 7px 9px;
+    background: rgba(255, 140, 40, 0.08); border: 1px solid rgba(255, 140, 40, 0.45); border-radius: 7px;
+    color: #ffe6c8; font: inherit; font-size: 13.5px;
+  }
+  #signindlg #signin-name:focus { outline: 2px solid #ffb15a; outline-offset: 1px; }
+  #signindlg .sign-actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
+  /* Sign in with Apple. OUR button, drawn to Apple's rules for a custom one (black, the logo
+     at the left, "Sign in with Apple", the system font), the same pill and height as Google's
+     filled_black button beside it. Keyed on the class: it sits in the profile popover and in
+     #signindlg alike. */
+  .apple-host { display: flex; justify-content: center; margin: 8px 0 4px; }
+  .apple-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    box-sizing: border-box; width: 260px; max-width: 100%; height: 40px; padding: 0 16px;
+    background: #000; color: #fff; border: 1px solid #5f5f5f; border-radius: 20px; cursor: pointer;
+    font: 500 15px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .apple-btn svg { width: 16px; height: 16px; margin-top: -2px; flex: none; }
+  .apple-btn:hover { background: #1a1a1a; }
+  .apple-btn:focus-visible { outline: 2px solid #ffb15a; outline-offset: 2px; }
+  .apple-host[hidden], #cloudrow.signed-in .apple-host { display: none; }
   /* Error reports (moderators): the same backdrop and box as Sign in, wider, for stacks. */
   #errdlg {
     position: fixed; inset: 0; z-index: 26; display: flex; align-items: center; justify-content: center;
@@ -2113,6 +2135,9 @@
     <p class="hint" id="cloud-who"></p>
     <!-- Google renders its own sign-in button into this node (Identity Services). -->
     <div id="cloud-signin"></div>
+    <!-- Sign in with Apple is OUR button (Apple's script only opens the popup), shown when
+         CONFIG.cloud.appleClientId is set; every [data-apple-signin] is one. -->
+    <div class="apple-host" hidden><button type="button" class="apple-btn" data-apple-signin><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg><span>Sign in with Apple</span></button></div>
     <div id="cloud-authed" style="display:none">
       <!-- The name reads as TEXT once you are signed in, not a permanently open text box:
            it is set once and rarely changed, and an input sitting there implies otherwise.
@@ -2614,14 +2639,27 @@
 
 <!-- Sign in, raised when a signed-out visitor presses something that needs an account (a vote,
      My favourites) -- over the gallery, which stays open underneath. Google draws a second
-     sign-in button into #signin-gsi; signing in closes this by itself. -->
+     sign-in button into #signin-gsi; signing in closes this by itself.
+     Its second STEP (#signin-namestep) is the profile name, asked once after a sign-in whose
+     account has none yet (nameAsk), whichever button signed in. -->
 <div id="signindlg" class="hidden">
   <div class="sign-box" role="dialog" aria-modal="true" aria-labelledby="signin-title">
     <button id="signin-close" class="pal-close" type="button" aria-label="Close">×</button>
     <h2 id="signin-title">Sign in</h2>
-    <p id="signin-why" class="sign-why"></p>
-    <p>Sign in with your Google account to vote, keep favourites and pick your scenes up on another machine. Scenes you made signed out move to your account.</p>
-    <div id="signin-gsi"></div>
+    <div id="signin-step">
+      <p id="signin-why" class="sign-why"></p>
+      <p>Sign in to vote, keep favourites and pick your scenes up on another machine. Scenes you made signed out move to your account.</p>
+      <div id="signin-gsi"></div>
+      <div class="apple-host" hidden><button type="button" class="apple-btn" data-apple-signin><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg><span>Sign in with Apple</span></button></div>
+    </div>
+    <div id="signin-namestep" hidden>
+      <p>Choose the name shown on your profile and on the scenes you publish. It is yours to pick, not the name of your Google or Apple account, and you can change it later in the profile menu.</p>
+      <input type="text" id="signin-name" maxlength="40" placeholder="Profile name" autocomplete="nickname" data-nopersist>
+      <div class="sign-actions">
+        <button type="button" id="signin-nameskip" class="audbtn">Later</button>
+        <button type="button" id="signin-namesave" class="audbtn">Save</button>
+      </div>
+    </div>
     <p id="signin-msg" class="sign-note"></p>
   </div>
 </div>
@@ -2839,7 +2877,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.100.1",
+    version: "1.101.0",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -2921,6 +2959,12 @@
       // -> this client -> Authorized JavaScript origins, and in the API's ALLOWED_ORIGINS. It
       // needs HTTPS too (GIS refuses a non-secure context), so test on the real domain.
       clientId: "180474887753-jf22fn1kgkecamc2inr2eoomh0e1e0j4.apps.googleusercontent.com",
+      // Sign in with Apple: the Services ID (Apple Developer -> Identifiers -> Services IDs),
+      // the same string as the API's APPLE_CLIENT_ID (server/compose.yml). "" = no Apple
+      // button and no Apple script. Apple accepts only the return URL registered on that
+      // Services ID, so the popup works on the real domain alone, never file:// or localhost.
+      appleClientId: "com.kicktro.signin",
+      appleRedirect: "https://kicktro.com/",
       // ┌─ FIREBASE, READ-ONLY AND TEMPORARY (card 825, M2) ───────────────────────────────┐
       // Used for ONE thing: a #c= link the API does not know is tried against its old public
       // Firestore document (cloudFetchScene). Remove both keys, the fallback, firestore.rules
@@ -25709,13 +25753,14 @@
     { id: "builtin:static-garden", name: "Static Garden", at: 24, thumb: "d7007891a0", cost: 3.4 },
   ];
   // ---- cloud profiles: the Kicktro API (server/ in this repo, at api.kicktro.com) ---------
-  // Keep your preset library against a Google account so it follows you between machines.
+  // Keep your preset library against a Google or Apple account so it follows you between
+  // machines.
   //
   // NO SDK. Everything here is fetch() against our own small JSON API, so the page stays a
-  // single self-contained file with no bundled dependency. The one remote script is Google
-  // Identity Services, for the sign-in button — the same class of thing initAnalytics()
-  // already loads (gtag.js), not a new one. It hands back a Google ID token, which the API
-  // verifies and trades for its own session token.
+  // single self-contained file with no bundled dependency. The remote scripts are the two
+  // sign-in buttons' — Google Identity Services and Apple's appleid.auth.js (the latter only
+  // while signed out) — the same class of thing initAnalytics() already loads (gtag.js). Each
+  // hands back an ID token, which the API verifies and trades for its own session token.
   //
   // The whole feature is gated on CONFIG.cloud.apiBase: empty ⇒ no script, no request, and
   // the Cloud row stays hidden. Identical kill switch to CONFIG.analyticsId.
@@ -25745,6 +25790,7 @@
   const CLOUD_KEY = "burnTheWeb.cloud.v2";     // its own localStorage key, NOT part of the scene blob
   const CLOUD_KEY_FIREBASE = "burnTheWeb.cloud.v1";
   const GIS_SRC = "https://accounts.google.com/gsi/client";
+  const APPLE_SRC = "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js";
 
   // Session: our uid + the API's bearer token + when it expires. The token lives in
   // localStorage, which any XSS on the page could read — standard for a static app, and the
@@ -25814,12 +25860,15 @@
   }
 
   // ---- sign in / out ----
-  function cloudSignIn(googleIdToken) {
-    return fetch(API + "/api/auth/google", {
+  // One exchange for both providers: `path` is /api/auth/google or /api/auth/apple, `body` the
+  // provider's token (Apple's carries the nonce too). `nameHint` is the name Apple hands over on
+  // the FIRST authorisation only, never in the token — it prefills the name step.
+  function cloudSignIn(path, body, nameHint) {
+    return fetch(API + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // This browser's anonymous session, if it has one: its cards become the account's.
-      body: JSON.stringify({ idToken: googleIdToken, anon: anonLive(anonRead()) ? anonRead().token : undefined }),
+      body: JSON.stringify({ ...body, anon: anonLive(anonRead()) ? anonRead().token : undefined }),
     }).then(r => (r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
       .then(j => {
         cloudSess = { uid: j.uid, token: j.token, expires: +j.expires };
@@ -25834,6 +25883,9 @@
           closeSignIn();
           if (!el("galdlg").classList.contains("hidden")) mine.then(galReset);
         }
+        // An account with no name and no profile to carry one is new here: ask once. (A profile
+        // brings its name in through cloudFetchProfileMeta below, so that one is never asked.)
+        if (!j.name && !j.hasProfile) nameAsk(nameHint || myProfileName());
         // ...and, if this account has no profile yet, put this machine's library into it.
         cloudFetchProfileMeta(true);      // pick up the profile name, if there is one already
         cloudLinksFetch();
@@ -27097,6 +27149,7 @@
   function signInAsk(why) {
     const d = el("signindlg");
     if (!d || !cloudOn() || cloudSess) return;
+    nameStep(false);
     el("signin-why").textContent = why;
     signInMsg("");
     d.classList.remove("hidden");
@@ -27110,6 +27163,7 @@
     if (!d || d.classList.contains("hidden")) return;
     d.classList.add("hidden");
     dlgRelease(d.querySelector(".sign-box"));
+    nameStep(false);                         // the next open is a sign-in again
     // ...and hand the keyboard back to the gallery, if that is what it was opened over
     const g = el("galdlg");
     if (g && !g.classList.contains("hidden")) dlgModal(g.querySelector(".gal-box"));
@@ -27135,6 +27189,99 @@
       });
       signInMsg("");
     } catch (e) { signInMsg("Google sign-in is unavailable right now.", true); }
+  }
+
+  // The dialog's SECOND STEP: a profile name, asked once, right after a sign-in that brought
+  // none (a new account, Apple's in particular — we store neither its email nor its name, and
+  // the name Apple sends on the first authorisation only prefills this). Later just closes;
+  // the popover's name label stays the way to set it afterwards.
+  function nameStep(on) {
+    el("signin-step").hidden = on;
+    el("signin-namestep").hidden = !on;
+    el("signin-title").textContent = on ? "Choose a profile name" : "Sign in";
+  }
+  function nameAsk(prefill) {
+    const d = el("signindlg"), inp = el("signin-name");
+    if (!d || !inp || !cloudSess) return;
+    nameStep(true);
+    inp.value = String(prefill || "").trim().slice(0, 40);
+    signInMsg("");
+    d.classList.remove("hidden");
+    dlgModal(d.querySelector(".sign-box"));
+    inp.focus();
+    inp.select();
+    track("name_ask", {});
+  }
+  function nameSave() {
+    const inp = el("signin-name"), btn = el("signin-namesave");
+    const v = (inp.value || "").trim().slice(0, 40);
+    if (!v) { signInMsg("Type a name, or choose Later.", true); return; }
+    if (!cloudSess) { closeSignIn(); return; }
+    setProfileName(v);                   // the field, the cache, your collection's label
+    cloudNameShow();
+    btn.disabled = true;
+    signInMsg("Saving…");
+    apiFetch("/api/me", { method: "PATCH", body: JSON.stringify({ name: v }) })
+      .then(r => (r.ok ? null : r.text().then(t => Promise.reject(new Error(cloudErr(t, r.status))))))
+      .then(() => {
+        closeSignIn();
+        // The profile carries the name too. A first sign-in seeded it a moment ago with the
+        // default, so write it again now rather than a day from now.
+        if (cloudSess && cloudSess.docTime) cloudSave(); else autoSaveNoteChange();
+        gsyncSoon();
+      })
+      .catch(e => signInMsg("Could not save the name: " + e.message, true))
+      .then(() => { btn.disabled = false; });
+  }
+
+  // ---- Sign in with Apple ----------------------------------------------------------------
+  // Apple's popup flow: appleid.auth.js opens appleid.apple.com, the person signs in there, and
+  // signIn() resolves with an ID token whose audience is the Services ID and whose `nonce` is
+  // the one we passed — the API checks both (POST /api/auth/apple). redirectURI must be one the
+  // Services ID lists (https://kicktro.com/), so this only works on the live site; nothing is
+  // ever posted to it in popup mode. The script loads only while signed out, and only when
+  // CONFIG.cloud.appleClientId is set. signIn() must run inside the click, hence the preload.
+  let appleState = 0;                   // 0 not asked for, 1 loading, 2 ready, -1 failed
+  function appleLoad() {
+    if (!CLOUD.appleClientId || cloudSess || appleState) return;
+    appleState = 1;
+    const s = document.createElement("script");
+    s.src = APPLE_SRC; s.async = true;
+    s.onload = () => { appleState = window.AppleID && window.AppleID.auth ? 2 : -1; };
+    s.onerror = () => { appleState = -1; };
+    document.head.appendChild(s);
+  }
+  function appleNonce() {
+    const b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    return Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+  }
+  function appleSignIn() {
+    const say = (s, bad) => { cloudMsg(s, bad); signInMsg(s, bad); };
+    if (appleState !== 2) {
+      say(appleState === -1 ? "Could not reach Apple sign-in." : "Loading Apple sign-in… press it again in a moment.", appleState === -1);
+      appleLoad();
+      return;
+    }
+    const nonce = appleNonce(), state = appleNonce();
+    try {
+      window.AppleID.auth.init({
+        clientId: CLOUD.appleClientId, scope: "name", redirectURI: CLOUD.appleRedirect,
+        usePopup: true, nonce, state,
+      });
+    } catch (e) { say("Apple sign-in is unavailable right now.", true); return; }
+    window.AppleID.auth.signIn().then(res => {
+      const a = res && res.authorization;
+      if (!a || typeof a.id_token !== "string" || (a.state && a.state !== state)) throw new Error("Apple sent no sign-in back");
+      const n = res.user && res.user.name;
+      const hint = n ? [n.firstName, n.lastName].filter(x => typeof x === "string" && x).join(" ") : "";
+      say("Signing in…");
+      return cloudSignIn("/api/auth/apple", { idToken: a.id_token, nonce }, hint);
+    }).catch(e => {
+      const code = String((e && (e.error || e.message)) || e || "");
+      if (/popup_closed_by_user|user_cancelled_authorize/.test(code)) { say(""); return; }
+      say("Sign-in failed: " + code, true);
+    });
   }
 
   // ---- share the running scene through the API ---------------------------------------
@@ -27342,6 +27489,7 @@
       // the box having a width, so calling it here is safe even during startup.
       if (!inS) gsiRender();
     }
+    if (!inS) appleLoad();               // ready before the click: signIn() needs the gesture
     // Its own line now, not a suffix to a "Cloud profile" label — the box title says that.
     // So it has to state both halves rather than only marking the signed-in one.
     if (who) who.textContent = inS
@@ -27402,6 +27550,7 @@
     sceneMark(true);                     // the startup scene as loaded, unless a load already marked it
     gsyncReady = true;
     if (gsyncOn()) setTimeout(gsyncSoon, 6000);   // whatever changed while uploads were off
+    document.querySelectorAll(".apple-host").forEach(h => { h.hidden = !CLOUD.appleClientId; });
     if (!CLOUD.clientId) { cloudMsg("Sign-in is not configured for this build.", true); return; }
     const s = document.createElement("script");
     s.src = GIS_SRC; s.async = true; s.defer = true;
@@ -27412,7 +27561,7 @@
           callback: res => {
             if (!res || !res.credential) return;
             cloudMsg("Signing in…"); signInMsg("Signing in…");
-            cloudSignIn(res.credential).catch(e => {
+            cloudSignIn("/api/auth/google", { idToken: res.credential }).catch(e => {
               cloudMsg("Sign-in failed: " + e.message, true);
               signInMsg("Sign-in failed: " + e.message, true);
             });
@@ -27459,6 +27608,17 @@
   }
   if (el("gal-close")) el("gal-close").addEventListener("click", () => galOpen(false));
   if (el("signin-close")) el("signin-close").addEventListener("click", closeSignIn);
+  // Delegated: the popover ADOPTS the profile row's nodes, so bind where they always are.
+  document.addEventListener("click", e => {
+    if (e.target.closest && e.target.closest("[data-apple-signin]")) appleSignIn();
+  });
+  if (el("signin-namesave")) el("signin-namesave").addEventListener("click", nameSave);
+  if (el("signin-nameskip")) el("signin-nameskip").addEventListener("click", closeSignIn);
+  if (el("signin-name")) el("signin-name").addEventListener("keydown", e => {
+    e.stopPropagation();                  // the window's single-key shortcuts must not fire here
+    if (e.key === "Enter") { e.preventDefault(); nameSave(); }
+    else if (e.key === "Escape") { e.preventDefault(); closeSignIn(); }
+  });
   if (el("signindlg")) el("signindlg").addEventListener("click", e => { if (e.target === el("signindlg")) closeSignIn(); });
   if (el("gal-filter")) el("gal-filter").addEventListener("input", e => galSetFilter(e.target.value));
   if (el("gal-more")) el("gal-more").addEventListener("click", galMore);

@@ -15,6 +15,24 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.101.0] — 2026-10-29
+
+### Added
+- **Sign in with Apple.** The profile popover and the sign-in dialog now offer a "Sign in with
+  Apple" button beside Google's. It opens Apple's own sign-in in a popup; Kicktro keeps no email
+  and no real name. An Apple account is its own account, separate from a Google one. Scenes you
+  made signed out move into it, the same as with Google.
+- **Choose a profile name.** The first time you sign in to a new account, the dialog asks once
+  for the name your scenes are credited to. If you signed in with Apple, it is prefilled with
+  the name Apple sent. **Later** skips it, and you can still set or change the name from the
+  profile popover.
+
+### Internal
+- `POST /api/auth/apple` checks Apple's ID token (signature, issuer, audience, expiry) and the
+  per-press nonce. Apple accounts are stored under an `apple:` subject, so no migration was
+  needed. `serverprobe` covers the route and `cloudprobe` the client, and the new
+  `tools/signin-check.js` tests both buttons and the name step in the browser.
+
 ## [1.100.1] — 2026-10-28
 
 ### Fixed
