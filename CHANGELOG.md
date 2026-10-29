@@ -15,6 +15,17 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.103.1] — 2026-10-29
+
+### Fixed
+- Scene transitions no longer stutter as they start. A switch used to freeze the picture for
+  16–46 ms (one to three dropped frames), mostly repainting the settings of layers whose boxes
+  were closed; those now wait until you open them, and auto-cycle tidies the editor just after
+  the switch instead of during it. A switch now takes 7–21 ms.
+- The first switch into a scene with the **ASCII mosaic** filter no longer hangs for a moment
+  (a 100–147 ms gap): each character set is drawn once, in idle time after the page loads, and
+  kept.
+
 ## [1.103.0] — 2026-10-29
 
 ### Changed
