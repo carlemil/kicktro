@@ -263,6 +263,7 @@
         lib = p.keep ? out.presets.slice() : out.presets.filter(x => (x.collection || "") !== coll);
         for (const q of p.valid) {
           const item = { ...q, collection: coll };
+          delete item.rotate;                  // the sender's own choice is not yours
           if (outOfShow.has(item.name)) item.rotate = false;
           const at = p.keep ? lib.findIndex(x => x.name === item.name && (x.collection || "") === coll) : -1;
           if (at >= 0) lib[at] = item; else lib.push(item);
@@ -488,6 +489,7 @@
     const at = [];
     for (const q of parsed.valid) {
       const item = { ...q, collection: SHARED_COLLECTION };
+      delete item.rotate;                      // the author's own choice is not yours
       const i = presets.findIndex(x => x.name === item.name && collectionOf(x) === SHARED_COLLECTION);
       if (i >= 0 && presets[i].rotate === false) item.rotate = false;   // out of auto-cycle stays out
       if (i >= 0) presets[i] = item; else presets.push(item);

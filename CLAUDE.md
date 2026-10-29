@@ -871,7 +871,9 @@ A held card gets `.gal-cyc` (↻ In auto-cycle, `aria-pressed`, over the thumbna
 `.gal-local` cards (`local:<name>`, no vote/🔗/✕/render, signed out too) for own scenes with NO card (`gal.ownNames`,
 filled before the weight cut) — stock scenes never upload, so without them a starter scene could not leave the show; a
 click `applyPreset`s it in place. Collections: `galHeldCollections()` (follows + labels scenes carry) gives a row
-Unfollow; one no longer listed gets an Unfollow-only row. gallery-check `case-hold` (seeded library, reload phase;
+Unfollow; one no longer listed gets an Unfollow-only row; `galFollows` is uid-first (name only for a uid-less
+follow). An install DROPS the incoming `rotate` and keeps only a local `false` (applyRestore's collection branch,
+`applyGalleryScene`): `rotate` is how you use a scene, never the sender's. gallery-check `case-hold` (seeded library, reload phase;
 red against a pre-832 build); its `cards()` skips local cards.
 Readable signed out. **Nothing loads up front**: a poster's `src` is set by `galLazy` (an
 IntersectionObserver rooted on `.gal-box`) — `loading=lazy` measures from the WINDOW and

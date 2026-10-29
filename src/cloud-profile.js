@@ -894,7 +894,7 @@
       // The built-ins need no network, so an unreachable API still leaves something to show.
       gal.busy = false; gal.done = true;
       galCards(gal.pend.splice(0));
-      if (gal.tab === "own") galCards(galLocalCards());   // yours are here whatever the network says
+      if (gal.tab === "own") galCards(galLocalCards(true));   // yours are here whatever the network says
       galSyncMore();
       galHint("Could not reach the gallery: " + e.message);
     });
@@ -903,7 +903,9 @@
     const list = el("gal-list"), local = list.querySelector(".gal-local");
     if (list.children.length && !(gal.tab === "own" && local && !list.querySelector(".gal-card:not(.gal-local)"))) { galHint(""); return; }
     // My scenes with only local cards: none of yours is in the gallery yet.
-    galHint(local ? "No scenes of yours yet in the gallery — the ones here are only in your scenes. Press New in the Scene box, change it, and it shows up in the gallery an hour later."
+    galHint(local ? (gal.q ? "None of yours in the gallery matches “" + gal.q + "” — the ones here are only in your scenes."
+        : galMaxCost() >= 0 ? "None of yours in the gallery is this light — the ones here are only in your scenes. Slide Weight to the right to see heavier ones."
+        : "No scenes of yours yet in the gallery — the ones here are only in your scenes. Press New in the Scene box, change it, and it shows up in the gallery an hour later.")
       : gal.q ? "Nothing matches “" + gal.q + "”."
       + (galMaxCost() >= 0 ? " Heavier scenes are left out: slide Weight to the right to see them." : "")
       : gal.tab === "mine" ? "No favourites yet — press ❤️ on a scene you like."
@@ -997,8 +999,10 @@
     if (c.local) {
       card.classList.add("gal-local");
       const w = document.createElement("div");
-      w.className = "gal-wait"; w.textContent = "Only in your scenes, not in the gallery";
-      w.title = "A starter scene you have not changed, or one not uploaded yet — change it and it goes up by itself.";
+      w.className = "gal-wait";
+      w.textContent = c.unsure ? "In your scenes (the gallery could not be reached)" : "Only in your scenes, not in the gallery";
+      w.title = c.unsure ? "The gallery did not answer, so this lists every scene of yours."
+        : "A starter scene you have not changed, or one not uploaded yet — change it and it goes up by itself.";
       cap.append(nm, by, w);
       card.append(th, cap);
     } else galCardCap(c, card, th, cap, nm, by);
@@ -1050,11 +1054,12 @@
     }
   }
   // My scenes: each scene of your own the listing has no card for, after the cards it has.
-  function galLocalCards() {
+  // `unsure`: the listing never arrived, so whether one has a card is not known.
+  function galLocalCards(unsure) {
     const out = [];
     for (const p of presets) {
       if (collectionOf(p) || gal.ownNames.has(p.name)) continue;
-      const c = { id: "local:" + p.name, name: p.name, author: myProfileName(), local: true };
+      const c = { id: "local:" + p.name, name: p.name, author: myProfileName(), local: true, unsure: !!unsure };
       if (galMatch(c)) out.push(c);
     }
     return out;
@@ -1376,12 +1381,13 @@
       const all = builtin.concat(items);
       // A collection you hold that is no longer listed (unpublished, renamed, a uid-less
       // follow) still gets a row, so it can still be unfollowed.
-      for (const h of galHeldCollections()) {
+      const heldAll = galHeldCollections();
+      for (const h of heldAll) {
         if (all.some(p => galFollows(p, h))) continue;
         all.push({ uid: h.uid, name: h.key, count: presets.filter(p => collectionOf(p) === h.key).length, updated: "", gone: true });
       }
       const rows = all.filter(p => !gal.q || String(p.name).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0);
-      for (const p of rows) host.appendChild(galPersonRow(p));
+      for (const p of rows) host.appendChild(galPersonRow(p, heldAll));
       galHint(rows.length ? "" : "No one matches “" + gal.q + "”.");
     };
     const hit = galMem.profiles;
@@ -1389,7 +1395,7 @@
     galList().then(items => { galMem.profiles = { t: Date.now(), j: items }; show(items); })
       .catch(e => { show([]); galHint("Could not load the collections: " + e.message); });
   }
-  function galPersonRow(p) {
+  function galPersonRow(p, heldAll) {
     const row = document.createElement("div");
     row.className = "gal-row";
     const nm = document.createElement("div");
@@ -1397,7 +1403,7 @@
     nm.textContent = p.name;
     const meta = document.createElement("div");
     meta.className = "gal-meta";
-    const held = galHeldCollections().find(h => galFollows(p, h));
+    const held = (heldAll || galHeldCollections()).find(h => galFollows(p, h));
     meta.textContent = p.count + " scene" + (p.count === 1 ? "" : "s")
       + (p.updated ? " · " + String(p.updated).slice(0, 10) : "")
       + (p.gone ? " · no longer listed" : held ? " · following" : "");
@@ -1438,7 +1444,9 @@
     }
     return out;
   }
-  const galFollows = (p, h) => (!!h.uid && h.uid === p.uid) || h.key === p.name;
+  // A follow with a uid is THAT profile (a renamed one still matches, a namesake does not);
+  // a uid-less one can only go by name.
+  const galFollows = (p, h) => h.uid ? h.uid === p.uid : h.key === p.name;
   // One public profile, fetched and decoded into its blob. Split out of galLoad because
   // refollowCollections needs exactly the same three steps (fetch → payload → unzip → parse)
   // and a second copy is how the two would drift. Rejects with a readable message at each
