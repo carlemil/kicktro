@@ -15,8 +15,8 @@
   // to do can still be attempted by hand against the API. Client-side checks here are for the
   // user's benefit — clear errors, no pointless round trips — never for security.
   //
-  // Moved off Firebase in card 825 (M2). Firestore is still READ for one thing, a #c= link the
-  // import did not carry (cloudFetchScene), and that fallback goes once the import is confirmed.
+  // Moved off Firebase in card 825 (M2); the last Firestore read (a #c= fallback) went with
+  // card 831. Nothing in this file talks to Firebase any more.
   const CLOUD = CONFIG.cloud;
   // ?api=<origin> points a LOCAL page (file://, localhost) at a dev server, node server/main.js.
   // Ignored on any other host, so a crafted link can never send someone's session elsewhere.
@@ -1654,26 +1654,15 @@
   // needs something to be called. ?z=/?s= have no equivalent — sceneBlob() has no name field —
   // so this is the only path that can supply one.
   //
-  // FIRESTORE FALLBACK, TEMPORARY: a link the API does not know is tried against the old public
-  // /scenes document (CONFIG.cloud.apiKey/projectId), so a #c= minted in the last minutes before
-  // the freeze still opens. Remove it, and the two config keys, once the import is confirmed.
+  // API only: every #c= id ever minted, the Firebase-era ones included (the import kept each id
+  // verbatim), is answered by GET /api/scenes/<id>. Nothing else is asked.
   function cloudFetchScene(id) {
     if (!cloudOn()) return Promise.resolve(null);
-    const unzip = (payload, name) => unzipFromB64(payload).then(json => (json ? { json, name: name || "" } : null));
     return apiGet("/api/scenes/" + encodeURIComponent(id))
       .then(r => (r.ok ? r.json() : null), () => null)
-      .then(d => {
-        if (d && d.payload) return unzip(d.payload, d.name);
-        if (!CLOUD.apiKey || !CLOUD.projectId) return null;
-        return fetch("https://firestore.googleapis.com/v1/projects/" + CLOUD.projectId
-          + "/databases/(default)/documents/scenes/" + encodeURIComponent(id) + "?key=" + encodeURIComponent(CLOUD.apiKey))
-          .then(r => (r.ok ? r.json() : null))
-          .then(doc => {
-            const f = (doc && doc.fields) || {};
-            const payload = f.payload && f.payload.stringValue;
-            return payload ? unzip(payload, f.name && f.name.stringValue) : null;
-          });
-      })
+      .then(d => (d && d.payload
+        ? unzipFromB64(d.payload).then(json => (json ? { json, name: d.name || "" } : null))
+        : null))
       .catch(() => null);
   }
 

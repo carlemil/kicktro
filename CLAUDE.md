@@ -820,9 +820,11 @@ prefilled from the name Apple sends on the first authorisation only; Save = `set
 
 **Shared scenes** (`POST /api/scenes`, server-minted id) are world-readable by id, immutable,
 owner-deletable, unlisted to others; "My shared links" is `GET /api/me/scenes` (every machine's,
-imported Firebase ones included); `cloudDelete` sweeps them first. **`cloudFetchScene` falls back to
-the old public Firestore document** (`CLOUD.apiKey`/`projectId`, read-only) — remove both keys and
-the fallback once the import is confirmed and the Firebase project is gone.
+imported Firebase ones included); `cloudDelete` sweeps them first. **`cloudFetchScene` asks the API
+ALONE** — imported shares kept their Firestore ids, so every `#c=` link ever minted opens through
+`GET /api/scenes/<id>`. The Firestore fallback, `CLOUD.apiKey`/`projectId`, `firestore.rules`,
+`firebase.json` and `firestore.indexes.json` are gone (card 831); `cloudprobe` asserts no request
+path to Firestore is left in the client. Don't bring a fallback back.
 
 **A first sign-in seeds the account from this machine**: `cloudFetchProfileMeta(seedIfMissing)`'s
 404 branch calls `cloudSave()`, whose precondition is `If-Match: none`, so it can only CREATE.
@@ -853,9 +855,8 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
 - `applyRestore`'s MERGE matches on `(name, collection)`. `sharedLibrary` carries `collections`;
   `applyRestore` writes it only when `__ownCloud` is set — an out-of-band `let` set only by
   `cloudApplyPayload`, never from the payload. Merge UNIONS follow-lists; Replace replaces.
-- `firestore.rules` is FROZEN (reads only, published 2026-10-25 after the import); it and
-  `firebase.json` stay only until the Firebase project is deleted (the `snapshots` sweep went with
-  the client; those documents go with the project).
+- The client has no Firebase left (the `snapshots` sweep went earlier, the `#c=` fallback and the
+  rules/config files in card 831); deleting the Firebase project is the owner's console step.
 
 **The gallery is ONE PUBLISHED SCENE PER CARD** (card 825, M3): a poster, the clip while
 hovered or focused, the author, the VOTE. Tabs Most loved (leftmost, the DEFAULT) / All /

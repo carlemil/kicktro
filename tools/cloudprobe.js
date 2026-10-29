@@ -151,29 +151,28 @@ console.log("--- Cloud profiles: the API client (" + file + ")\n");
     ok("never seen ⇒ no header (an unguarded save)", JSON.stringify(im(null)) === "{}" && JSON.stringify(im(undefined)) === "{}");
   }
 
-  // ---- behaviour: #c= with the API off, and its Firestore fallback ------------------------
+  // ---- behaviour: #c= opens through the API alone ------------------------------------------
   {
     const code2 = slice("function cloudFetchScene(id) {", "// ---- profile name");
-    const run = (apiOn, cloud, answer) => {
+    const run = (apiOn, answer) => {
       const calls = [];
       const fetch = url => { calls.push(url); return Promise.resolve(answer(url)); };
-      const fn = new Function("fetch", "CLOUD", "on",
+      const fn = new Function("fetch", "on",
         "const cloudOn = () => on; const API = 'https://api.test';"
         + "function apiGet(p) { return fetch(API + p); }"
-        + "function unzipFromB64(p) { return Promise.resolve('json:' + p); }\n" + code2 + "\n return cloudFetchScene;")(fetch, cloud, apiOn);
+        + "function unzipFromB64(p) { return Promise.resolve('json:' + p); }\n" + code2 + "\n return cloudFetchScene;")(fetch, apiOn);
       return fn("AbCdEfGhIjKlMnOpQrSt").then(res => ({ res, calls }));
     };
-    let r = await run(false, { apiKey: "k", projectId: "p" }, () => json(200, {}));
+    let r = await run(false, () => json(200, {}));
     ok("with the API switched off a #c= link makes NO request at all", r.res === null && r.calls.length === 0, r.calls.join(","));
-    r = await run(true, { apiKey: "k", projectId: "p" }, url => json(200, { payload: "P", name: "N" }));
+    r = await run(true, url => json(200, { payload: "P", name: "N" }));
     ok("a link the API knows opens from the API, with its name", r.res && r.res.json === "json:P" && r.res.name === "N"
        && r.calls.length === 1 && r.calls[0] === "https://api.test/api/scenes/AbCdEfGhIjKlMnOpQrSt");
-    r = await run(true, { apiKey: "k", projectId: "p" }, url => (url.indexOf("api.test") >= 0 ? json(404, {})
-      : json(200, { fields: { payload: { stringValue: "F" }, name: { stringValue: "Old" } } })));
-    ok("a link the API does not know falls back to the old Firestore document",
-       r.res && r.res.json === "json:F" && r.res.name === "Old" && r.calls.length === 2 && /firestore\.googleapis\.com/.test(r.calls[1]));
-    r = await run(true, { apiKey: "", projectId: "p" }, () => json(404, {}));
-    ok("...and with no Firebase key there is no fallback request", r.res === null && r.calls.length === 1);
+    r = await run(true, () => json(404, {}));
+    ok("a link the API does not know asks nothing else (no Firestore fallback) and opens nothing",
+       r.res === null && r.calls.length === 1 && /^https:\/\/api\.test\//.test(r.calls[0]), r.calls.join(","));
+    r = await run(true, () => Promise.reject(new Error("offline")));
+    ok("an unreachable API opens nothing and does not throw", r.res === null && r.calls.length === 1);
   }
 
   // ---- structural: the payload IS a preset-bundle blob --------------------------------------
@@ -265,9 +264,10 @@ console.log("--- Cloud profiles: the API client (" + file + ")\n");
     const at = del.indexOf("shareLinksDeleteAll("), parent = del.indexOf('method: "DELETE"');
     ok("Delete profile sweeps your share links BEFORE deleting the profile",
        at >= 0 && parent >= 0 && at < parent, "sweep at " + at + ", profile delete at " + parent);
-    ok("no Firestore write is left anywhere in the client",
-       !/firestore\.googleapis\.com[^"]*"\s*\+[^;]*method: "(POST|PATCH|DELETE)"/.test(src)
+    ok("no Firestore request is left anywhere in the client (card 831)",
+       !/firestore\.googleapis\.com|firebaseio\.com|burntheweb-3cd05/.test(src)
        && !/currentDocument|signInWithIdp|securetoken|:runQuery/.test(src));
+    ok("...and the two Firebase config keys are gone", !/CLOUD\.(apiKey|projectId)|\bprojectId\s*:|\bapiKey\s*:/.test(src));
   }
 
   // ---- structural: the kill switch ---------------------------------------------------------
