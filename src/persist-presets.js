@@ -240,6 +240,34 @@
     collectionsHeld.push({ key, uid: String(uid || "") });
   }
   function forgetCollection(key) { collectionsHeld = collectionsHeld.filter(c => c.key !== key); }
+  // UNFOLLOW (card 832): the Collections tab's button on a collection you hold, since the scene
+  // list and its collection ✕ went (card 827). Its scenes leave your library and the follow
+  // goes, so your profile stops saying you hold it. Asks first, naming the count; returns
+  // whether it went. Re-finds the selection by IDENTITY (every index above the run shifts);
+  // when the selected scene went with it the neighbour is APPLIED, not merely highlighted --
+  // else the gone scene stays on screen under another scene's name and the next edit folds
+  // over that one. A declaration: the gallery (cloud-profile.js) calls it.
+  function unfollowCollection(key) {
+    key = (key || "").trim();
+    if (!key || key === SHARED_COLLECTION) return false;
+    const n = presets.filter(p => collectionOf(p) === key).length;
+    if (!confirm("Unfollow “" + key + "”?\n\n" + (n ? n + " of its scene" + (n === 1 ? "" : "s")
+      + " will leave your scenes. " : "") + "Your own scenes are not touched.")) return false;
+    autosavePreset();                     // fold pending live edits into the scene on screen first
+    const cur = presets[curPreset], at = curPreset;
+    presets = presets.filter(p => collectionOf(p) !== key);
+    forgetCollection(key);
+    const kept = cur ? presets.indexOf(cur) : -1;
+    if (kept >= 0) curPreset = kept;
+    else {
+      ensureSelection();
+      curPreset = Math.min(at, presets.length - 1);
+      applyPreset(curPreset);
+    }
+    rebuildPresetOptions();
+    persist();
+    return true;
+  }
   // Same shape as palUse/transUse: validated on the way in, because it rides in a blob a
   // stranger can author. Anything malformed is dropped rather than rejecting the whole load.
   function collectionsOk(v) {
@@ -255,7 +283,8 @@
     }
     return out;
   }
-  // Whether a scene is in the AUTO-CYCLE ROTATION — the `rotate` flag (the per-scene tick that set it is gone from the UI).
+  // Whether a scene is in the AUTO-CYCLE ROTATION — the `rotate` flag, set from the gallery's
+  // ↻ In auto-cycle toggle on a card you hold (card 832; the scene list's tick went in 827).
   // Unticked scenes are still perfectly selectable by hand; they are just skipped when
   // Auto-cycle is running, so you can build a show out of a subset of your library.
   //
@@ -270,6 +299,20 @@
   // each preset from an object literal — a field missing from there is silently dropped on
   // every cloud load and gallery install.
   const inRotation = p => !(p && p.rotate === false);
+  // The one writer: in = the flag DELETED (absent means in, as above), out = false. Indices
+  // into `presets`; persist() carries it to localStorage and the cloud. `rotate` is a meta key
+  // (sceneBody), so it never restarts a card's hour. A declaration: the gallery calls it.
+  function setInRotation(indices, on) {
+    let changed = false;
+    for (const i of indices) {
+      const p = presets[i];
+      if (!p || inRotation(p) === !!on) continue;
+      if (on) delete p.rotate; else p.rotate = false;
+      changed = true;
+    }
+    if (changed) persist();
+    return changed;
+  }
   // Your own group is labelled with YOUR name, so the list reads "Erbsman / dyze".
   //
   // It used to fall back to "My scenes", and that fallback was visible in the worst possible

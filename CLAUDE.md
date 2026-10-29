@@ -545,7 +545,7 @@ New, Show author, Auto-cycle, Scene TTL, Transition, + Choose transitions — no
 `.ctl-off` + `disabled`, both by request; a stored transition still plays). **New and Show author sit
 above Auto-cycle and are never gated** (creating a scene `stopCycling()`s — gated, New grayed itself). `foldcycle-check` case-gate. There is
 no scene list, no Delete/Share (Rename is the title's ✎), no per-scene cycle tick, no collection ✕, no publish hint;
-don't bring them back without the owner. `#preset` is hidden (`display:none` in the template) and
+don't bring them back without the owner (the cycle tick and the unfollow live in the GALLERY since card 832). `#preset` is hidden (`display:none` in the template) and
 stays the value store; a probe picks a scene by writing it and dispatching `change`.
 
 ### One control block PER LAYER
@@ -710,8 +710,9 @@ that collection, append the incoming). `#preset` is the hidden store (no visible
 `myProfileName() || "Kicktro"`.
 
 **`p.rotate`** — per-scene auto-cycle; `inRotation(p)` is `!(p.rotate === false)`; must be in
-`validatePresetList`. The tick that set it is GONE from the UI (card 827) but a stored
-`rotate:false` is still honoured and still decodes. Nothing in rotation ⇒ the cycler idles.
+`validatePresetList`. Set from the gallery's **↻ In auto-cycle** toggle (card 832) through `setInRotation(indices, on)`,
+the one writer (in = the key DELETED). A re-install of the same name (`applyGalleryScene`, a collection reload)
+KEEPS a stored `false`. Nothing in rotation ⇒ the cycler idles.
 
 **`autosavePreset` must carry every field beside `name`** — adding one means editing
 `autosavePreset`, `validatePresetList`, and the setter. Third such field: `origin` (original author,
@@ -847,7 +848,8 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
   `cloudSave` refuses only with no scenes AND no follows.
 - `collectionsHeld` is declared in `audio-tuning-data.js`, filled from `persist-presets.js`
   (function declarations). The follow is noted INSIDE `applySharedLibrary` after validation;
-  `forgetCollection` has NO caller since the panel lost Delete and the collection ✕ (card 827): a follow can no longer be removed from the UI.
+  `forgetCollection`'s one caller is `unfollowCollection(key)` (card 832, the Collections tab's Unfollow): confirm with
+  the count, drop the collection's scenes + the follow, re-find the selection by identity, apply the neighbour if it went.
 - `refollowCollections(raw)` runs INSIDE `cloudApplyPayload`: appended never prepended, re-stamped
   with the followed key, present collections not re-fetched, missing sources skipped and named
   (`{raw, missed}`), uid-less entries resolved by NAME against `galList()` and healed back into
@@ -863,6 +865,14 @@ hovered or focused, the author, the VOTE. Tabs Most loved (leftmost, the DEFAULT
 Newest / My favourites / My scenes (`GET /api/gallery?sort=favs|name|new[&mine=favs|own]&q=&offset=&limit=`,
 paged as you
 scroll, `galleryPage` 24) plus Collections (the older per-profile listing, `galPeople`).
+**WHAT YOU HOLD (card 832)**: `galHeld(c)` maps a card to library scenes BY NAME (the listing has no sid): your own
+card/local card → your own scene; anyone else's/a built-in → `Shared with you` or the collection named `c.author`.
+A held card gets `.gal-cyc` (↻ In auto-cycle, `aria-pressed`, over the thumbnail, never loads). My scenes appends
+`.gal-local` cards (`local:<name>`, no vote/🔗/✕/render, signed out too) for own scenes with NO card (`gal.ownNames`,
+filled before the weight cut) — stock scenes never upload, so without them a starter scene could not leave the show; a
+click `applyPreset`s it in place. Collections: `galHeldCollections()` (follows + labels scenes carry) gives a row
+Unfollow; one no longer listed gets an Unfollow-only row. gallery-check `case-hold` (seeded library, reload phase;
+red against a pre-832 build); its `cards()` skips local cards.
 Readable signed out. **Nothing loads up front**: a poster's `src` is set by `galLazy` (an
 IntersectionObserver rooted on `.gal-box`) — `loading=lazy` measures from the WINDOW and
 fetches a whole page the dialog has not scrolled to. The img stays `.lz` (hidden) until it
