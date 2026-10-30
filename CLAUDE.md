@@ -508,6 +508,8 @@ no control). `#panel` is only the scene editor; `m` and ⚙ toggle it.
 `#frames` width; a phone in portrait lost its last buttons' taps under it). `--toph` on the root
 = the BUTTONS' rows only (never the banner, which fades) — `#panel` and the phone-width dialogs
 hang from it. ▦ and ♪ are 26px through `#toprow > #id` (a bare id loses to `#toprow > button`).
+The banner is 15px, its line box CENTRED on the buttons (`align-self: center`, by request); a
+`height`/`line-height` written before the `font` shorthand is overridden by it (toprow-check).
 
 **♪, profile and © open a POPOVER that ADOPTS nodes** (`src/ui-menubar.js`, last in the manifest;
 `popOpen(btn, hostId, label)`): the children of `#audiobox`/`#cloudbox`/`#creditbox` (authored
