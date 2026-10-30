@@ -257,11 +257,14 @@
      viewport width; as chrome it can be small and quiet, because it no longer has to survive
      being composited under a bloom. Not a button — no border or background, so it reads as a
      caption on the row rather than a fourth control you could press. */
+  /* Its line box is CENTRED on the buttons (by request; the row's own align-items). The old
+     `height/line-height: 34px` were overridden by the `font` shorthand after them, which left
+     the text hanging from the TOP of the row. */
   #scenebanner {
     flex: 0 1 auto; min-width: 0; margin-left: 6px;
-    height: 34px; line-height: 34px;
+    align-self: center;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    color: #ffcf87; font: 12px/1 ui-monospace, Consolas, monospace; letter-spacing: .03em;
+    color: #ffcf87; font: 15px/1.4 ui-monospace, Consolas, monospace; letter-spacing: .03em;
     text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
     pointer-events: none;                 /* never in the way of a click on the canvas */
     transition: opacity .2s;
@@ -2889,7 +2892,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.103.1",
+    version: "1.103.2",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---

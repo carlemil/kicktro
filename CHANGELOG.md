@@ -15,6 +15,14 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.103.2] — 2026-10-30
+
+### Changed
+- The scene title beside the top-row buttons is a size larger and sits centred on the buttons, instead of hanging from their top edge.
+
+### Internal
+- `toprow-check` asserts the title is centred on the buttons, larger than 12px, and keeps room for descenders.
+
 ## [1.103.1] — 2026-10-29
 
 ### Fixed
