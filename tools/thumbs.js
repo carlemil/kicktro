@@ -15,10 +15,21 @@
 //   node tools/thumbs.js --cost <slug,slug|all> [--size WxH]
 //       measures built-ins and prints them, writing nothing.
 //
+//   node tools/thumbs.js --calibrate
+//       re-measures the YARDSTICK (thumbs/cost-ref.json) and says whether this machine still
+//       measures in the reference's units. --builtin and --server run it before their first cost.
+//   node tools/thumbs.js --rebase [--server]
+//       a NEW reference: every built-in re-measured into costs.json, a new yardstick and machine
+//       written to cost-ref.json; with --server every published card is re-measured too.
+//
 // COST = how heavy a scene is to run: the larger of the median GPU time (a timer query around
 // each frame) and the median CPU time of 180 frames, in ms, at 1920x1080 (COST_SIZE) on THIS
 // machine, in its own Edge run with a cold shader cache. It only compares scenes with each
 // other; the gallery's Weight slider (CONFIG.cloud.galleryWeights) cuts it into steps.
+// Costs measured months apart must still compare, so a cost is written only while the yardstick
+// agrees with the reference (median ratio within CAL_TOL): a new GPU, driver or Edge that reads
+// differently HOLDS every cost back (cards stay unmeasured, which the gallery always shows) until
+// --rebase re-measures the lot on the new machine.
 //   node tools/thumbs.js --check <slug>
 //       renders one built-in TWICE and compares the frames: the harness must be deterministic,
 //       or a re-render would change every thumbnail for nothing.
@@ -51,13 +62,14 @@ let COST_SIZE = "1920,1080";
 const args = { only: null };
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i];
-  if (["--builtin", "--server", "--all", "--force", "--keep", "--help"].includes(a)) args[a.slice(2)] = true;
+  if (["--builtin", "--server", "--all", "--force", "--keep", "--help", "--calibrate", "--rebase"].includes(a)) args[a.slice(2)] = true;
   else if (["--check", "--cost", "--size", "--page", "--work", "--api", "--ssh", "--only"].includes(a) && i + 1 < process.argv.length) args[a.slice(2)] = process.argv[++i];
   else die("unexpected argument " + a);
 }
 if (args.size) COST_SIZE = args.size.replace("x", ",");
-if (args.help || !(args.builtin || args.server || args.check || args.cost)) {
-  console.log(fs.readFileSync(__filename, "utf8").split(NL).slice(2, 20).map(l => l.replace(/^\/\/ ?/, "")).join(NL));
+if (args.help || !(args.builtin || args.server || args.check || args.cost || args.calibrate || args.rebase)) {
+  const head = fs.readFileSync(__filename, "utf8").split(NL);
+  console.log(head.slice(2, head.findIndex(l => l.startsWith("// Options:"))).map(l => l.replace(/^\/\/ ?/, "")).join(NL));
   process.exit(args.help ? 0 : 2);
 }
 const PAGE = path.resolve(args.page || path.join(ROOT, "dev-index.html"));
@@ -225,6 +237,62 @@ function adminToken() {
   return t;
 }
 
+// ---- calibration: does THIS machine still measure in the reference's units? -------------------
+// The yardstick is a few built-ins whose reference costs sit in thumbs/costs.json; cost-ref.json
+// names them and the machine they were measured on. Only scenes of CAL_FLOOR ms and up: a cheap
+// scene measured alone reads slow (the GPU's power state), and the instrument resolves ms, not
+// tenths. The heaviest goes first, which also wakes the GPU for the rest.
+const COST_FILE = path.join(ROOT, "thumbs", "costs.json");
+const REF_FILE = path.join(ROOT, "thumbs", "cost-ref.json");
+const CAL_TOL = 1.3, CAL_FLOOR = 3, CAL_N = 4;
+const readJsonFile = f => fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : null;
+function machine() {
+  const ps = "$v = @(Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name + ' ' + $_.DriverVersion }) -join ' + '; "
+    + "$v; (Get-Item '" + EDGE.replace(/'/g, "''") + "').VersionInfo.ProductVersion";
+  const r = spawnSync("powershell", ["-NoProfile", "-EncodedCommand", Buffer.from(ps, "utf16le").toString("base64")], { encoding: "utf8" });
+  const [gpu, edge] = (r.stdout || "").trim().split(/\r?\n/);
+  return { gpu: (gpu || "?").trim(), edge: (edge || "?").trim(), size: COST_SIZE };
+}
+const sameMachine = (a, b) => !!a && !!b && a.gpu === b.gpu && a.edge === b.edge && a.size === b.size;
+function pickYardstick(costs) {
+  const heavy = Object.keys(costs).filter(s => costs[s] >= CAL_FLOOR).sort((a, b) => costs[b] - costs[a]);
+  if (heavy.length <= CAL_N) return heavy;
+  return Array.from({ length: CAL_N }, (_, i) => heavy[Math.round(i * (heavy.length - 1) / (CAL_N - 1))]);
+}
+const median = xs => { const s = xs.slice().sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+async function calibrate() {
+  const costs = readJsonFile(COST_FILE) || {};
+  const ref = readJsonFile(REF_FILE);
+  const have = new Map(builtins().map(b => [b.slug, b]));
+  const stick = (ref ? ref.yardstick : pickYardstick(costs)).filter(s => costs[s] != null && have.has(s));
+  if (stick.length < 2) die("the yardstick has " + stick.length + " usable scene(s): run --rebase");
+  const mach = machine();
+  console.log("calibrating on " + mach.gpu + ", Edge " + mach.edge + " at " + mach.size);
+  const ratios = [];
+  for (const s of stick) {
+    const now = costOf(await measure(have.get(s).blob, s)), r = now / costs[s];
+    ratios.push(r);
+    console.log("  " + s.padEnd(24) + " ref " + String(costs[s]).padStart(6) + " ms  now " + String(now).padStart(7) + " ms  x" + r.toFixed(2));
+  }
+  const ratio = median(ratios), ok = ratio <= CAL_TOL && ratio >= 1 / CAL_TOL;
+  console.log((ok ? "PASS" : "FAIL") + "  this machine measures x" + ratio.toFixed(2) + " the reference (tolerance x"
+    + (1 / CAL_TOL).toFixed(2) + "..x" + CAL_TOL + ")");
+  if (ref && !sameMachine(ref.machine, mach)) console.log("  note: the reference was measured on " + ref.machine.gpu + ", Edge " + ref.machine.edge + " at " + ref.machine.size);
+  // The first agreeing calibration adopts the costs already shipped as the reference.
+  if (ok && !ref) writeRef(stick, mach);
+  return ok;
+}
+function writeRef(stick, mach) {
+  fs.writeFileSync(REF_FILE, JSON.stringify({ measured: new Date().toISOString().slice(0, 10), machine: mach, yardstick: stick,
+    note: "thumbs.js: costs are written only while these built-ins measure within x" + CAL_TOL + " of costs.json; --rebase replaces it" }, null, 2) + "\n");
+  console.log("  wrote thumbs/cost-ref.json (yardstick " + stick.join(", ") + ")");
+}
+// Calibrated once per run, on the first cost: false = hold every cost back.
+let calibrated = null;
+const costsAgree = () => calibrated || (calibrated = args.rebase ? Promise.resolve(true) : calibrate());
+let held = 0;
+const wrote = [];   // what got a cost this run, named if the closing check fails
+
 (async () => {
   if (!fs.existsSync(EDGE)) die("Edge not found at " + EDGE);
   if (!fs.existsSync(FFMPEG)) die("ffmpeg not found at " + FFMPEG + " (set FFMPEG)");
@@ -253,12 +321,34 @@ function adminToken() {
       console.log("  " + b.slug.padEnd(24) + " gpu " + c.gpu.toFixed(3).padStart(8) + " ms  cpu " + c.cpu.toFixed(3).padStart(8) + " ms  " + c.size);
     }
   }
+  if (args.calibrate) {
+    const ok = await costsAgree();
+    if (!(args.builtin || args.server || args.rebase)) process.exit(ok ? 0 : 1);
+  }
+  if (args.rebase) {
+    // A new reference: every built-in on THIS machine, then the yardstick picked from them.
+    const costs = {};
+    const list = builtins();
+    for (const b of list) {
+      costs[b.slug] = costOf(await measure(b.blob, b.slug));
+      console.log("    cost " + b.slug + " " + costs[b.slug] + " ms");
+      wrote.push(b.slug);
+    }
+    fs.mkdirSync(path.dirname(COST_FILE), { recursive: true });
+    fs.writeFileSync(COST_FILE, JSON.stringify(costs, null, 2) + "\n");
+    writeRef(pickYardstick(costs), machine());
+    if (!args.server) console.log("  ! the published cards still carry the OLD reference's costs: run --rebase --server as well");
+    for (const a of [["tools/ai-scenes.js", "--emit"], ["tools/build.js"]]) {
+      const r = spawnSync(process.execPath, a, { cwd: ROOT, stdio: "inherit" });
+      if (r.status !== 0) die(a.join(" ") + " failed");
+    }
+  }
   if (args.builtin) {
     const only = args.only ? new Set(args.only.split(",").map(s => s.trim().replace(/^builtin:/, ""))) : null;
     const dir = path.join(ROOT, "thumbs");
     fs.mkdirSync(dir, { recursive: true });
-    const costFile = path.join(dir, "costs.json");
-    const costs = fs.existsSync(costFile) ? JSON.parse(fs.readFileSync(costFile, "utf8")) : {};
+    const costFile = COST_FILE;
+    const costs = readJsonFile(costFile) || {};
     let made = 0, measured = 0;
     const list = builtins();
     for (const b of list) {
@@ -271,9 +361,11 @@ function adminToken() {
         fs.writeFileSync(files[1], r.clip);
         made++;
       }
-      if (draw || costs[b.slug] == null) {
+      if ((draw || costs[b.slug] == null) && !(await costsAgree())) held++;
+      else if (draw || costs[b.slug] == null) {
         costs[b.slug] = costOf(await measure(b.blob, b.slug));
         console.log("    cost " + b.slug + " " + costs[b.slug] + " ms");
+        wrote.push(b.slug);
         measured++;
       }
     }
@@ -294,6 +386,13 @@ function adminToken() {
     const r = await fetch(API + "/api/admin/thumbs/todo" + (args.all ? "?all=1" : ""), { headers: hdr });
     if (!r.ok) die("GET todo -> " + r.status + " " + (await r.text()).slice(0, 200));
     const { items } = await r.json();
+    if (args.rebase) {
+      // every other published card is measured again, its thumbnail left alone
+      const a = await fetch(API + "/api/admin/thumbs/todo?all=1", { headers: hdr });
+      if (!a.ok) die("GET todo?all=1 -> " + a.status + " " + (await a.text()).slice(0, 200));
+      const seen = new Set(items.map(it => it.id));
+      for (const it of (await a.json()).items) if (!seen.has(it.id)) items.push(Object.assign(it, { render: 0 }));
+    }
     console.log(items.length + " gallery scene(s) to render or measure");
     let bad = 0;
     for (const it of items) {
@@ -302,15 +401,28 @@ function adminToken() {
       catch (e) { console.log("  ! " + it.id + ": payload does not decode, skipped"); bad++; continue; }
       // render 0 = the thumbnail is current, only its cost is missing (an API from before
       // costs sends no flag: render it)
-      const draw = it.render !== 0;
+      const draw = it.render !== 0, agree = await costsAgree();
+      if (!draw && !agree) { held++; continue; }
       const res = draw ? await render(blob, it.id) : null;
-      const cost = costOf(await measure(blob, it.id));
+      // a held cost is left out of the PUT: the card keeps what it had (none = unmeasured)
+      const cost = agree ? costOf(await measure(blob, it.id)) : undefined;
+      if (agree) wrote.push(it.id); else held++;
       const put = await fetch(API + "/api/admin/thumbs/" + encodeURIComponent(it.id), {
         method: "PUT", headers: Object.assign({ "Content-Type": "application/json" }, hdr),
         body: JSON.stringify(draw ? { poster: res.poster.toString("base64"), clip: res.clip.toString("base64"), cost } : { cost }) });
       if (!put.ok) { console.log("  ! " + it.id + ": PUT -> " + put.status + " " + (await put.text()).slice(0, 200)); bad++; continue; }
-      console.log("    " + (draw ? "uploaded " : "measured ") + it.id + " v" + (await put.json()).thumb_ver + ", " + cost + " ms");
+      console.log("    " + (draw ? "uploaded " : "measured ") + it.id + " v" + (await put.json()).thumb_ver
+        + (cost === undefined ? ", cost held" : ", " + cost + " ms"));
     }
     if (bad) die(bad + " scene(s) failed");
   }
+  // The closing check: a machine that got busy (another render, a game, a second Edge) halfway
+  // through reads heavy from then on, and the opening calibration cannot see that.
+  if (wrote.length) {
+    console.log("re-checking the yardstick after " + wrote.length + " cost(s)");
+    if (!(await calibrate())) die("the yardstick drifted DURING the run, so these costs may be off: " + wrote.join(", ")
+      + ". Re-measure them on an idle machine (--builtin --force --only <slugs>, or --rebase --server).");
+  }
+  if (held) die(held + " cost(s) HELD BACK: this machine no longer measures like the reference."
+    + " Thumbnails went up; the costs wait for 'node tools/thumbs.js --rebase --server' on the machine that measures from now on.");
 })().catch(e => die(e.stack || e.message));

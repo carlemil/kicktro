@@ -1,0 +1,15 @@
+{
+  "measured": "2026-11-01",
+  "machine": {
+    "gpu": "NVIDIA GeForce RTX 4090 32.0.16.1088",
+    "edge": "156.0.4314.50",
+    "size": "1920,1080"
+  },
+  "yardstick": [
+    "galaxy-bloom",
+    "incense",
+    "jelly-reef",
+    "static-garden"
+  ],
+  "note": "thumbs.js: costs are written only while these built-ins measure within x1.3 of costs.json; --rebase replaces it"
+}

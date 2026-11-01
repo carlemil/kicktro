@@ -995,6 +995,13 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   (`--server` PUTs `cost`; a card on the todo with `render: 0` is measured only, PUT `{cost}`
   alone); built-ins keep theirs in `thumbs/costs.json`, which `ai-scenes.js --emit` writes into
   `BUILTIN_SCENES`. gallery-check `case-weight`.
+  **A cost is written only while the YARDSTICK agrees** (`thumbs/cost-ref.json`: four built-ins
+  ≥ 3 ms, heaviest first; median ratio to `costs.json` within `CAL_TOL` ×1.3, checked before the
+  first cost AND again after the last). Idle noise measured ±15%; a BUSY machine read ×2.45 — the
+  real failure, which `--size` can't simulate (the window clamps to the screen). A failed check
+  HOLDS costs (card stays unmeasured, thumbnail still uploads, exit 1); a new GPU/driver/Edge
+  needs `--rebase --server`, which re-measures everything. Never scale old costs by the ratio
+  (GPU- and CPU-bound scenes drift differently).
 - **The first visitor renders a missing thumbnail** (no GPU on the server): a placeholder in view
   (`galImgObs`) queues `galRenderWant` — this page's own HTML (`fetch(location.pathname)`) + the
   prelude in a **`sandbox="allow-scripts"` srcdoc iframe** (opaque origin: never the visitor's

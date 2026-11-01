@@ -207,6 +207,13 @@ with the release (pages.yml ships `thumbs/`). `--server` needs no commit — the
 API. Each render is ~9 s on the real GPU; a failure there is not a reason to stop the release,
 but say so.
 
+Both CALIBRATE before their first cost and re-check after the last (~1 min each): a cost is
+written only while four built-ins still measure within ×1.3 of `thumbs/costs.json`. Run them with
+nothing else on the GPU — no other Edge, no browser checks in parallel — or the check holds the
+costs (exit 1, "HELD BACK"; thumbnails still upload). Re-run once idle. If it still fails, the
+machine itself changed (GPU, driver, Edge): tell the user, who decides on
+`node tools/thumbs.js --rebase --server` (re-measures every scene and resets the reference).
+
 ## 5. Commit, tag and push
 
 Stage everything the release touches — the version bump, the notes, and both generated
