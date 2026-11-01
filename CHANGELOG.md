@@ -15,6 +15,16 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.103.3] — 2026-11-01
+
+### Changed
+- The tutorial (the **i** button) now describes the app as it is: sixty-odd effects and over
+  forty filters; ⚙ opens the editor, and opening it no longer stops auto-cycle; the Scenes step
+  covers renaming with ✎, Scene TTL, the crossfade between scenes, + Choose transitions and that
+  signed in, Auto-cycle plays the scenes you gave a ❤️; the last step points at the Gallery's 🔗
+  link, ❤️ / 💔 vote and ✕ instead of the old Share button, and mentions Apple sign-in and
+  publishing as Anonymous. The music step names **S** / Pause the reaction.
+
 ## [1.103.2] — 2026-10-30
 
 ### Changed
