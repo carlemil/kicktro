@@ -29554,7 +29554,7 @@
     { head: "A visual that runs in your browser", art: TUT_ART.canvas,
       // The count is real and worth keeping real — it is the one number here that dates the
       // tour. `node -e` over the EFFECTS literal in the built file gives it.
-      body: "Kicktro is a demoscene visual — fifty-odd effects (fractals, plasmas, tunnels, "
+      body: "Kicktro is a demoscene visual — sixty-odd effects (fractals, plasmas, tunnels, "
         + "raymarched solids, flocking birds, slime moulds) all sharing one palette, glow and "
         + "beat-reactive pipeline. Nothing is installed and nothing is uploaded; the whole thing is "
         + "this one page. <b>Click the picture to pause it</b>, and click again to carry on." },
@@ -29571,8 +29571,9 @@
         + "beats. Any slider can then be armed with its <b>L / M / H</b> chips (a couple of steps from "
         + "now): it stops drifting, rests at its low end and snaps to its high end on every beat in that "
         + "band. It also <b>follows the tempo</b>, so a slider can be set to rise <i>into</i> the next "
-        + "beat and peak on it rather than only react once it has passed. The audio is analysed in "
-        + "your browser only; nothing is recorded or sent anywhere."
+        + "beat and peak on it rather than only react once it has passed. <span class=\"tut-keys\">S</span> "
+        + "(or <b>Pause the reaction</b> under ♪) holds the beats off without stopping the source. The "
+        + "audio is analysed in your browser only; nothing is recorded or sent anywhere."
         // The mic is armed by default (see restore()), so the click that closes this tour is
         // the one the browser prompts on. Saying so here is the difference between "of course"
         // and an unexplained permission box a second after a tutorial ended. At the front door
@@ -29584,20 +29585,21 @@
             + "microphone</b>. Allow it and the room drives the visual; refuse, and it is never asked "
             + "again — you can still start either source yourself from ♪.") },
     { head: "The editor and the buttons", art: TUT_ART.menus,
-      body: "<span class=\"tut-keys\">M</span> opens the <b>scene editor</b> down the left — everything "
-        + "that is part of what you are looking at. While it is open the scenes stop auto-cycling, so "
-        + "nothing changes under you while you work. The <b>buttons along the top</b> are everything else: "
-        + "other people's scenes, fullscreen, audio, your cloud profile, the credits, this tutorial and the "
-        + "help reference. "
-        + "<span class=\"tut-keys\">M</span> hides it again, <span class=\"tut-keys\">F</span> "
+      body: "<b>⚙</b> or <span class=\"tut-keys\">M</span> opens the <b>scene editor</b> down the left — "
+        + "everything that is part of what you are looking at. The <b>buttons along the top</b> are "
+        + "everything else: <b>▦</b> the Gallery of everyone's scenes, fullscreen, <b>♪</b> audio, the "
+        + "editor, your profile, the credits, this tutorial and the <b>?</b> help reference. "
+        + "<span class=\"tut-keys\">M</span> hides the editor again, <span class=\"tut-keys\">F</span> "
         + "goes fullscreen and <span class=\"tut-keys\">H</span> strips every last bit of chrome." },
     { head: "Scenes", art: TUT_ART.scenes,
       body: "A <b>scene</b> is a complete snapshot — the effects, the colours, the filters, every slider. "
-        + "Pick one in the <b>Gallery</b> and it loads; from then on <b>every change you make is saved straight "
-        + "back into it</b>, with no Save button. Press <b>New</b> first if you would rather work on a "
-        + "copy. <b>Auto-cycle</b> drifts through your scenes, so you can leave it "
-        + "running — one scene <b>blends into the next</b> rather than cutting, and the "
-        + "<b>Transition</b> slider sets how long that takes (pinch it to zero for a hard cut)." },
+        + "Click one in the <b>Gallery</b> and it joins your scenes and loads; from then on <b>every change "
+        + "you make is saved straight back into it</b>, with no Save button. Its name heads the editor — "
+        + "<b>✎</b> renames it — and <b>New</b> starts a copy if you would rather keep the original. "
+        + "<b>Auto-cycle</b> moves on to another scene every <b>Scene TTL</b> seconds, so you can leave it "
+        + "running: signed in, it plays the scenes you gave a <b>❤️</b>; otherwise your own. One scene "
+        + "<b>crossfades into the next</b>; the <b>Transition</b> slider sets how long that takes (pinch it "
+        + "to zero for a hard cut) and <b>+ Choose transitions</b> adds wipes, irises and the rest." },
     { head: "Layers", art: TUT_ART.layers,
       body: "A scene can stack up to <b>four effects</b> into one picture. Each layer keeps its own "
         + "effect, palette, camera and filters, and they are blended together in perceptual colour "
@@ -29618,18 +29620,18 @@
         + "makes — plotted, so you can see what it will do — how <b>long</b> that pulse lasts, and its "
         + "own detector <b>tuning</b>, so one slider can be twitchier than the next." },
     { head: "Filters", art: TUT_ART.filters,
-      body: "Each layer carries a chain of <b>filters</b> — nearly forty of them — listed in the order they run; drag to "
+      body: "Each layer carries a chain of <b>filters</b> — over forty of them — listed in the order they run; drag to "
         + "reorder. Where one sits matters: above the line it shapes the heat <i>before</i> the effect "
         + "draws (Fire, trails, feedback warps build up over frames), below it repaints the finished "
         + "picture (pixelate, mirror, bloom). <b>+ Add filter</b> opens the full catalogue." },
     { head: "Keeping and sharing", art: TUT_ART.share,
-      body: "Your scenes live in this browser. <b>Cloud profile</b> keeps the whole library against a "
-        + "Google account. Every scene you make is also in the <b>Gallery</b>, an hour after your last "
-        + "change to it, so polish it first: there everyone's scenes play as you hover them and "
-        + "<b>❤️</b> sorts the best to the top. "
-        + "<b>Share</b> copies a link to the one scene you "
-        + "have open.<br><br>That is the tour. <b>?</b> explains every single control, and "
-        + "<b><i>i</i></b> brings this back whenever you want it." },
+      body: "Your scenes live in this browser; <b>sign in</b> (the profile button, Google or Apple) and the "
+        + "whole library follows you to any device. Every scene you make also goes into the "
+        + "<b>Gallery</b> by itself — signed out, as Anonymous — an hour after your last change to it, so "
+        + "polish it first. There everyone's scenes play as you hover them, <b>❤️</b> and <b>💔</b> vote "
+        + "the best to the top, <b>🔗</b> copies a link that opens a scene for anyone, and <b>✕</b> takes "
+        + "one of yours back out. <b>My scenes</b> lists yours.<br><br>That is the tour. <b>?</b> explains "
+        + "every single control, and <b><i>i</i></b> brings this back whenever you want it." },
   ];
 
   const tutDlg = el("tutdlg");
