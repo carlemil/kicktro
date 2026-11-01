@@ -15,6 +15,17 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.104.0] — 2026-11-01
+
+### Changed
+- **Gallery: the Collections tab is gone.** It had stopped growing: nothing has published a
+  whole profile there since 1.99.1. A collection you already follow keeps updating. It now shows
+  as a card at the end of **My scenes**, and its **Unfollow** button removes its scenes.
+
+### Internal
+- Removed the code behind the tab and the old whole-collection install
+  (`galLoad`, `cloudPublish`, `applySharedLibrary`). gallery-check covers the new card.
+
 ## [1.103.3] — 2026-11-01
 
 ### Changed
