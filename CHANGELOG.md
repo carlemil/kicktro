@@ -15,6 +15,19 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.104.1] — 2026-11-01
+
+### Changed
+- **Your scenes upload to the Gallery 20 seconds after your last change** (was 4 s), so a run of
+  tweaks goes up once instead of every few seconds. When others see it is unchanged: a changed
+  scene still goes public an hour after its last edit.
+
+### Internal
+- `tools/thumbs.js` checks four built-in scenes against their stored weights before and after
+  each run. It writes no weight if the machine measures differently (`--calibrate`,
+  `--rebase [--server]`).
+- gallery-check's upload cases wait for the longer delay and assert nothing goes up after 10 s.
+
 ## [1.104.0] — 2026-11-01
 
 ### Changed
