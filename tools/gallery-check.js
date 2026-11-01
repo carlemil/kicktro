@@ -14,7 +14,7 @@
 //   card with no clip never gets one and a 'playing' after leaving shows nothing; ♥ and 💔
 //   ask you to sign in -- the Sign in dialog opens over the gallery, saying it is for
 //   signed-in users only; Escape / × close it and leave the gallery up -- and send nothing; My
-//   favourites says sign in and opens the dialog too. Then a built-in card
+//   favourites says sign in and opens the dialog too; there is no Collections tab (retired). Then a built-in card
 //   on TOUCH: the first tap previews, the second loads it -- into "Shared with you", credited
 //   to its author, with NO gallery request, IN PLACE: no reload, no boot veil (a reload is
 //   caught by a sessionStorage marker the in-page verdict clears, and FAILS).
@@ -29,7 +29,7 @@
 //   tabs; the stored step comes back and the FIRST request already carries maxcost; heavier
 //   cards (server rows and built-ins) are left out, unmeasured ones kept; a measured card wears
 //   its bars with the ms in the title, an unmeasured one none (NEGATIVE); Light asks for
-//   maxcost=1.5 and is remembered; Collections turns the slider off; Any sends no maxcost and
+//   maxcost=1.5 and is remembered; another tab keeps it; Any sends no maxcost and
 //   the very heavy card is back (NEGATIVE).
 // case-link-b / case-link-s (#g=builtin:neon-reef, #g=srv-7): the link alone installs the
 //   scene into "Shared with you", credited to its author, selected, with no second load -- the
@@ -75,10 +75,11 @@
 //   (the flag is gone). My scenes lists, after your cards, your scenes with NO card as local
 //   cards (exactly those: not one with a card, not a borrowed one), with no vote/link/✕; a
 //   stored rotate:false shows as Left out; clicking a local card switches to it in place.
-//   Collections: Unfollow on a collection you follow, NOT on one you do not; one no longer
-//   listed still gets a row (Unfollow, no Load); a cancelled Unfollow removes nothing
-//   (NEGATIVE), a confirmed one removes its scenes and the follow, keeps yours and the
-//   selection. Then a RELOAD (the seed is skipped): every choice came back from storage.
+//   The Collections tab is retired: My scenes ends with a card per collection you follow, each
+//   with Unfollow (one no longer listed too), NOT for one you do not follow (NEGATIVE); a
+//   cancelled Unfollow removes nothing (NEGATIVE), a confirmed one removes its scenes, the follow
+//   and the card, keeps yours and the selection. Then a RELOAD (the seed is skipped): every
+//   choice came back from storage.
 //   Against a build without card 832 this case goes red (no toggle, no Unfollow). It hearts
 //   NOTHING: one heart hands auto-cycle to your hearts and hides every ↻.
 // case-favcycle (REAL TIME: virtual time renders ~two frames after a change; signed in, real frames, Auto-cycle on at a 1 s TTL; hearts on srv-5, held in
@@ -325,7 +326,7 @@ const tail = [
   "  var $ = function (id) { return document.getElementById(id); };",
   "  if (window.__done) return;",
   "  var cards = function () { return Array.prototype.slice.call(document.querySelectorAll('#gal-list .gal-card:not(.gal-local)')); };",
-  "  var locals = function () { return Array.prototype.slice.call(document.querySelectorAll('#gal-list .gal-card.gal-local')); };",
+  "  var locals = function () { return Array.prototype.slice.call(document.querySelectorAll('#gal-list .gal-card.gal-local:not(.gal-coll)')); };",
   "  var card = function (id) { return document.querySelector('#gal-list .gal-card[data-id=\"' + id + '\"]'); };",
   "  var seg = function (id, k) { var c = card(id); return c && c.querySelector('.gal-' + k); };",
   "  var heart = function (id) { return seg(id, 'heart'); };",
@@ -784,7 +785,7 @@ const tail = [
   "    var costOfCard = function (c) { return c.__card && c.__card.cost; };",
   "    then(600, function () {",
   "      var w = $('gal-weight'), lab = w && w.closest('label'), kids = Array.prototype.slice.call(document.querySelector('#galdlg .gal-tabs').children);",
-  "      ok('the Weight slider sits in the tab row, after the tabs and before Copy link', !!lab && kids.indexOf(lab) === kids.indexOf(document.querySelector('.gal-tab[data-tab=people]')) + 1 && kids.indexOf(lab) + 1 === kids.indexOf($('gal-link')), kids.map(function (k) { return k.className || k.id; }).join(','));",
+  "      ok('the Weight slider sits in the tab row, after the tabs and before Copy link', !!lab && kids.indexOf(lab) === kids.indexOf(document.querySelector('.gal-tab[data-tab=own]')) + 1 && kids.indexOf(lab) + 1 === kids.indexOf($('gal-link')), kids.map(function (k) { return k.className || k.id; }).join(','));",
   "      ok('...with four stops', w.min === '1' && w.max === '4' && w.step === '1', w.min + '..' + w.max);",  "      ok('a stored choice comes back: Up to medium', w.value === '2' && $('gal-wval').textContent === 'Up to medium', w.value + ' ' + $('gal-wval').textContent);",
   "      ok('...and the first request already asks for maxcost=5', maxc() === 5, reqs(/GET \\/api\\/gallery\\?/).map(function (r) { return r.p; }).join(' | '));",
   "      var cs = cards();",
@@ -804,14 +805,10 @@ const tail = [
   "      ok('...is remembered', localStorage.getItem('kt.galWeight') === '0', localStorage.getItem('kt.galWeight'));",
   "      var cs = cards();",
   "      ok('...and lists only light (or unmeasured) scenes', cs.length > 0 && cs.every(function (c) { var v = costOfCard(c); return v == null || v <= 1.5; }) && !card('srv-4'), cs.map(costOfCard).join(','));",
-  "      document.querySelector('.gal-tab[data-tab=people]').click();",
-  "    });",
-  "    then(400, function () {",
-  "      ok('Collections lists profiles, which carry no weight: the slider is off', $('gal-weight').disabled === true);",
   "      document.querySelector('.gal-tab[data-tab=new]').click();",
   "    });",
   "    then(400, function () {",
-  "      ok('...and back on for scenes, still Light', $('gal-weight').disabled === false && maxc() === 1.5, maxc());",
+  "      ok('...and another tab keeps it, still Light', $('gal-weight').disabled === false && maxc() === 1.5, maxc());",
   "      var w = $('gal-weight'); w.value = '4'; w.dispatchEvent(new Event('input', { bubbles: true }));",
   "    });",
   "    then(500, function () {",
@@ -925,11 +922,8 @@ const tail = [
   "      document.querySelector('.gal-tab[data-tab=own]').click();",
   "      ok('My scenes with no scene of your own yet says how one gets there', /Every scene you make shows up here/.test($('gal-hint').textContent) && cards().length === 0, $('gal-hint').textContent);",
   "      ok('...without asking the server', reqs(/mine=own/).length === 0);",
-  "      document.querySelector('.gal-tab[data-tab=people]').click();",
-  "    });",
-  "    then(400, function () {",
-  "      var names = Array.prototype.map.call(document.querySelectorAll('#gal-list .gal-row .gal-name'), function (n) { return n.textContent; });",
-  "      ok('Collections lists profiles, the built-in one first', $('gal-list').classList.contains('gal-rows') && names[0] === 'AI-Generated', names.join(','));",
+  "      ok('...and following nothing, no collection card either', !document.querySelector('#gal-list .gal-coll'));",
+  "      ok('the Collections tab is retired: five tabs, none of them it', !document.querySelector('.gal-tab[data-tab=people]') && document.querySelectorAll('#galdlg .gal-tab').length === 5 && !/Collections/.test(document.querySelector('#galdlg .gal-tabs').textContent));",
   "      document.querySelector('.gal-tab[data-tab=favs]').click();",
   "    });",
   "    then(400, function () {",
@@ -1089,8 +1083,8 @@ const tail = [
   "    var stored = function (n, k) { return (hb().presets || []).filter(function (p) { return p.name === n && (p.collection || '') === k; })[0]; };",
   "    var held = function () { return (hb().collections || []).map(function (h) { return h.key; }).join(','); };",
   "    var curName = function () { var b = hb(); return b.presets && b.presets[b.curPreset] ? b.presets[b.curPreset].name : ''; };",
-  "    var rowOf = function (n) { return Array.prototype.filter.call(document.querySelectorAll('#gal-list .gal-row'), function (r) { return r.querySelector('.gal-name').textContent === n; })[0]; };",
-  "    var unf = function (n) { var r = rowOf(n); return r && r.querySelector('.gal-unfollow'); };",
+  "    var collCard = function (n) { return card('coll:' + n); };",
+  "    var unf = function (n) { var c = collCard(n); return c && c.querySelector('.gal-unfollow'); };",
   "    var tab = function (t) { document.querySelector('.gal-tab[data-tab=' + t + ']').click(); };",
   "    if (window.__hold2) {",
   "      then(400, function () {",
@@ -1101,10 +1095,7 @@ const tail = [
   "      then(600, function () {",
   "        ok('...the local scene you left out is still out', pressed('local:Loud One') === 'false', pressed('local:Loud One'));",
   "        ok('...and the one you put back still in', pressed('local:Quiet One') === 'true', pressed('local:Quiet One'));",
-  "        tab('people');",
-  "      });",
-  "      then(500, function () {",
-  "        ok('...the unfollowed collections stay unfollowed', !!rowOf('AI-Generated') && !unf('AI-Generated') && !rowOf('Gone Pal') && held() === '', held());",
+  "        ok('...the unfollowed collections stay unfollowed: no card for either', !collCard('AI-Generated') && !collCard('Gone Pal') && held() === '', held());",
   "        done();",
   "      });",
   "      run(); return;",
@@ -1153,11 +1144,14 @@ const tail = [
   "      ok('...in place, adding nothing', hb().presets.length === 6 && !document.getElementById('boot'), hb().presets.length);",
   "      if ($('galdlg').classList.contains('hidden')) $('galbtn').click();",
   "    });",
-  "    then(600, function () { tab('people'); });",
-  "    then(500, function () {",
-  "      ok('Collections: a collection you follow has Unfollow', !!unf('AI-Generated') && /following/.test(rowOf('AI-Generated').querySelector('.gal-meta').textContent));",
-  "      ok('NEGATIVE: one you do not follow has none', !!rowOf('Pat') && !unf('Pat'));",
-  "      ok('one you hold that is no longer listed still gets a row: Unfollow, no Load', !!unf('Gone Pal') && rowOf('Gone Pal').querySelectorAll('button').length === 1 && /no longer listed/.test(rowOf('Gone Pal').textContent));",
+  "    then(600, function () { tab('own'); });",
+  "    then(600, function () {",
+  "      var kids = Array.prototype.slice.call($('gal-list').children), cc = document.querySelectorAll('#gal-list .gal-coll');",
+  "      ok('My scenes ends with a card per collection you follow, with Unfollow', !!unf('AI-Generated') && /A collection you follow . 1 scene$/.test(collCard('AI-Generated').querySelector('.gal-by').textContent), collCard('AI-Generated') && collCard('AI-Generated').textContent);",
+  "      ok('...after your local cards, last in the list', cc.length === 2 && kids.indexOf(cc[0]) === kids.length - 2 && kids.indexOf(locals()[locals().length - 1]) < kids.indexOf(cc[0]), cc.length);",
+  "      ok('...one no longer listed too, with only Unfollow and no vote, link or toggle', !!unf('Gone Pal') && collCard('Gone Pal').querySelectorAll('button').length === 1);",
+  "      ok('NEGATIVE: no card for a collection you do not follow, nor for Shared with you', !collCard('Pat') && !collCard('Shared with you'));",
+  "      ok('NEGATIVE: and none of them is counted as a card or a local scene', cards().every(function (c) { return !c.classList.contains('gal-coll'); }) && locals().every(function (c) { return !c.classList.contains('gal-coll'); }));",
   "      window.__conf = [];",
   "      window.confirm = function (m) { window.__conf.push(m); return false; };",
   "      if (unf('AI-Generated')) unf('AI-Generated').click();",
@@ -1172,11 +1166,11 @@ const tail = [
   "      ok('confirmed, its scenes leave your library', !stored('Neon Reef', 'AI-Generated'));",
   "      ok('...and the follow goes', held() === 'Gone Pal', held());",
   "      ok('...your own and your shared scenes stay, the selection with them', hb().presets.length === 5 && !!stored('Scene 5', 'Shared with you') && curName() === 'Quiet One', hb().presets.length + ' ' + curName());",
-  "      ok('...the row stays, with Load and no Unfollow', !!rowOf('AI-Generated') && !unf('AI-Generated') && /Load scenes/.test(rowOf('AI-Generated').textContent));",
+  "      ok('...and its card goes', !collCard('AI-Generated'));",
   "      if (unf('Gone Pal')) unf('Gone Pal').click();",
   "    });",
   "    then(400, function () {",
-  "      ok('an unlisted collection unfollows too, and its row goes', !rowOf('Gone Pal') && !stored('Gone Song', 'Gone Pal') && held() === '', held());",
+  "      ok('an unlisted collection unfollows too, and its card goes', !collCard('Gone Pal') && !stored('Gone Song', 'Gone Pal') && held() === '', held());",
   "      sessionStorage.setItem('galholdfails', String(window.__fails()));",
   "      sessionStorage.setItem('galhold', '2');",
   "      $('gal-close').click();",

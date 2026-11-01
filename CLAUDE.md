@@ -716,9 +716,9 @@ drops retired ids, clamps gain, defaults blend, runs every per-item map through 
 
 ### Scene collections
 A preset carries an optional `collection` beside `name` (not in `snapshotScene`); **must be listed
-in `validatePresetList`** or it is dropped on every cloud load. The gallery installs a collection:
-`applySharedLibrary(raw, replace, collection)` → `applyRestore`'s third branch (drop every preset of
-that collection, append the incoming). `#preset` is the hidden store (no visible list since card
+in `validatePresetList`** or it is dropped on every cloud load. A collection arrives ONLY through
+`refollowCollections` re-fetching a follow you already hold (the install path went with the
+Collections tab, 1.104.0). `#preset` is the hidden store (no visible list since card
 827). `myProfileName()` reads `#cloud-name` then
 `PROFILE_NAME_KEY` synchronously; `setProfileName(v)` is the one setter. `myCollectionLabel()` =
 `myProfileName() || "Kicktro"`.
@@ -858,7 +858,8 @@ Startup reads `GET /api/profile?meta=1` (no payload).
 
 **The profile popover has NO Save to cloud / Load from cloud and no Collections / Save
 automatically ticks** (by request, 1.99.1): automatic save is the only writer, so `cloudInit`
-turns a stored "off" back on; a profile already listed under Collections stays listed.
+turns a stored "off" back on. The save still sends the stored `pub`; nothing in the page reads
+the listing it fed except `refollowCollections`' name resolution.
 
 **Only the current version is stored** (no history). The save carries `cloudIfMatch(docTime)`
 (`"none"` ⇒ `If-Match: none`; a version ⇒ `"<updated>"`; absent ⇒ unguarded; 412 = stale); every
@@ -869,8 +870,10 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
   entry is noted uid-less; never clobber an entry with a uid. `curPreset` is remapped.
   `cloudSave` refuses only with no scenes AND no follows.
 - `collectionsHeld` is declared in `audio-tuning-data.js`, filled from `persist-presets.js`
-  (function declarations). The follow is noted INSIDE `applySharedLibrary` after validation;
-  `forgetCollection`'s one caller is `unfollowCollection(key)` (card 832, the Collections tab's Unfollow): confirm with
+  (function declarations). **NOTHING NEW CAN BE FOLLOWED** (the Collections tab, `galLoad` and
+  `applySharedLibrary` are retired, by request, 1.104.0); held follows keep working. `noteCollection`'s
+  one caller is `cloudBlob` healing a label with no follow. `forgetCollection`'s one caller is
+  `unfollowCollection(key)` (card 832, now a `.gal-coll` card's Unfollow at the end of My scenes): confirm with
   the count, drop the collection's scenes + the follow, re-find the selection by identity, apply the neighbour if it went.
 - `refollowCollections(raw)` runs INSIDE `cloudApplyPayload`: appended never prepended, re-stamped
   with the followed key, present collections not re-fetched, missing sources skipped and named
@@ -886,17 +889,18 @@ path that learns the version calls `cloudNoteDocTime`; a stale save re-arms via
 hovered or focused, the author, the VOTE. Tabs Most loved (leftmost, the DEFAULT) / All /
 Newest / My favourites / My scenes (`GET /api/gallery?sort=favs|name|new[&mine=favs|own]&q=&offset=&limit=`,
 paged as you
-scroll, `galleryPage` 24) plus Collections (the older per-profile listing, `galPeople`).
+scroll, `galleryPage` 24). **The Collections tab is RETIRED** (by request, 1.104.0: nothing could join
+its listing once the publish tick went); don't bring it back without the owner.
 **WHAT YOU HOLD (card 832)**: `galHeld(c)` maps a card to library scenes BY NAME (the listing has no sid): your own
 card/local card → your own scene; anyone else's/a built-in → `Shared with you` or the collection named `c.author`.
 A held card gets `.gal-cyc` (↻ In auto-cycle, `aria-pressed`, over the thumbnail, never loads). My scenes appends
 `.gal-local` cards (`local:<name>`, no vote/🔗/✕/render, signed out too) for own scenes with NO card (`gal.ownNames`,
 filled before the weight cut) — stock scenes never upload, so without them a starter scene could not leave the show; a
-click `applyPreset`s it in place. Collections: `galHeldCollections()` (follows + labels scenes carry) gives a row
-Unfollow; one no longer listed gets an Unfollow-only row; `galFollows` is uid-first (name only for a uid-less
-follow). An install DROPS the incoming `rotate` and keeps only a local `false` (applyRestore's collection branch,
-`applyGalleryScene`): `rotate` is how you use a scene, never the sender's. gallery-check `case-hold` (seeded library, reload phase;
-red against a pre-832 build); its `cards()` skips local cards.
+click `applyPreset`s it in place. After them, `galCollCards()`: one `.gal-local.gal-coll` card (`coll:<key>`, no
+load/vote/🔗/↻) per `galHeldCollections()` entry (follows + labels scenes carry), carrying only Unfollow. An install
+DROPS the incoming `rotate` and keeps only a local `false` (`applyGalleryScene`): `rotate` is how you use a scene,
+never the sender's. gallery-check `case-hold` (seeded library, reload phase; red against a pre-832 build); its
+`cards()` skips local cards, `locals()` skips collection cards.
 Readable signed out. **Nothing loads up front**: a poster's `src` is set by `galLazy` (an
 IntersectionObserver rooted on `.gal-box`) — `loading=lazy` measures from the WINDOW and
 fetches a whole page the dialog has not scrolled to. The img stays `.lz` (hidden) until it
@@ -926,13 +930,12 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   browser never uploads anonymously again. Signed in, a stock-only library still uploads (the
   mirror is what hides a deleted scene). `LIMIT.sync` 600/hour. Profiles that predate this are
   made cards by `POST /api/admin/backfill[?dry=1]` (public at once; a rerun adds nothing).
-  gallery-check `case-sync-*` drives the page side. The profile-wide `pub` tick
-  (`cloudPublish`) still feeds the Collections tab.
+  gallery-check `case-sync-*` drives the page side.
 - **A card installs into `"Shared with you"`, credited by `origin`, IN PLACE** (`applyGalleryScene(raw,
   author)`: merge by name WITHIN that collection, custom ramps merged into the live `PALETTES`
   via `sharedLibrary`'s out-of-`parsed` `palettes`, then `applyPreset` + `persist`). **Never
   route it back through `applyRestore`** — its reload recompiled every shader and replayed the
-  credits per card. One card is NOT a follow — never through `applySharedLibrary` either.
+  credits per card. One card is NOT a follow.
 - **Built-ins are cards too**: `BUILTIN_SCENES` (`builtin:<slug>`, `at` = index in
   `BUILTIN_GALLERY`'s blob, `thumb` = hash of `thumbs/<slug>.*`, `""` = placeholder) are MERGED
   into the server's order (`galBefore`, counts from the response's `builtin` map); loading one

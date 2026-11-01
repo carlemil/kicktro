@@ -494,7 +494,7 @@
     color: #ffcf87; font: 12px/1.3 ui-monospace, Consolas, monospace;
   }
   #galdlg #gal-filter:focus { outline: none; border-color: rgba(255, 140, 40, 0.8); }
-  /* Tabs: Most loved / Newest / My favourites / Collections. aria-selected is the state. */
+  /* Tabs: Most loved / All / Newest / My favourites / My scenes. aria-selected is the state. */
   #galdlg .gal-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
   #galdlg .gal-tab {
     padding: 5px 12px; border-radius: 999px; cursor: pointer;
@@ -563,6 +563,9 @@
   #galdlg .gal-cyc:focus-visible { outline: 1px solid #ffb15a; outline-offset: 2px; }
   /* A local card (My scenes: yours, with no gallery card): dashed, so it reads as not published. */
   #galdlg .gal-card.gal-local { border-style: dashed; }
+  /* A collection you still follow (My scenes, last): nothing to load, only its Unfollow. */
+  #galdlg .gal-card.gal-coll { cursor: default; }
+  #galdlg .gal-coll .gal-rm { grid-column: 2; }
   #galdlg .gal-thumb.gal-ph { display: flex; align-items: center; justify-content: center; padding: 10px; box-sizing: border-box; }
   /* A card whose thumbnail this browser is rendering (gallery-thumbs.js). */
   #galdlg .gal-thumb.gal-rendering::after {
@@ -624,27 +627,6 @@
   #galdlg .gal-share:hover, #galdlg .gal-rm:hover { border-color: rgba(255, 160, 60, 0.85); }
   #galdlg .gal-morerow { display: flex; justify-content: center; margin-top: 12px; }
   #galdlg h2 { margin: 0 30px 14px 0; color: #ffb15a; font-size: 15px; text-shadow: 0 0 12px rgba(255, 120, 20, 0.6); }
-  /* ONE line: name, then the scene count / date centred between, then Load at the end.
-     It used to wrap the buttons onto a second row spanning the full width, because there
-     were two of them and "Load and replace" was far too wide to sit inline. There is one
-     button now (the gallery installs a collection, so there is no merge-vs-replace question),
-     and one button fits — so a row is a row.
-     Both text columns are 1fr and min-width:0, which is what lets a long name ellipsize
-     instead of shoving the button off the end; `auto` there would let it push. */
-  #galdlg .gal-row {
-    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-    gap: 6px 12px; align-items: center;
-    padding: 11px 12px; margin-bottom: 9px;
-    border: 1px solid rgba(255, 140, 40, 0.22); border-radius: 7px; background: rgba(255, 140, 40, 0.05);
-  }
-  #galdlg .gal-row:last-child { margin-bottom: 0; }
-  #galdlg .gal-name { color: #ffcf87; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #galdlg .gal-meta {
-    color: #ffb15a; opacity: .6; font-size: 10px; white-space: nowrap;
-    text-align: center; overflow: hidden; text-overflow: ellipsis;
-  }
-  #galdlg .gal-btns { display: flex; gap: 8px; justify-content: flex-end; }
-  #galdlg .gal-row .audbtn { padding: 5px 12px; }
   #galdlg .pal-hint { margin: 14px 0 0; opacity: .6; font-size: 10.5px; }
   /* The merge-vs-replace explainer sits above the list, so the two buttons on every row need
      no caption of their own. It carries .pal-hint too, so these rules must come AFTER that
@@ -2446,19 +2428,19 @@
 <!-- The Gallery (card 825, M3). Readable without signing in. One published scene per
      card: a poster, the clip on hover or focus, a heart with its count. A click installs the
      scene STRAIGHT AWAY into "Shared with you" (applyGalleryScene) -- nothing is left to ask.
-     The Collections tab is the older per-profile listing, still what a follow resolves against. -->
+     The Collections tab (whole profiles) is retired; a collection still followed is a card at
+     the end of My scenes with its Unfollow. -->
 <div id="galdlg" class="hidden">
   <div class="gal-box" role="dialog" aria-modal="true" aria-labelledby="gal-title">
     <button type="button" class="pal-close" id="gal-close" aria-label="Close">×</button>
     <h2 id="gal-title">Gallery</h2>
-    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it. <b>❤️</b> says you love a scene and <b>💔</b> that it is not for you (signed in) — the number between them is loves minus dislikes, which <b>Most loved</b> sorts by, and clicking it takes your vote back; <b>🔗</b> copies a link that opens the scene for anyone. The bars in a scene's corner say how heavy it is to run: on a slower device, slide <b>Weight</b> to the left to leave out the heavy ones. Every scene you make goes in by itself, signed in or not (then as <b>Anonymous</b>): a change shows there an hour after your last edit to the scene, so you can play with it first. <b>My scenes</b> lists yours, with how long each still waits, and after them your scenes that are not in the gallery; <b>✕</b> deletes one of yours. Signed in, <b>Auto-cycle</b> plays the scenes you gave a ❤️, and only those (one you have not loaded yet is fetched when its turn comes). With no hearts it plays your own scenes, and <b>↻ In auto-cycle</b> on a scene you hold says whether it is in that show: click it to leave the scene out, or put it back. <b>Collections</b> loads someone's whole set, and <b>Unfollow</b> takes a set you hold away again.</p>
+    <p class="pal-hint gal-help">Hover a scene to watch it. Click it to add it to your scenes under <b>Shared with you</b> and switch to it. <b>❤️</b> says you love a scene and <b>💔</b> that it is not for you (signed in) — the number between them is loves minus dislikes, which <b>Most loved</b> sorts by, and clicking it takes your vote back; <b>🔗</b> copies a link that opens the scene for anyone. The bars in a scene's corner say how heavy it is to run: on a slower device, slide <b>Weight</b> to the left to leave out the heavy ones. Every scene you make goes in by itself, signed in or not (then as <b>Anonymous</b>): a change shows there an hour after your last edit to the scene, so you can play with it first. <b>My scenes</b> lists yours, with how long each still waits, and after them your scenes that are not in the gallery; <b>✕</b> deletes one of yours. Signed in, <b>Auto-cycle</b> plays the scenes you gave a ❤️, and only those (one you have not loaded yet is fetched when its turn comes). With no hearts it plays your own scenes, and <b>↻ In auto-cycle</b> on a scene you hold says whether it is in that show: click it to leave the scene out, or put it back. A collection you followed before shows as a card at the end of <b>My scenes</b>, and <b>Unfollow</b> there takes its scenes away again.</p>
     <div class="gal-tabs" role="tablist" aria-label="Which scenes to show">
       <button type="button" role="tab" class="gal-tab" data-tab="favs" aria-selected="true" title="Highest score first: every ❤️ counts for a scene, every 💔 against it">Most loved</button>
       <button type="button" role="tab" class="gal-tab" data-tab="all" aria-selected="false" title="Every scene, A to Z">All</button>
       <button type="button" role="tab" class="gal-tab" data-tab="new" aria-selected="false">Newest</button>
       <button type="button" role="tab" class="gal-tab" data-tab="mine" aria-selected="false">My favourites</button>
       <button type="button" role="tab" class="gal-tab" data-tab="own" aria-selected="false" title="Your scenes, newest first — ✕ takes one out of the gallery; the ones not in the gallery follow">My scenes</button>
-      <button type="button" role="tab" class="gal-tab" data-tab="people" aria-selected="false">Collections</button>
       <label class="gal-weight" title="Leave out scenes heavier than this — slide left on a slower device">
         <span class="gal-wlab">Weight</span>
         <input type="range" id="gal-weight" min="1" max="4" step="1" value="4" data-nopersist aria-describedby="gal-wval">
@@ -24623,8 +24605,9 @@
     collectionsHeld.push({ key, uid: String(uid || "") });
   }
   function forgetCollection(key) { collectionsHeld = collectionsHeld.filter(c => c.key !== key); }
-  // UNFOLLOW (card 832): the Collections tab's button on a collection you hold, since the scene
-  // list and its collection ✕ went (card 827). Its scenes leave your library and the follow
+  // UNFOLLOW (card 832): the button on a held collection's card at the end of the gallery's
+  // My scenes (it was the retired Collections tab's; the scene list's collection ✕ went in 827).
+  // Nothing new can be followed any more, so this is how the remaining follows wind down. Its scenes leave your library and the follow
   // goes, so your profile stops saying you hold it. Asks first, naming the count; returns
   // whether it went. Re-finds the selection by IDENTITY (every index above the run shifts);
   // when the selected scene went with it the neighbour is APPLIED, not merely highlighted --
@@ -25471,7 +25454,6 @@
     autosavePreset();                          // fold pending live edits before snapshotting
     const out = fullSnapshot();                // current everything is the base; override chosen parts
     if (el("rst-presets").checked) {
-      const coll = p.collection || "";
       // CUSTOM PALETTES FIRST, and before `lib` is built: the presets below are pushed by
       // reference, so their palette indices have to be correct by the time they land.
       // A payload predating this carries no list at all and skips the lot, which is why every
@@ -25479,11 +25461,10 @@
       const inPal = (p.parsed && !Array.isArray(p.parsed) && Array.isArray(p.parsed.palettes))
         ? p.parsed.palettes : null;
       if (inPal) {
-        if (!coll && el("rst-replace").checked) {
+        if (el("rst-replace").checked) {
           out.palettes = inPal;          // wholesale: their library, their ramps, positions intact
         } else {
-          // Merge and collection installs both KEEP your library, so they keep your ramps too
-          // and append theirs -- then the incoming scenes are remapped onto the merged
+          // Merge KEEPS your library, so it keeps your ramps too and appends theirs -- then the incoming scenes are remapped onto the merged
           // positions. Replacing here would delete every custom palette you have authored.
           const m = palMergeCustoms(out.palettes, inPal);
           out.palettes = m.list;
@@ -25491,30 +25472,11 @@
         }
       }
       let lib;
-      if (coll) {
-        // COLLECTION install (a gallery load). Someone else's scenes are kept as their own
-        // set under their name rather than merged into yours: your library is untouched,
-        // their "Sunset" and your "Sunset" are not a collision, and loading the same
-        // profile again replaces just their set instead of piling up duplicates.
-        // `keep` (one scene from the gallery, into "Shared with you") keeps the rest of that
-        // collection and replaces only a same-named scene in it: loading a second card must
-        // not throw away the first.
-        // A scene of that set you had taken out of auto-cycle stays out across the refresh
-        // (rotate is how you USE it, never part of what the sender sends).
-        const outOfShow = new Set(out.presets.filter(x => (x.collection || "") === coll && x.rotate === false).map(x => x.name));
-        lib = p.keep ? out.presets.slice() : out.presets.filter(x => (x.collection || "") !== coll);
-        for (const q of p.valid) {
-          const item = { ...q, collection: coll };
-          delete item.rotate;                  // the sender's own choice is not yours
-          if (outOfShow.has(item.name)) item.rotate = false;
-          const at = p.keep ? lib.findIndex(x => x.name === item.name && (x.collection || "") === coll) : -1;
-          if (at >= 0) lib[at] = item; else lib.push(item);
-        }
-      } else if (el("rst-replace").checked) {
+      if (el("rst-replace").checked) {
         lib = p.valid.slice();                 // Replace: only the backup's presets
       } else {                                 // Merge: overwrite same-named, keep the rest, append new
         // Matched on NAME **AND** COLLECTION, not name alone. Collections exist precisely so
-        // that their "Sunset" and your "Sunset" are not a collision (see the branch above), and
+        // that their "Sunset" and your "Sunset" are not a collision, and
         // an incoming list can now carry both — a profile load brings your own scenes and the
         // collections you follow in one array. Name alone would let a borrowed scene overwrite
         // your own. Identical for anything with no collections at all: every key is "".
@@ -25525,15 +25487,15 @@
       out.presets = lib;
       // The follow-list travels ONLY on a load of YOUR OWN profile — `__ownCloud`, which
       // comes from the out-of-band flag beside sharedLibrary, never from the payload, so a
-      // stranger's #zp= bundle cannot claim it. (A gallery install has `coll` set and skips
-      // this anyway; whose sets THEY follow is not a statement about whose you do.)
+      // stranger's #zp= bundle cannot claim it: whose sets THEY follow is not a statement about
+      // whose you do.
       //
       // Merge mode UNIONS, mirroring the scene merge above: a follow added locally since the
       // last save must survive loading that older copy, or its scenes vanish from the next
       // save with nothing recording them. Same key ⇒ keep the local entry unless the incoming
       // one carries a uid the local lacks (refollow heals uid-less entries by name, and a
       // healed uid should win over a blank). Replace keeps replace semantics.
-      if (!coll && !Array.isArray(p.parsed) && p.parsed.__ownCloud && p.parsed.collections !== undefined) {
+      if (!Array.isArray(p.parsed) && p.parsed.__ownCloud && p.parsed.collections !== undefined) {
         const incoming = collectionsOk(p.parsed.collections);
         if (el("rst-replace").checked) out.collections = incoming;
         else {
@@ -25548,12 +25510,11 @@
       }
       const sel = (!Array.isArray(p.parsed) && p.parsed.curPreset >= 0 && p.parsed.presets && p.parsed.presets[p.parsed.curPreset])
         ? p.parsed.presets[p.parsed.curPreset].name : null;
-      // Match the sender's selection INSIDE the collection it was installed into — by name
-      // alone it could land on a same-named scene of your own, which is exactly the
-      // collision collections exist to stop.
+      // Match the sender's selection among scenes with NO collection — by name alone it could
+      // land on a same-named scene of a collection you follow.
       // No match (or nothing recorded) lands on the first scene rather than on nothing —
       // ensureSelection clamps it at startup either way.
-      const found = sel ? lib.findIndex(x => x.name === sel && (x.collection || "") === coll) : -1;
+      const found = sel ? lib.findIndex(x => x.name === sel && !(x.collection || "")) : -1;
       out.curPreset = found >= 0 ? found : 0;
       // A shared bundle records which preset the sender had open; land the receiver on it
       // (its scene, not just the dropdown) after the reload — a one-shot marker the startup
@@ -25674,34 +25635,6 @@
                        collections: parts.collections, __ownCloud: own, __link: true }, valid,
              palettes: parts.palettes };
   }
-  // Apply a shared library with NO dialog, for the gallery — whose per-row "Load and merge" /
-  // "Load and replace" buttons have already asked the only question the dialog asks, so
-  // opening it would be a second prompt for an answer it already has.
-  //
-  // It stages the SAME pendingRestore + checkbox state the dialog would have produced and
-  // then calls applyRestore, rather than reimplementing the merge / curPreset / write /
-  // reload sequence — one copy of that logic is the point. The checkboxes are ordinary DOM
-  // nodes whether or not #restoredlg is visible, so this needs no special case in there.
-  // `collection` set ⇒ install as that profile's own set (the gallery path) and merge/replace
-  // no longer applies; unset ⇒ the old merge-vs-replace over your own library.
-  function applySharedLibrary(raw, replace, collection, collectionUid) {
-    const parsed = sharedLibrary(raw);
-    if (!parsed) return;
-    const coll = (collection || "").trim();
-    // Record the follow HERE, after validation has passed — not in galLoad before the call.
-    // A source whose scenes ALL fail validatePresetList installs nothing, and a follow noted
-    // for it would be a phantom: uploaded with every save, "Fetching…" on every load, and
-    // impossible to remove. Still BEFORE applyRestore, whose
-    // fullSnapshot() is what carries collectionsHeld into the blob it writes and reloads on.
-    if (coll) noteCollection(coll, collectionUid);
-    pendingRestore = { parsed: parsed.parsed, valid: parsed.valid, hasSettings: false, hasRanges: false, hasBeat: false,
-      collection: coll };
-    el("rst-presets").checked = true;                 // a bundle carries scenes and nothing else
-    el("rst-merge").checked = !replace;
-    el("rst-replace").checked = !!replace;
-    applyRestore();                                   // writes localStorage + reloads
-  }
-
   // ONE published scene from the gallery (card 825, M3). It lands in "Shared with you" -- the
   // home a one-off scene from someone else already has -- not in a collection named after its
   // author: a collection is something you FOLLOW (cloudBlob uploads the follow instead of the
@@ -26343,7 +26276,7 @@
     const missed = [];
     // A uid-less entry (recorded by cloudBlob for a collection that predates the follow-list)
     // is resolved by NAME against the public gallery: the collection key IS the source
-    // profile's name — galLoad keys it so — and the listing is the only place that mapping
+    // profile's name — the retired Collections tab keyed it so — and the listing is the only place that mapping
     // exists. One galList() covers every such entry; still unresolved ⇒ fetched as uid-less
     // below, which lands it in `missed` by name instead of dropping it silently.
     const resolve = todo.some(c => !c.uid)
@@ -26581,33 +26514,21 @@
     if (!(a && a.owned)) anonWrite({ owned: true });
     gsyncLast = null;
   }
-  // ---- publish your whole profile (the Collections tab) ----
-  // Toggling this re-saves the WHOLE profile rather than patching `pub` alone: the API's PUT
-  // takes name/payload/count/pub together, so a pub-only write to a profile that does not
-  // exist yet has nothing to be. Going through cloudSave() always produces a whole profile.
-  // That routing is also what makes the tick SAFE on a stale machine: the save precondition
-  // fails instead of silently replacing a newer cloud library with this browser's, and the
-  // kept cloudSess.pub means the intent still lands with the user's deliberate re-save.
-  function cloudPublish(on) {
-    if (!cloudSess) return;
-    cloudSess.pub = !!on;
-    cloudSaveSess();
-    track("cloud_publish", { on: !!on });
-    cloudSave();
-    galBust();                          // this profile just entered or left the listing
-  }
-
   // ---- gallery ----
   // ONE PUBLISHED SCENE PER CARD (card 825, M3): a poster, the clip while hovered or focused,
   // the author, and the VOTE: a three-way switch, ❤️ love / the score / 💔 dislike, one vote
-  // per person (score = loves minus dislikes). Readable signed out. Six tabs:
+  // per person (score = loves minus dislikes). Readable signed out. Five tabs:
   //   Most loved / All / Newest   GET /api/gallery?sort=favs|name|new, paged as you scroll;
   //                               Most loved (by score) is the one the dialog opens on
   //   My favourites         the same with mine=favs (needs a session)
   //   My scenes             mine=own, newest first: what you published, each with its ✕
-  //                         (needs a session; built-ins are nobody's, so none of them)
-  //   Collections           the older per-profile listing (GET /api/profiles), which is also
-  //                         what refollowCollections resolves a uid-less follow against
+  //                         (needs a session; built-ins are nobody's, so none of them), then
+  //                         your scenes with no card, then a card per collection you still
+  //                         follow, carrying its Unfollow (galCollCards)
+  // The Collections tab (whole published profiles, Load scenes) is RETIRED, by request: its
+  // listing could no longer grow once the "List my profile" tick went. Follows already held
+  // keep working -- refollowCollections still re-fetches them on a cloud load, resolving a
+  // uid-less one against GET /api/profiles (galList).
   // The built-in AI-Generated scenes are cards too (BUILTIN_SCENES, 'builtin:<slug>'): they
   // ship with the app, thumbnails included, and are MERGED into the server's order by the
   // same key, so a loved built-in sits where its score puts it. Their counts ride on every
@@ -26681,7 +26602,6 @@
     r.max = String(GAL_W.length);
     r.value = String(gal.weight + 1);
     el("gal-wval").textContent = galWeightText(gal.weight);
-    setOff(r, gal.tab === "people");     // Collections lists profiles, which carry no weight
   }
   function galSetWeight(v) {
     const i = Math.max(0, Math.min(GAL_W.length - 1, Math.round(v) - 1));
@@ -26718,7 +26638,7 @@
       && (a.favs > b.favs || (a.favs === b.favs && a.created > b.created))));
   function galSyncMore() {
     const b = el("gal-more");
-    if (b) b.style.display = gal.done || gal.tab === "people" ? "none" : "";
+    if (b) b.style.display = gal.done ? "none" : "";
     if (b) setOff(b, gal.busy);
   }
   function galReset() {
@@ -26726,18 +26646,17 @@
     gal.offset = 0; gal.total = 0; gal.busy = false; gal.shown = new Set(); gal.ownNames = new Set(); gal.order = galSort();
     if (galImgObs) galImgObs.disconnect();
     el("gal-list").textContent = "";
-    el("gal-list").className = gal.tab === "people" ? "gal-rows" : "gal-grid";
+    el("gal-list").className = "gal-grid";
     for (const t of document.querySelectorAll("#galdlg .gal-tab")) {
       t.setAttribute("aria-selected", String(t.dataset.tab === gal.tab));
     }
     galSyncWeight();
-    if (gal.tab === "people") { gal.done = true; galSyncMore(); galPeople(); return; }
     if (galAuthed() && !galMe() || gal.tab === "mine" && !cloudSess) {
       gal.done = true; gal.pend = []; galSyncMore();
       galHint(gal.tab === "own"
         ? "Every scene you make shows up here, and in the gallery an hour after your last change to it."
         : "Favourites belong to an account — sign in under the profile button, then press ❤️ on any scene.");
-      if (gal.tab === "own") galCards(galLocalCards());   // no account yet: your scenes are all local
+      if (gal.tab === "own") galCards(galLocalCards().concat(galCollCards()));   // no account yet: your scenes are all local
       return;
     }
     gal.pend = gal.tab === "own" ? []
@@ -26747,7 +26666,7 @@
     galMore();
   }
   function galMore() {
-    if (gal.done || gal.busy || gal.tab === "people") return;
+    if (gal.done || gal.busy) return;
     gal.busy = true; galSyncMore();
     const seq = gal.seq, n = CLOUD.galleryPage || 24;
     const sp = new URLSearchParams({ sort: galSort(), limit: String(n), offset: String(gal.offset) });
@@ -26781,7 +26700,7 @@
         out.push(r);
       }
       if (gal.done) out.push(...gal.pend.splice(0));
-      if (gal.done && gal.tab === "own") out.push(...galLocalCards());
+      if (gal.done && gal.tab === "own") out.push(...galLocalCards(), ...galCollCards());
       galCards(out);
       gal.busy = false; galSyncMore(); galEmpty();
       galWatchMore();
@@ -26790,7 +26709,7 @@
       // The built-ins need no network, so an unreachable API still leaves something to show.
       gal.busy = false; gal.done = true;
       galCards(gal.pend.splice(0));
-      if (gal.tab === "own") galCards(galLocalCards(true));   // yours are here whatever the network says
+      if (gal.tab === "own") galCards(galLocalCards(true).concat(galCollCards()));   // yours are here whatever the network says
       galSyncMore();
       galHint("Could not reach the gallery: " + e.message);
     });
@@ -26858,7 +26777,7 @@
       if (gal.shown.has(c.id)) continue;           // a row can repeat across pages if favs move
       gal.shown.add(c.id);
       if (!c.local) favCyc.meta.set(c.id, c);
-      host.appendChild(galCard(c));
+      host.appendChild(c.coll ? galCollCard(c) : galCard(c));
     }
   }
   function galCard(c) {
@@ -26960,6 +26879,46 @@
       if (galMatch(c)) out.push(c);
     }
     return out;
+  }
+  // My scenes, last: one card per collection you still follow, since the Collections tab that
+  // held its Unfollow is retired. Nothing new can be followed, so this only ever shrinks;
+  // with none held (everyone who never loaded a collection) it adds nothing.
+  function galCollCards() {
+    return galHeldCollections()
+      .map(h => ({ id: "coll:" + h.key, name: h.key, coll: true, local: true,
+        count: presets.filter(p => collectionOf(p) === h.key).length }))
+      .filter(c => !gal.q || c.name.toLowerCase().indexOf(gal.q.toLowerCase()) >= 0);
+  }
+  function galCollCard(c) {
+    const card = document.createElement("div");
+    card.className = "gal-card gal-local gal-coll";
+    card.dataset.id = c.id;
+    card.__card = c;
+    const th = document.createElement("div"), h = galHue(c.id);
+    th.className = "gal-thumb gal-ph";
+    th.style.background = "linear-gradient(135deg, hsl(" + h + " 70% 22%), hsl(" + ((h + 60) % 360) + " 80% 45%))";
+    const t = document.createElement("span");
+    t.textContent = c.name;
+    th.appendChild(t);
+    const cap = document.createElement("div");
+    cap.className = "gal-cap";
+    const nm = document.createElement("div");
+    nm.className = "gal-cname"; nm.textContent = c.name; nm.title = c.name;
+    const by = document.createElement("div");
+    by.className = "gal-by";
+    by.textContent = "A collection you follow · " + c.count + " scene" + (c.count === 1 ? "" : "s");
+    const u = document.createElement("button");
+    u.type = "button"; u.className = "gal-rm gal-unfollow"; u.textContent = "Unfollow";
+    u.title = "Stop following “" + c.name + "” — its scenes leave your scenes; your own are untouched";
+    u.addEventListener("click", () => {
+      if (!unfollowCollection(c.name)) return;
+      card.remove();
+      galPaintCycAll();
+      track("gallery_unfollow", {});
+    });
+    cap.append(nm, by, u);
+    card.append(th, cap);
+    return card;
   }
   function galCardCap(c, card, th, cap, nm, by) {
     // THE VOTE, a three-way switch: ❤️ love, the score in the middle (neutral -- click it to
@@ -27326,71 +27285,7 @@
     }).catch(e => fail(e.message));
   }
 
-  // ---- the Collections tab: whole published profiles, as before M3 ----
-  function galPeople() {
-    galHint("Loading…");
-    const seq = gal.seq;
-    const builtin = BUILTIN_GALLERY.map(b => ({ uid: b.uid, name: b.name, count: b.count, updated: b.updated }));
-    const show = items => {
-      if (seq !== gal.seq) return;
-      const host = el("gal-list");
-      host.textContent = "";
-      const all = builtin.concat(items);
-      // A collection you hold that is no longer listed (unpublished, renamed, a uid-less
-      // follow) still gets a row, so it can still be unfollowed.
-      const heldAll = galHeldCollections();
-      for (const h of heldAll) {
-        if (all.some(p => galFollows(p, h))) continue;
-        all.push({ uid: h.uid, name: h.key, count: presets.filter(p => collectionOf(p) === h.key).length, updated: "", gone: true });
-      }
-      const rows = all.filter(p => !gal.q || String(p.name).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0);
-      for (const p of rows) host.appendChild(galPersonRow(p, heldAll));
-      galHint(rows.length ? "" : "No one matches “" + gal.q + "”.");
-    };
-    const hit = galMem.profiles;
-    if (hit && Date.now() - hit.t < GAL_TTL()) return show(hit.j);
-    galList().then(items => { galMem.profiles = { t: Date.now(), j: items }; show(items); })
-      .catch(e => { show([]); galHint("Could not load the collections: " + e.message); });
-  }
-  function galPersonRow(p, heldAll) {
-    const row = document.createElement("div");
-    row.className = "gal-row";
-    const nm = document.createElement("div");
-    nm.className = "gal-name";
-    nm.textContent = p.name;
-    const meta = document.createElement("div");
-    meta.className = "gal-meta";
-    const held = (heldAll || galHeldCollections()).find(h => galFollows(p, h));
-    meta.textContent = p.count + " scene" + (p.count === 1 ? "" : "s")
-      + (p.updated ? " · " + String(p.updated).slice(0, 10) : "")
-      + (p.gone ? " · no longer listed" : held ? " · following" : "");
-    // Load: someone else's scenes are installed as their own collection under their name, so
-    // they cannot overwrite yours and re-loading simply refreshes their set. Unfollow (card
-    // 832), on a collection you hold: its scenes leave yours and the follow goes.
-    const btns = document.createElement("div");
-    btns.className = "gal-btns";
-    if (!p.gone) {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "audbtn"; b.textContent = held ? "Reload scenes" : "Load scenes";
-      b.title = held ? "Fetch “" + p.name + "” again — its newest scenes replace the ones you have"
-        : "Add these as a “" + p.name + "” collection in your scenes — your own scenes are untouched";
-      b.addEventListener("click", () => galLoad(p));
-      btns.appendChild(b);
-    }
-    if (held) {
-      const u = document.createElement("button");
-      u.type = "button"; u.className = "audbtn gal-unfollow"; u.textContent = "Unfollow";
-      u.title = "Stop following “" + held.key + "” — its scenes leave your scenes; your own are untouched";
-      u.addEventListener("click", () => {
-        if (!unfollowCollection(held.key)) return;
-        if (p.gone) row.remove(); else row.replaceWith(galPersonRow(p));
-        track("gallery_unfollow", {});
-      });
-      btns.appendChild(u);
-    }
-    row.append(nm, meta, btns);
-    return row;
-  }
+  // ---- collections you still follow (the retired Collections tab's leftovers) ----
   // The collections you HOLD: every follow (collectionsHeld), plus any label your scenes carry
   // without one (a library from before follows were noted). "Shared with you" is a folder.
   function galHeldCollections() {
@@ -27401,12 +27296,9 @@
     }
     return out;
   }
-  // A follow with a uid is THAT profile (a renamed one still matches, a namesake does not);
-  // a uid-less one can only go by name.
-  const galFollows = (p, h) => h.uid ? h.uid === p.uid : h.key === p.name;
-  // One public profile, fetched and decoded into its blob. Split out of galLoad because
-  // refollowCollections needs exactly the same three steps (fetch → payload → unzip → parse)
-  // and a second copy is how the two would drift. Rejects with a readable message at each
+  // One public profile, fetched and decoded into its blob: what refollowCollections re-fetches
+  // a follow with (fetch → payload → unzip → parse; it once shared this with the retired
+  // Collections tab's Load). Rejects with a readable message at each
   // step; every caller turns that into a line of UI rather than a console trace.
   // A follow stored before the move names the source by its old FIREBASE uid; the API
   // resolves that as well as its own, so old follow-lists keep working unchanged.
@@ -27425,20 +27317,6 @@
       try { return JSON.parse(json); } catch (e) { throw new Error("that profile is corrupt"); }
     });
   }
-  function galLoad(p) {
-    galHint("Fetching “" + p.name + "”…");
-    galFetchLibrary(p.uid).then(raw => {
-      galOpen(false);
-      // Straight in, no Restore dialog: the scenes go into their own collection rather than
-      // over yours. Same validation and the same write/reload underneath (applySharedLibrary
-      // drives applyRestore). The uid rides along so the follow is noted INSIDE
-      // applySharedLibrary, after validation — noting it here first left a phantom follow
-      // whenever every scene failed validation.
-      applySharedLibrary(raw, false, p.name, p.uid);
-      track("cloud_gallery_load", { collection: p.name });
-    }).catch(e => galHint("Could not load: " + e.message));
-  }
-
   // A declaration: frame() (an earlier slice) asks it every frame.
   function galHolds() { const d = el("galdlg"); return !!d && !d.classList.contains("hidden"); }
   function galOpen(show) {

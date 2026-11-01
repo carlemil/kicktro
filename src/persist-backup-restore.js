@@ -229,7 +229,6 @@
     autosavePreset();                          // fold pending live edits before snapshotting
     const out = fullSnapshot();                // current everything is the base; override chosen parts
     if (el("rst-presets").checked) {
-      const coll = p.collection || "";
       // CUSTOM PALETTES FIRST, and before `lib` is built: the presets below are pushed by
       // reference, so their palette indices have to be correct by the time they land.
       // A payload predating this carries no list at all and skips the lot, which is why every
@@ -237,11 +236,10 @@
       const inPal = (p.parsed && !Array.isArray(p.parsed) && Array.isArray(p.parsed.palettes))
         ? p.parsed.palettes : null;
       if (inPal) {
-        if (!coll && el("rst-replace").checked) {
+        if (el("rst-replace").checked) {
           out.palettes = inPal;          // wholesale: their library, their ramps, positions intact
         } else {
-          // Merge and collection installs both KEEP your library, so they keep your ramps too
-          // and append theirs -- then the incoming scenes are remapped onto the merged
+          // Merge KEEPS your library, so it keeps your ramps too and appends theirs -- then the incoming scenes are remapped onto the merged
           // positions. Replacing here would delete every custom palette you have authored.
           const m = palMergeCustoms(out.palettes, inPal);
           out.palettes = m.list;
@@ -249,30 +247,11 @@
         }
       }
       let lib;
-      if (coll) {
-        // COLLECTION install (a gallery load). Someone else's scenes are kept as their own
-        // set under their name rather than merged into yours: your library is untouched,
-        // their "Sunset" and your "Sunset" are not a collision, and loading the same
-        // profile again replaces just their set instead of piling up duplicates.
-        // `keep` (one scene from the gallery, into "Shared with you") keeps the rest of that
-        // collection and replaces only a same-named scene in it: loading a second card must
-        // not throw away the first.
-        // A scene of that set you had taken out of auto-cycle stays out across the refresh
-        // (rotate is how you USE it, never part of what the sender sends).
-        const outOfShow = new Set(out.presets.filter(x => (x.collection || "") === coll && x.rotate === false).map(x => x.name));
-        lib = p.keep ? out.presets.slice() : out.presets.filter(x => (x.collection || "") !== coll);
-        for (const q of p.valid) {
-          const item = { ...q, collection: coll };
-          delete item.rotate;                  // the sender's own choice is not yours
-          if (outOfShow.has(item.name)) item.rotate = false;
-          const at = p.keep ? lib.findIndex(x => x.name === item.name && (x.collection || "") === coll) : -1;
-          if (at >= 0) lib[at] = item; else lib.push(item);
-        }
-      } else if (el("rst-replace").checked) {
+      if (el("rst-replace").checked) {
         lib = p.valid.slice();                 // Replace: only the backup's presets
       } else {                                 // Merge: overwrite same-named, keep the rest, append new
         // Matched on NAME **AND** COLLECTION, not name alone. Collections exist precisely so
-        // that their "Sunset" and your "Sunset" are not a collision (see the branch above), and
+        // that their "Sunset" and your "Sunset" are not a collision, and
         // an incoming list can now carry both — a profile load brings your own scenes and the
         // collections you follow in one array. Name alone would let a borrowed scene overwrite
         // your own. Identical for anything with no collections at all: every key is "".
@@ -283,15 +262,15 @@
       out.presets = lib;
       // The follow-list travels ONLY on a load of YOUR OWN profile — `__ownCloud`, which
       // comes from the out-of-band flag beside sharedLibrary, never from the payload, so a
-      // stranger's #zp= bundle cannot claim it. (A gallery install has `coll` set and skips
-      // this anyway; whose sets THEY follow is not a statement about whose you do.)
+      // stranger's #zp= bundle cannot claim it: whose sets THEY follow is not a statement about
+      // whose you do.
       //
       // Merge mode UNIONS, mirroring the scene merge above: a follow added locally since the
       // last save must survive loading that older copy, or its scenes vanish from the next
       // save with nothing recording them. Same key ⇒ keep the local entry unless the incoming
       // one carries a uid the local lacks (refollow heals uid-less entries by name, and a
       // healed uid should win over a blank). Replace keeps replace semantics.
-      if (!coll && !Array.isArray(p.parsed) && p.parsed.__ownCloud && p.parsed.collections !== undefined) {
+      if (!Array.isArray(p.parsed) && p.parsed.__ownCloud && p.parsed.collections !== undefined) {
         const incoming = collectionsOk(p.parsed.collections);
         if (el("rst-replace").checked) out.collections = incoming;
         else {
@@ -306,12 +285,11 @@
       }
       const sel = (!Array.isArray(p.parsed) && p.parsed.curPreset >= 0 && p.parsed.presets && p.parsed.presets[p.parsed.curPreset])
         ? p.parsed.presets[p.parsed.curPreset].name : null;
-      // Match the sender's selection INSIDE the collection it was installed into — by name
-      // alone it could land on a same-named scene of your own, which is exactly the
-      // collision collections exist to stop.
+      // Match the sender's selection among scenes with NO collection — by name alone it could
+      // land on a same-named scene of a collection you follow.
       // No match (or nothing recorded) lands on the first scene rather than on nothing —
       // ensureSelection clamps it at startup either way.
-      const found = sel ? lib.findIndex(x => x.name === sel && (x.collection || "") === coll) : -1;
+      const found = sel ? lib.findIndex(x => x.name === sel && !(x.collection || "")) : -1;
       out.curPreset = found >= 0 ? found : 0;
       // A shared bundle records which preset the sender had open; land the receiver on it
       // (its scene, not just the dropdown) after the reload — a one-shot marker the startup
@@ -432,34 +410,6 @@
                        collections: parts.collections, __ownCloud: own, __link: true }, valid,
              palettes: parts.palettes };
   }
-  // Apply a shared library with NO dialog, for the gallery — whose per-row "Load and merge" /
-  // "Load and replace" buttons have already asked the only question the dialog asks, so
-  // opening it would be a second prompt for an answer it already has.
-  //
-  // It stages the SAME pendingRestore + checkbox state the dialog would have produced and
-  // then calls applyRestore, rather than reimplementing the merge / curPreset / write /
-  // reload sequence — one copy of that logic is the point. The checkboxes are ordinary DOM
-  // nodes whether or not #restoredlg is visible, so this needs no special case in there.
-  // `collection` set ⇒ install as that profile's own set (the gallery path) and merge/replace
-  // no longer applies; unset ⇒ the old merge-vs-replace over your own library.
-  function applySharedLibrary(raw, replace, collection, collectionUid) {
-    const parsed = sharedLibrary(raw);
-    if (!parsed) return;
-    const coll = (collection || "").trim();
-    // Record the follow HERE, after validation has passed — not in galLoad before the call.
-    // A source whose scenes ALL fail validatePresetList installs nothing, and a follow noted
-    // for it would be a phantom: uploaded with every save, "Fetching…" on every load, and
-    // impossible to remove. Still BEFORE applyRestore, whose
-    // fullSnapshot() is what carries collectionsHeld into the blob it writes and reloads on.
-    if (coll) noteCollection(coll, collectionUid);
-    pendingRestore = { parsed: parsed.parsed, valid: parsed.valid, hasSettings: false, hasRanges: false, hasBeat: false,
-      collection: coll };
-    el("rst-presets").checked = true;                 // a bundle carries scenes and nothing else
-    el("rst-merge").checked = !replace;
-    el("rst-replace").checked = !!replace;
-    applyRestore();                                   // writes localStorage + reloads
-  }
-
   // ONE published scene from the gallery (card 825, M3). It lands in "Shared with you" -- the
   // home a one-off scene from someone else already has -- not in a collection named after its
   // author: a collection is something you FOLLOW (cloudBlob uploads the follow instead of the

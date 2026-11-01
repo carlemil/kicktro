@@ -240,8 +240,9 @@
     collectionsHeld.push({ key, uid: String(uid || "") });
   }
   function forgetCollection(key) { collectionsHeld = collectionsHeld.filter(c => c.key !== key); }
-  // UNFOLLOW (card 832): the Collections tab's button on a collection you hold, since the scene
-  // list and its collection ✕ went (card 827). Its scenes leave your library and the follow
+  // UNFOLLOW (card 832): the button on a held collection's card at the end of the gallery's
+  // My scenes (it was the retired Collections tab's; the scene list's collection ✕ went in 827).
+  // Nothing new can be followed any more, so this is how the remaining follows wind down. Its scenes leave your library and the follow
   // goes, so your profile stops saying you hold it. Asks first, naming the count; returns
   // whether it went. Re-finds the selection by IDENTITY (every index above the run shifts);
   // when the selected scene went with it the neighbour is APPLIED, not merely highlighted --

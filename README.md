@@ -752,10 +752,9 @@ scenes and **Shared with you**; for a followed collection it stays in this brows
 profile re-fetches those from their author). The gallery never passes it on: whoever
 loads the scene gets it in their show. **My scenes** also lists, after your published cards,
 the scenes of yours that have no card (the starter scenes, or one not uploaded yet), so every
-scene of yours can be taken out of the show; clicking one switches to it. On the
-**Collections** tab a collection you follow says so and has **Unfollow**, which removes its
-scenes from yours and stops following it (a followed collection no longer listed still gets a
-row, so it can always be unfollowed).
+scene of yours can be taken out of the show; clicking one switches to it. Last of all, a
+collection you followed before the **Collections** tab was retired gets a card of its own with
+**Unfollow**, which removes its scenes from yours and stops following it.
 
 The gallery has a link of its own: while it is open the address bar reads
 `https://kicktro.com/#gallery`, and **🔗 Copy link** at the end of the tab row copies it.
@@ -774,11 +773,11 @@ before anyone sees it. Scenes you loaded from someone else stay theirs, and unto
 of the starter scenes are never posted. **My scenes** shows how long each of yours still
 waits; deleting a scene from your list takes its card down, votes kept should it come back.
 
-The fourth tab, **Collections**, is the older list of whole profiles: tick **List my profile
-under Collections** in the cloud box to be on it, with your chosen name and how many scenes
-you have. **Load scenes** there adds someone's scenes to your list as **their own
-collection**, named after them, so your library is never touched and nothing of yours can be
-overwritten. Load the same person again and their set is simply refreshed.
+There used to be a **Collections** tab listing whole profiles, whose **Load scenes** added
+someone's entire set to yours as their own collection. It is retired: nothing new could join
+that list once the tick that put a profile on it went. A collection you already follow keeps
+working — its scenes stay yours to watch and come back on every device you sign in on — until
+you unfollow it from **My scenes**.
 
 Links still work too, even though there are no longer buttons that make new ones: every
 share link and preset-bundle link ever generated still opens, and lands in the same

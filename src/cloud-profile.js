@@ -448,7 +448,7 @@
     const missed = [];
     // A uid-less entry (recorded by cloudBlob for a collection that predates the follow-list)
     // is resolved by NAME against the public gallery: the collection key IS the source
-    // profile's name — galLoad keys it so — and the listing is the only place that mapping
+    // profile's name — the retired Collections tab keyed it so — and the listing is the only place that mapping
     // exists. One galList() covers every such entry; still unresolved ⇒ fetched as uid-less
     // below, which lands it in `missed` by name instead of dropping it silently.
     const resolve = todo.some(c => !c.uid)
@@ -686,33 +686,21 @@
     if (!(a && a.owned)) anonWrite({ owned: true });
     gsyncLast = null;
   }
-  // ---- publish your whole profile (the Collections tab) ----
-  // Toggling this re-saves the WHOLE profile rather than patching `pub` alone: the API's PUT
-  // takes name/payload/count/pub together, so a pub-only write to a profile that does not
-  // exist yet has nothing to be. Going through cloudSave() always produces a whole profile.
-  // That routing is also what makes the tick SAFE on a stale machine: the save precondition
-  // fails instead of silently replacing a newer cloud library with this browser's, and the
-  // kept cloudSess.pub means the intent still lands with the user's deliberate re-save.
-  function cloudPublish(on) {
-    if (!cloudSess) return;
-    cloudSess.pub = !!on;
-    cloudSaveSess();
-    track("cloud_publish", { on: !!on });
-    cloudSave();
-    galBust();                          // this profile just entered or left the listing
-  }
-
   // ---- gallery ----
   // ONE PUBLISHED SCENE PER CARD (card 825, M3): a poster, the clip while hovered or focused,
   // the author, and the VOTE: a three-way switch, ❤️ love / the score / 💔 dislike, one vote
-  // per person (score = loves minus dislikes). Readable signed out. Six tabs:
+  // per person (score = loves minus dislikes). Readable signed out. Five tabs:
   //   Most loved / All / Newest   GET /api/gallery?sort=favs|name|new, paged as you scroll;
   //                               Most loved (by score) is the one the dialog opens on
   //   My favourites         the same with mine=favs (needs a session)
   //   My scenes             mine=own, newest first: what you published, each with its ✕
-  //                         (needs a session; built-ins are nobody's, so none of them)
-  //   Collections           the older per-profile listing (GET /api/profiles), which is also
-  //                         what refollowCollections resolves a uid-less follow against
+  //                         (needs a session; built-ins are nobody's, so none of them), then
+  //                         your scenes with no card, then a card per collection you still
+  //                         follow, carrying its Unfollow (galCollCards)
+  // The Collections tab (whole published profiles, Load scenes) is RETIRED, by request: its
+  // listing could no longer grow once the "List my profile" tick went. Follows already held
+  // keep working -- refollowCollections still re-fetches them on a cloud load, resolving a
+  // uid-less one against GET /api/profiles (galList).
   // The built-in AI-Generated scenes are cards too (BUILTIN_SCENES, 'builtin:<slug>'): they
   // ship with the app, thumbnails included, and are MERGED into the server's order by the
   // same key, so a loved built-in sits where its score puts it. Their counts ride on every
@@ -786,7 +774,6 @@
     r.max = String(GAL_W.length);
     r.value = String(gal.weight + 1);
     el("gal-wval").textContent = galWeightText(gal.weight);
-    setOff(r, gal.tab === "people");     // Collections lists profiles, which carry no weight
   }
   function galSetWeight(v) {
     const i = Math.max(0, Math.min(GAL_W.length - 1, Math.round(v) - 1));
@@ -823,7 +810,7 @@
       && (a.favs > b.favs || (a.favs === b.favs && a.created > b.created))));
   function galSyncMore() {
     const b = el("gal-more");
-    if (b) b.style.display = gal.done || gal.tab === "people" ? "none" : "";
+    if (b) b.style.display = gal.done ? "none" : "";
     if (b) setOff(b, gal.busy);
   }
   function galReset() {
@@ -831,18 +818,17 @@
     gal.offset = 0; gal.total = 0; gal.busy = false; gal.shown = new Set(); gal.ownNames = new Set(); gal.order = galSort();
     if (galImgObs) galImgObs.disconnect();
     el("gal-list").textContent = "";
-    el("gal-list").className = gal.tab === "people" ? "gal-rows" : "gal-grid";
+    el("gal-list").className = "gal-grid";
     for (const t of document.querySelectorAll("#galdlg .gal-tab")) {
       t.setAttribute("aria-selected", String(t.dataset.tab === gal.tab));
     }
     galSyncWeight();
-    if (gal.tab === "people") { gal.done = true; galSyncMore(); galPeople(); return; }
     if (galAuthed() && !galMe() || gal.tab === "mine" && !cloudSess) {
       gal.done = true; gal.pend = []; galSyncMore();
       galHint(gal.tab === "own"
         ? "Every scene you make shows up here, and in the gallery an hour after your last change to it."
         : "Favourites belong to an account — sign in under the profile button, then press ❤️ on any scene.");
-      if (gal.tab === "own") galCards(galLocalCards());   // no account yet: your scenes are all local
+      if (gal.tab === "own") galCards(galLocalCards().concat(galCollCards()));   // no account yet: your scenes are all local
       return;
     }
     gal.pend = gal.tab === "own" ? []
@@ -852,7 +838,7 @@
     galMore();
   }
   function galMore() {
-    if (gal.done || gal.busy || gal.tab === "people") return;
+    if (gal.done || gal.busy) return;
     gal.busy = true; galSyncMore();
     const seq = gal.seq, n = CLOUD.galleryPage || 24;
     const sp = new URLSearchParams({ sort: galSort(), limit: String(n), offset: String(gal.offset) });
@@ -886,7 +872,7 @@
         out.push(r);
       }
       if (gal.done) out.push(...gal.pend.splice(0));
-      if (gal.done && gal.tab === "own") out.push(...galLocalCards());
+      if (gal.done && gal.tab === "own") out.push(...galLocalCards(), ...galCollCards());
       galCards(out);
       gal.busy = false; galSyncMore(); galEmpty();
       galWatchMore();
@@ -895,7 +881,7 @@
       // The built-ins need no network, so an unreachable API still leaves something to show.
       gal.busy = false; gal.done = true;
       galCards(gal.pend.splice(0));
-      if (gal.tab === "own") galCards(galLocalCards(true));   // yours are here whatever the network says
+      if (gal.tab === "own") galCards(galLocalCards(true).concat(galCollCards()));   // yours are here whatever the network says
       galSyncMore();
       galHint("Could not reach the gallery: " + e.message);
     });
@@ -963,7 +949,7 @@
       if (gal.shown.has(c.id)) continue;           // a row can repeat across pages if favs move
       gal.shown.add(c.id);
       if (!c.local) favCyc.meta.set(c.id, c);
-      host.appendChild(galCard(c));
+      host.appendChild(c.coll ? galCollCard(c) : galCard(c));
     }
   }
   function galCard(c) {
@@ -1065,6 +1051,46 @@
       if (galMatch(c)) out.push(c);
     }
     return out;
+  }
+  // My scenes, last: one card per collection you still follow, since the Collections tab that
+  // held its Unfollow is retired. Nothing new can be followed, so this only ever shrinks;
+  // with none held (everyone who never loaded a collection) it adds nothing.
+  function galCollCards() {
+    return galHeldCollections()
+      .map(h => ({ id: "coll:" + h.key, name: h.key, coll: true, local: true,
+        count: presets.filter(p => collectionOf(p) === h.key).length }))
+      .filter(c => !gal.q || c.name.toLowerCase().indexOf(gal.q.toLowerCase()) >= 0);
+  }
+  function galCollCard(c) {
+    const card = document.createElement("div");
+    card.className = "gal-card gal-local gal-coll";
+    card.dataset.id = c.id;
+    card.__card = c;
+    const th = document.createElement("div"), h = galHue(c.id);
+    th.className = "gal-thumb gal-ph";
+    th.style.background = "linear-gradient(135deg, hsl(" + h + " 70% 22%), hsl(" + ((h + 60) % 360) + " 80% 45%))";
+    const t = document.createElement("span");
+    t.textContent = c.name;
+    th.appendChild(t);
+    const cap = document.createElement("div");
+    cap.className = "gal-cap";
+    const nm = document.createElement("div");
+    nm.className = "gal-cname"; nm.textContent = c.name; nm.title = c.name;
+    const by = document.createElement("div");
+    by.className = "gal-by";
+    by.textContent = "A collection you follow · " + c.count + " scene" + (c.count === 1 ? "" : "s");
+    const u = document.createElement("button");
+    u.type = "button"; u.className = "gal-rm gal-unfollow"; u.textContent = "Unfollow";
+    u.title = "Stop following “" + c.name + "” — its scenes leave your scenes; your own are untouched";
+    u.addEventListener("click", () => {
+      if (!unfollowCollection(c.name)) return;
+      card.remove();
+      galPaintCycAll();
+      track("gallery_unfollow", {});
+    });
+    cap.append(nm, by, u);
+    card.append(th, cap);
+    return card;
   }
   function galCardCap(c, card, th, cap, nm, by) {
     // THE VOTE, a three-way switch: ❤️ love, the score in the middle (neutral -- click it to
@@ -1431,71 +1457,7 @@
     }).catch(e => fail(e.message));
   }
 
-  // ---- the Collections tab: whole published profiles, as before M3 ----
-  function galPeople() {
-    galHint("Loading…");
-    const seq = gal.seq;
-    const builtin = BUILTIN_GALLERY.map(b => ({ uid: b.uid, name: b.name, count: b.count, updated: b.updated }));
-    const show = items => {
-      if (seq !== gal.seq) return;
-      const host = el("gal-list");
-      host.textContent = "";
-      const all = builtin.concat(items);
-      // A collection you hold that is no longer listed (unpublished, renamed, a uid-less
-      // follow) still gets a row, so it can still be unfollowed.
-      const heldAll = galHeldCollections();
-      for (const h of heldAll) {
-        if (all.some(p => galFollows(p, h))) continue;
-        all.push({ uid: h.uid, name: h.key, count: presets.filter(p => collectionOf(p) === h.key).length, updated: "", gone: true });
-      }
-      const rows = all.filter(p => !gal.q || String(p.name).toLowerCase().indexOf(gal.q.toLowerCase()) >= 0);
-      for (const p of rows) host.appendChild(galPersonRow(p, heldAll));
-      galHint(rows.length ? "" : "No one matches “" + gal.q + "”.");
-    };
-    const hit = galMem.profiles;
-    if (hit && Date.now() - hit.t < GAL_TTL()) return show(hit.j);
-    galList().then(items => { galMem.profiles = { t: Date.now(), j: items }; show(items); })
-      .catch(e => { show([]); galHint("Could not load the collections: " + e.message); });
-  }
-  function galPersonRow(p, heldAll) {
-    const row = document.createElement("div");
-    row.className = "gal-row";
-    const nm = document.createElement("div");
-    nm.className = "gal-name";
-    nm.textContent = p.name;
-    const meta = document.createElement("div");
-    meta.className = "gal-meta";
-    const held = (heldAll || galHeldCollections()).find(h => galFollows(p, h));
-    meta.textContent = p.count + " scene" + (p.count === 1 ? "" : "s")
-      + (p.updated ? " · " + String(p.updated).slice(0, 10) : "")
-      + (p.gone ? " · no longer listed" : held ? " · following" : "");
-    // Load: someone else's scenes are installed as their own collection under their name, so
-    // they cannot overwrite yours and re-loading simply refreshes their set. Unfollow (card
-    // 832), on a collection you hold: its scenes leave yours and the follow goes.
-    const btns = document.createElement("div");
-    btns.className = "gal-btns";
-    if (!p.gone) {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "audbtn"; b.textContent = held ? "Reload scenes" : "Load scenes";
-      b.title = held ? "Fetch “" + p.name + "” again — its newest scenes replace the ones you have"
-        : "Add these as a “" + p.name + "” collection in your scenes — your own scenes are untouched";
-      b.addEventListener("click", () => galLoad(p));
-      btns.appendChild(b);
-    }
-    if (held) {
-      const u = document.createElement("button");
-      u.type = "button"; u.className = "audbtn gal-unfollow"; u.textContent = "Unfollow";
-      u.title = "Stop following “" + held.key + "” — its scenes leave your scenes; your own are untouched";
-      u.addEventListener("click", () => {
-        if (!unfollowCollection(held.key)) return;
-        if (p.gone) row.remove(); else row.replaceWith(galPersonRow(p));
-        track("gallery_unfollow", {});
-      });
-      btns.appendChild(u);
-    }
-    row.append(nm, meta, btns);
-    return row;
-  }
+  // ---- collections you still follow (the retired Collections tab's leftovers) ----
   // The collections you HOLD: every follow (collectionsHeld), plus any label your scenes carry
   // without one (a library from before follows were noted). "Shared with you" is a folder.
   function galHeldCollections() {
@@ -1506,12 +1468,9 @@
     }
     return out;
   }
-  // A follow with a uid is THAT profile (a renamed one still matches, a namesake does not);
-  // a uid-less one can only go by name.
-  const galFollows = (p, h) => h.uid ? h.uid === p.uid : h.key === p.name;
-  // One public profile, fetched and decoded into its blob. Split out of galLoad because
-  // refollowCollections needs exactly the same three steps (fetch → payload → unzip → parse)
-  // and a second copy is how the two would drift. Rejects with a readable message at each
+  // One public profile, fetched and decoded into its blob: what refollowCollections re-fetches
+  // a follow with (fetch → payload → unzip → parse; it once shared this with the retired
+  // Collections tab's Load). Rejects with a readable message at each
   // step; every caller turns that into a line of UI rather than a console trace.
   // A follow stored before the move names the source by its old FIREBASE uid; the API
   // resolves that as well as its own, so old follow-lists keep working unchanged.
@@ -1530,20 +1489,6 @@
       try { return JSON.parse(json); } catch (e) { throw new Error("that profile is corrupt"); }
     });
   }
-  function galLoad(p) {
-    galHint("Fetching “" + p.name + "”…");
-    galFetchLibrary(p.uid).then(raw => {
-      galOpen(false);
-      // Straight in, no Restore dialog: the scenes go into their own collection rather than
-      // over yours. Same validation and the same write/reload underneath (applySharedLibrary
-      // drives applyRestore). The uid rides along so the follow is noted INSIDE
-      // applySharedLibrary, after validation — noting it here first left a phantom follow
-      // whenever every scene failed validation.
-      applySharedLibrary(raw, false, p.name, p.uid);
-      track("cloud_gallery_load", { collection: p.name });
-    }).catch(e => galHint("Could not load: " + e.message));
-  }
-
   // A declaration: frame() (an earlier slice) asks it every frame.
   function galHolds() { const d = el("galdlg"); return !!d && !d.classList.contains("hidden"); }
   function galOpen(show) {
