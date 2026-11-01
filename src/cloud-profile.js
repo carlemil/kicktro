@@ -562,8 +562,8 @@
   // set of your own scenes, PUT /api/me/gallery -- carrying the time of the edit (`edited`,
   // stamped by autosavePreset), and the SERVER keeps a changed scene out of sight until that
   // edit is an hour old; every further change restarts the hour (server/gallery-sync.js). So
-  // the wait is on the SHOWING, not the sending: GSYNC_SOON only folds the hundred edits of one
-  // slider drag into one upload. Others keep seeing the last public version meanwhile.
+  // the wait is on the SHOWING, not the sending: GSYNC_SOON only folds a burst of edits (a
+  // slider drag, a run of tweaks) into one upload. Others keep seeing the last public version meanwhile.
   // Not uploaded as yours: a scene with a `collection` (someone else's), and the server also
   // skips an untouched copy of a scene the app shipped.
   // Signed in, cards are credited to your profile name. Signed out, the browser gets an
@@ -574,7 +574,7 @@
   // Only on a real site or a ?api= dev server: every headless tool loads file:// with the
   // production API configured, and must not publish its test scenes.
   const GSYNC_ANON_KEY = "kt.anon.v1";
-  const GSYNC_SOON = 4000;             // one drag = one upload
+  const GSYNC_SOON = 20000;            // one burst of edits = one upload
   const GSYNC_RETRY = 60000;           // after a failure (offline, rate limit)
   const GSYNC_RENEW = 30 * 86400000;   // an anonymous session renews inside its last 30 days
   // `var` with no initialiser: persist() (five slices up) calls gsyncSoon, and until this
