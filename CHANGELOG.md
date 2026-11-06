@@ -15,6 +15,19 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.104.5] — 2026-11-07
+
+### Changed
+- **The tutorial no longer opens by itself.** A first visit goes straight to the scene; the **i**
+  button on the top row opens the tour whenever you want it.
+- **The audio dialog can be skipped.** It still asks for Capture or Mic when a scene opens, but
+  **Maybe later**, ×, Esc or a click outside it now close it. It asks again on your next visit if
+  you still have no source, and ♪ starts one at any time.
+
+### Internal
+- `gallery-check`'s front-door cases assert the new behaviour on a first visit, including that an
+  overdue timed nudge cannot bring the dialog straight back.
+
 ## [1.104.4] — 2026-11-07
 
 ### Fixed

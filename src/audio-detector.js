@@ -293,7 +293,6 @@
       const refused = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
       if (refused) audio.settled = true;
       audioMsg(refused ? "Permission denied." : "Couldn’t start audio.");
-      if (refused) audioRefused(kind);
       persist();
     }
   }

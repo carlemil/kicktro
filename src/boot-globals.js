@@ -277,7 +277,7 @@
   }
   // ---- the front door --------------------------------------------------------------------
   // A visit to the site opens on the GALLERY, and once a scene is on screen with no audio
-  // source chosen, the Capture / Mic question is asked and held open until it is answered.
+  // source chosen, the Capture / Mic question is asked (and can be skipped).
   // Only on the real site (http/https, so the python http.server preview too): every headless
   // check and render tool loads file:// pages and would have a modal over the very thing it
   // measures. `?frontdoor` turns it on anywhere -- the dev hook gallery-check uses.

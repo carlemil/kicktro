@@ -84,7 +84,7 @@
   el("mute").addEventListener("click", () => popOpen(el("mute"), "audiobox", "Audio"));
   el("profbtn").addEventListener("click", () => popOpen(el("profbtn"), "cloudbox", "Cloud profile"));
   el("credbtn").addEventListener("click", () => popOpen(el("credbtn"), "creditbox", "Credits"));
-  el("tourbtn").addEventListener("click", () => openTutorial(false));
+  el("tourbtn").addEventListener("click", () => openTutorial());
   el("helpbtn").addEventListener("click", () => openHelp());
 
   // #menubar is a full-screen overlay that CATCHES clicks while open, so clicking away

@@ -1,25 +1,12 @@
-  // ---- First-run tutorial -------------------------------------------------------------
-  // An eight-step tour of what the app is, shown ONCE ever and then living on the top row's i
-  // so it can be re-read. It exists because #help is a REFERENCE — a per-effect blurb list
-  // keyed off helpTags — and never opens by itself, so a first-time visitor met a running
-  // four-layer scene, a dense panel, and thirty seconds later a popup asking to capture
-  // their screen. This runs first and explains what they are looking at.
+  // ---- Tutorial -----------------------------------------------------------------------
+  // An eight-step tour of what the app is, opened ONLY by the top row's i (it used to open by
+  // itself on a first visit; removed by request, 1.104.5). #help is the REFERENCE, a per-effect
+  // blurb list keyed off helpTags; this explains what you are looking at.
   //
-  // Three things make it behave rather than just appear:
-  //   * It waits out the CREDITS (rendered time, see credits.js) so the opening frame is
-  //     clean — a modal backdrop over the burn-in is a poor first impression.
-  //   * It HOLDS the "Sync with your music" nudge while it is up (syncResetDelay below and
-  //     the tutorialOpen() guards in the sync block), so the two can never stack. dlgModal
-  //     deliberately releases any existing trap, so a nudge opening over this would steal
-  //     the keyboard and leave the tutorial visible but dead.
-  //   * Its "seen" flag is its OWN localStorage key, not scene data — the same treatment
-  //     the credits and scene-banner preferences get. It is a property of this browser,
-  //     not of a scene, and must not ride in a share link or a backup.
-  const TUT_KEY = "burnTheWeb.tutorial.v1";   // FROZEN PREFIX: the old app name. Renaming the key orphans existing data.
-  // Wall-clock backstop for the credits gate, in seconds of VISIBLE time. `?credits=600`
-  // parks the credits deliberately and a paused scene stops the rendered clock dead, so
-  // without this the tutorial could simply never arrive.
-  const TUT_MAX_WAIT = 20;
+  // It HOLDS the "Sync with your music" nudge while it is up (syncResetDelay below and the
+  // tutorialOpen() guards in the sync block), so the two can never stack. dlgModal deliberately
+  // releases any existing trap, so a nudge opening over this would steal the keyboard and leave
+  // the tutorial visible but dead.
 
   // Schematic line art, one per step. Inline SVG strings on currentColor in the style of
   // EYE_OPEN/EYE_SHUT (boot-globals.js) — a few strokes each, not illustrations: they are
@@ -108,8 +95,8 @@
     // own, so it comes before the furniture — the tour is not a manual read in order, it is
     // a chance to say the important thing while anyone is still reading. It forward-refers to
     // sliders and their chips, which is why it says so; the slider step then lands as the
-    // answer to a question already asked. The audio nudge follows ~30s later as the actual
-    // call to action, so this step deliberately explains rather than asks.
+    // answer to a question already asked. The audio dialog is the actual call to action, so
+    // this step deliberately explains rather than asks.
     { head: "It reacts to your music", art: TUT_ART.music,
       body: "The thing to know first: Kicktro <b>pulses in time with whatever you are listening "
         + "to</b>. Turn on an audio source from <b>♪</b> — <b>Capture</b> shares the sound of a "
@@ -120,14 +107,14 @@
         + "beat and peak on it rather than only react once it has passed. <span class=\"tut-keys\">S</span> "
         + "(or <b>Pause the reaction</b> under ♪) holds the beats off without stopping the source. The "
         + "audio is analysed in your browser only; nothing is recorded or sent anywhere."
-        // The mic is armed by default (see restore()), so the click that closes this tour is
-        // the one the browser prompts on. Saying so here is the difference between "of course"
-        // and an unexplained permission box a second after a tutorial ended. At the front door
-        // nothing is armed: the audio dialog follows this tour instead (openRequiredAudio).
+        // Off the front door the mic is armed by default (see restore()), so a first click is
+        // what the browser prompts on. At the front door nothing is armed: the audio dialog
+        // asks instead (openAudioAsk).
         + (frontDoorOn()
-          ? "<br><br>So that it just works: <b>after this tour Kicktro asks for an audio source</b> — "
-            + "Capture or Mic. Pick one and the music drives the visual; you can switch any time from ♪."
-          : "<br><br>So that it just works: <b>your first click after this tour will ask to use the "
+          ? "<br><br><b>Kicktro asks for an audio source</b> when a scene opens — Capture or Mic, or "
+            + "<b>Maybe later</b> to skip it. Pick one and the music drives the visual; you can start or "
+            + "switch one any time from ♪."
+          : "<br><br>So that it just works: <b>your first click on a fresh visit asks to use the "
             + "microphone</b>. Allow it and the room drives the visual; refuse, and it is never asked "
             + "again — you can still start either source yourself from ♪.") },
     { head: "The editor and the buttons", art: TUT_ART.menus,
@@ -182,14 +169,7 @@
 
   const tutDlg = el("tutdlg");
   const tutBox = tutDlg && tutDlg.querySelector(".tut-box");
-  let tutStep = 0, tutTimer = 0, tutWaited = 0;
-
-  function tutSeen() {
-    try { return !!JSON.parse(localStorage.getItem(TUT_KEY) || "null"); } catch (e) { return false; }
-  }
-  function tutMarkSeen() {
-    try { localStorage.setItem(TUT_KEY, JSON.stringify({ seen: true, v: CONFIG.version })); } catch (e) {}
-  }
+  let tutStep = 0;
 
   // A FUNCTION DECLARATION on purpose: three earlier slices call this — the sync-nudge
   // interval, showSyncPopup, and armAudioResume's document-level capture listener.
@@ -201,10 +181,6 @@
   // this before this slice ran. Nothing does today — every caller is a timer or a gesture,
   // both of which land after startup — but the whole point of a hoisted guard is that it is
   // safe to call from anywhere.
-  // Not yet shown. The front door's audio question waits on this as well as on tutorialOpen,
-  // or the two would race for the same moment after the credits. A declaration, for the same
-  // reason as tutorialOpen; tutSeen only reads storage.
-  function tutorialPending() { return !!document.getElementById("tutdlg") && !tutSeen(); }
   function tutorialOpen() {
     const d = document.getElementById("tutdlg");
     return !!d && !d.classList.contains("hidden");
@@ -238,14 +214,12 @@
     track("tutorial_step", { step: tutStep + 1 });
   }
 
-  function openTutorial(auto) {
+  function openTutorial() {
     if (!tutDlg) return;
-    clearInterval(tutTimer); tutTimer = 0;     // whichever route got here, stop waiting
-    tutMarkSeen();                             // shown once is shown, even if it is dismissed
     tutDlg.classList.remove("hidden");
     tutGo(0);
     dlgModal(tutBox);
-    track("tutorial_shown", { auto: auto ? 1 : 0 });
+    track("tutorial_shown");
   }
   function closeTutorial() {
     if (!tutDlg) return;
@@ -279,18 +253,4 @@
       if (e.key === "ArrowRight") { e.preventDefault(); tutGo(tutStep + 1); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); tutGo(tutStep - 1); }
     });
-
-    // The auto-open gate. `creditLeft` counts RENDERED time in the frame loop, so this
-    // waits for the credits to actually finish burning rather than for a wall clock that
-    // keeps running in a backgrounded tab. TUT_MAX_WAIT is the backstop for the two cases
-    // where that clock never reaches zero: ?credits=<big>, and a scene paused on arrival.
-    if (!tutSeen()) {
-      tutTimer = setInterval(() => {
-        if (document.hidden) return;
-        tutWaited += 0.25;
-        if (creditLeft > 0 && tutWaited < TUT_MAX_WAIT) return;
-        if (frontModalUp()) return;             // not over the gallery the front door opens on
-        openTutorial(true);
-      }, 250);
-    }
   }

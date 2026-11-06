@@ -960,7 +960,7 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   before anything later could read it, and every share link then opened UNDER the gallery; case-door-link)
   opens the gallery at startup, except when `scenePicked`: the one-shot
   sessionStorage `kt.picked` that `applyRestore` sets before its reload, read and cleared at boot.
-  The tutorial waits on `frontModalUp()` (gallery/restore/help/tutorial visible, looked up by id).
+  The audio question waits on `frontModalUp()` (gallery/restore/help/tutorial visible, looked up by id).
 - Hover/focus → muted looping `<video preload=none>`, shown on `playing`; **touch: first tap
   previews, second loads** — a tap FOCUSES before its click, so focus must not preview on touch.
 - **The vote is a three-way switch** (`.gal-vote`, radiogroup): ♥ / the SCORE (neutral) / 💔.
@@ -1083,7 +1083,7 @@ file:// or localhost without `?api=`.
 ### Audio & beat reactivity
 `startAudio("capture"|"mic")` must run inside a user gesture. **The MIC is armed by default**:
 `restore()` (not `applyBlob`) calls `armAudioResume("mic")` when no source was ever chosen —
-**except at the front door**, where `openRequiredAudio()` asks instead (an armed mic fired on
+**except at the front door**, where `openAudioAsk()` asks instead (an armed mic fired on
 the card click and its prompt landed on the reload). The
 stored `audio` field has THREE states: a source name, `"off"` (user settled it; `audio.settled`,
 which `applyBlob` reads back), null (never asked).
@@ -1139,18 +1139,18 @@ A separate, additive layer at the END of `audioTick`: `audio.tempo = {period, bp
   `body.ui-hidden`. Persistence opt-out is `data-nopersist`.
 - `#syncpop` shows to users who haven't started audio at `SYNC_DELAYS` (30s, 5min, 1h), max 3
   ever, state in `burnTheWeb.sync.v1`; `showSyncPopup()` returns whether it opened and the caller
-  only spends a showing when it did. **At the front door it is REQUIRED once per load**
-  (`openRequiredAudio`, `syncRequired`): no ×/Maybe later/backdrop/Escape until a source starts
-  (`markAudioUsed`) or every source `syncCan` offers was refused (`audioRefused(kind)`, called
-  from `startAudio`'s catch; a declaration). A 250 ms interval opens it once nothing has the
-  screen: not `audio.on`/`audioArmed` (a `var`, set by `armAudioResume` = a remembered source),
-  not hidden UI, credits done (20 s backstop), `!frontModalUp() && !tutorialPending()`. Stored
-  `"off"` is NOT an answer. `audioMsg` mirrors into `#sync-why` while it is up.
+  only spends a showing when it did. **At the front door it is asked once per load and SKIPPABLE**
+  (`openAudioAsk`; required until 1.104.5, loosened by request), **and the timed nudge is off there**:
+  its clock counts while the question is up, so Maybe later would reopen it within a second. A 250 ms
+  interval opens it once nothing has the screen: not `audio.on`/`audioArmed` (a `var`, set by
+  `armAudioResume` = a remembered source), not hidden UI, credits done (20 s backstop),
+  `!frontModalUp()`. Stored `"off"` and a skip are NOT answers: the next load asks again.
+  `audioMsg` mirrors into `#sync-why` while it is up.
   `track(name, params)` is provider-agnostic; GA4 is live
   (`GA_MEASUREMENT_ID`; `""` makes it inert).
-- **Tutorial** `#tutdlg` (`src/ui-tutorial.js`, before `ui-menubar.js`): `TUT_STEPS`; also the i button
-  (`#tourbtn`). **Music is step TWO on purpose.** Own key `burnTheWeb.tutorial.v1`, written when it
-  OPENS. Opens after the credits (`creditLeft <= 0`, `TUT_MAX_WAIT` 20s backstop). Holds the sync
+- **Tutorial** `#tutdlg` (`src/ui-tutorial.js`, before `ui-menubar.js`): `TUT_STEPS`; **opened only by
+  the i button** (`#tourbtn`; it opened itself on a first visit until 1.104.5, removed by request; the
+  old `burnTheWeb.tutorial.v1` key is no longer read). **Music is step TWO on purpose.** Holds the sync
   nudge (interval returns early on `tutorialOpen()`, `showSyncPopup` refuses; `closeTutorial`
   calls `syncResetDelay()`). `armAudioResume`'s listener skips it without `cleanup()`.
   `tutorialOpen` and `syncResetDelay` are function DECLARATIONS; `tutorialOpen` looks the node up.

@@ -234,10 +234,8 @@ things **M**, **F** and **H** do), and at the bottom **Tutorial** and **Help**. 
 or press **Esc** to close it.
 
 **Tutorial** is an eight-step tour of the whole app — what it is, the two menus, scenes,
-layers, ranged sliders, filters, music reactivity and sharing. It opens **by itself the
-first time you visit**, once the startup credits have burned away and before anything asks
-you for audio, and after that it lives in the ☰ menu for whenever you want it back. **Help**
-is the other half: a reference that explains every single control of whatever effect is
+layers, ranged sliders, filters, music reactivity and sharing. It never opens by itself:
+press the **i** on the top row whenever you want it. **Help** is the other half: a reference that explains every single control of whatever effect is
 selected.
 
 **The controls panel is everything that edits the scene** — five foldable sections, click
@@ -247,11 +245,10 @@ picture), **Beat tuning** (how beats are detected), **Layers** (the effect stack
 **Layer effect & filters** (the selected layer's visual, its sliders, its own filters and
 its palette). Press **M** to show or hide it.
 
-**React to music** — Kicktro asks for a source before it starts. On kicktro.com, once a
+**React to music** — Kicktro asks for a source when a scene opens. On kicktro.com, once a
 scene is on screen (you closed the gallery, or picked a card from it) and no source of yours
-is remembered, an audio dialog offers **Capture** and **Mic**, and it stays up until one of
-them is running: there is no ✕ and no Maybe later. If you refuse every source your browser
-offers, the dialog lets you go. It waits for the credits and for the tutorial, and a source
+is remembered, an audio dialog offers **Capture** and **Mic**; **Maybe later**, ✕, Esc or a
+click outside it skip the question for this visit. It waits for the credits, and a source
 you chose on an earlier visit counts as an answer: it starts again on your first click.
 (Opened from a file, the old default applies instead: the first click asks for the mic.)
 Press **Stop** later and it is not asked again in that visit. Click **Capture**
