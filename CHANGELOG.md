@@ -15,6 +15,15 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.104.3] — 2026-11-06
+
+### Fixed
+- **A shared link opens on its scene again.** Share and Gallery links opened with the Gallery on
+  top of the scene, which sat paused behind it until you closed the Gallery.
+
+### Internal
+- gallery-check `case-door-link` opens a share link through the front door.
+
 ## [1.104.2] — 2026-11-06
 
 ### Changed

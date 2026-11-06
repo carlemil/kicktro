@@ -2874,7 +2874,7 @@
     // the /deploy skill bumps it here and writes the matching CHANGELOG.md section — so a
     // released build always names the version whose notes describe it. Semver: patch for
     // fixes, minor for a new effect/filter/control, major for a breaking scene format.
-    version: "1.104.2",
+    version: "1.104.3",
     changelogUrl: "https://github.com/carlemil/kicktro/blob/main/CHANGELOG.md",
 
     // --- effect stack / fractal layering ---
@@ -3363,6 +3363,9 @@
     q.delete("frontdoor"); q.delete("api");
     return !q.toString();
   }
+  // Asked NOW, of the address as it arrived: applyShared (audio-tuning-data) wipes a share link
+  // from the address bar long before cloud-profile decides, and a stripped link reads as bare.
+  const frontDoorBare = frontDoorUrl();
   // THIS load is applyRestore's reload: a scene was just picked (a gallery card, a #g= link,
   // a cloud load, a restore), so it lands on that scene, not back on the gallery. A one-shot,
   // read and cleared here -- a plain reload of the base address opens the gallery again.
@@ -27838,7 +27841,7 @@
   // A #gallery link: at startup, and pasted into a tab that is already open.
   // ...and the FRONT DOOR: a visit to the bare address opens on the gallery, except on the
   // reload that lands a scene just picked from it (scenePicked).
-  if (cloudOn() && (location.hash === GAL_HASH || (frontDoorOn() && frontDoorUrl() && !scenePicked)))
+  if (cloudOn() && (location.hash === GAL_HASH || (frontDoorOn() && frontDoorBare && !scenePicked)))
     Promise.resolve().then(() => galOpen(true));
   window.addEventListener("hashchange", () => {
     if (cloudOn() && location.hash === GAL_HASH && el("galdlg").classList.contains("hidden")) galOpen(true);
