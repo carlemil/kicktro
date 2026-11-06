@@ -262,7 +262,7 @@ the first visit, then once per `CONFIG.credits.every` (7) days** (`creditsDue`, 
 **`#scenebanner` is DOM chrome**: `showSceneTitle(name, author)` arms `titleLeft`
 (`CONFIG.credits.titleHold`/`titleFade`); `sceneBannerTick()` runs unconditionally and gates on
 `creditLeft <= 0`; `frame()` decrements `titleLeft` only in the `else` of `creditLeft > 0`.
-`applyPreset` calls `sceneTitleFor(i)`, never `p.name`. Author = `collection`, else `#cloud-name`.
+`applyPreset` and `adoptSharedScene` call `sceneTitleFor(i)`, never `p.name`. Author = `collection`, else `#cloud-name`.
 Own `localStorage` key + "Show author" (`#sceneTitleOn`, `data-nopersist`, Scene box).
 `createPreset` does not arm the banner.
 

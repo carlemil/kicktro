@@ -143,6 +143,7 @@
     curPreset = presets.length - 1;
     stopCycling();                            // ...and stays on screen; auto-cycle is on by default
     rebuildPresetOptions();
+    sceneTitleFor(curPreset);                 // the banner was armed for the scene this replaced
     persist();
     return true;
   }

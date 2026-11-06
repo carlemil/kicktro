@@ -15,6 +15,16 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.104.4] — 2026-11-07
+
+### Fixed
+- **A shared link's banner names the scene you opened.** On a first visit it showed the name of the
+  starter scene that had just been replaced.
+
+### Internal
+- author-check opens a `?z=` link and asserts the banner, with the released build as the negative
+  control.
+
 ## [1.104.3] — 2026-11-06
 
 ### Fixed

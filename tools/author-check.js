@@ -14,6 +14,7 @@
 "use strict";
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 const NL = "\n";
 const outDir = process.argv[2];
 const appFile = process.argv[3] || "dev-index.html";
@@ -102,4 +103,34 @@ console.log("wrote " + out);
 console.log("run: msedge --headless=new --disable-extensions --enable-logging=stderr --v=0 "
   + "--window-size=1400,900 --virtual-time-budget=30000 "
   + '--user-data-dir="' + path.join(outDir, "ud-author") + '" "file:///' + out.replace(/\\/g, "/")
+  + "\" 2>&1 | grep -oE '\"(PASS|FAIL|DONE)[^\"]*\"'");
+
+// ---- A share link names ITS scene on the banner ------------------------------------------
+// The boot arms the banner for the scene the page came up on; a link's scene arrives later and
+// adoptSharedScene did not re-arm it, so a first visit read "Fetingen" over a shared scene. ?z=
+// is the case to drive: #c= lands through the same async path but needs the API, and that link
+// wipes the query that would point a file:// page at a stub.
+const zArg = zlib.deflateRawSync(Buffer.from(JSON.stringify({ effect: "tunnel", author: "Dana" }), "utf8")).toString("base64url");
+const linkBody = [
+  "var fails=0;",
+  "function ok(n,c,d){ if(typeof n!=='string'){console.log('\"BAD ASSERTION\"');fails++;return;}",
+  "  if(!c)fails++; console.log('\"'+(c?'PASS':'FAIL')+' '+n+(d?'  ['+d+']':'')+'\"'); }",
+  "var ban2=document.getElementById('scenebanner'), now2=document.getElementById('scenenow');",
+  "ok('the link installed its scene', now2.textContent.trim()==='Shared scene', now2.textContent);",
+  "ok('the banner names THAT scene and its author, not the one it replaced',",
+  "   /^Shared scene\\s*·\\s*Dana$/.test(ban2.textContent.trim()), ban2.textContent.trim()||'(empty)');",
+  "ok('...and the banner is up', !ban2.classList.contains('hidden'));",
+  "console.log('\"DONE fails='+fails+'\"');",
+].join(NL);
+const linkInject = ["<script>",
+  "(function(){function go(){setTimeout(function(){", linkBody, "},2400);}",
+  "if(window.__appReady)go(); else addEventListener('app:ready',go,{once:true});})();", "</" + "script>"].join(NL);
+let l = app.split("<head>").join("<head>" + NL + seed);
+l = l.split("</body>").join(linkInject + NL + "</body>");
+const linkOut = path.join(outDir, "author-link.html");
+fs.writeFileSync(linkOut, l);
+console.log("wrote " + linkOut);
+console.log("run: msedge --headless=new --disable-extensions --enable-logging=stderr --v=0 "
+  + "--window-size=1400,900 --virtual-time-budget=30000 "
+  + '--user-data-dir="' + path.join(outDir, "ud-author-link") + '" "file:///' + linkOut.replace(/\\/g, "/") + "?z=" + zArg
   + "\" 2>&1 | grep -oE '\"(PASS|FAIL|DONE)[^\"]*\"'");
