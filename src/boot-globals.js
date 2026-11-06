@@ -293,6 +293,9 @@
     q.delete("frontdoor"); q.delete("api");
     return !q.toString();
   }
+  // Asked NOW, of the address as it arrived: applyShared (audio-tuning-data) wipes a share link
+  // from the address bar long before cloud-profile decides, and a stripped link reads as bare.
+  const frontDoorBare = frontDoorUrl();
   // THIS load is applyRestore's reload: a scene was just picked (a gallery card, a #g= link,
   // a cloud load, a restore), so it lands on that scene, not back on the gallery. A one-shot,
   // read and cleared here -- a plain reload of the base address opens the gallery again.

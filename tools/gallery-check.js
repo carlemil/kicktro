@@ -43,6 +43,9 @@
 //   bare address opens on the gallery with no mic armed; closing it asks for an audio source and
 //   holds the dialog until one starts or every source is refused; the reload after a pick
 //   (kt.picked) skips the gallery and asks; a source chosen before is an answer.
+// case-door-link (?frontdoor#g=srv-7): a link is not the bare address, even once applyShared has
+//   wiped it from the address bar. #c= and #zp= wipe the query too, which turns ?frontdoor off
+//   here, so only #g= can show this on file://; the decision they share is frontDoorBare.
 // case-home (#gallery): the gallery's own link opens it on Most loved; Copy link copies it; the ▦
 //   button beside ☰ toggles it and the address bar follows; #gallery pasted into the open tab
 //   opens it with no reload; while it is open the scene holds still (the rendered-frame count
@@ -194,7 +197,7 @@ const head = [
   "  if (CRED) { if (window.__seen0) localStorage.setItem('kt.credits.seen', window.__seen0); else localStorage.removeItem('kt.credits.seen'); }",
   // the FRONT DOOR cases (?frontdoor): no audio answer stored (case-armed: the mic, from an
   // earlier visit), and every source REFUSED -- a stub that records what was asked for.
-  "  var DOOR = /^case-(door|picked|armed)$/.test(CASE);",
+  "  var DOOR = /^case-(door|door-link|picked|armed)$/.test(CASE);",
   "  if (CASE === 'case-hold' && !HOLD2) localStorage.setItem('burnTheWeb.v1', JSON.stringify(Object.assign({ panelOpen: false, cycle: false, audio: 'off' }, " + HOLD_JSON + ")));",
   "  else if (CASE === 'case-favcycle') localStorage.setItem('burnTheWeb.v1', JSON.stringify(" + FAV_JSON + "));",
   "  else if (CASE !== 'case-hold') localStorage.setItem('burnTheWeb.v1', JSON.stringify(!DOOR ? { panelOpen: false, cycle: false, audio: 'off' }",
@@ -556,6 +559,17 @@ const tail = [
   "      ok('refusing every source lets go', !$('sync-later').hidden && !$('sync-close').hidden, window.__media.join(','));",
   "      $('sync-later').click();",
   "      ok('...and Maybe later closes it', $('syncpop').classList.contains('hidden'));",
+  "      done();",
+  "    });",
+  "    run(); return;",
+  "  }",
+  "  if (CASE === 'case-door-link') {",
+  "    then(1500, function () {",
+  "      var blob = JSON.parse(localStorage.getItem('burnTheWeb.v1') || '{}'), cur = blob.presets && blob.presets[blob.curPreset];",
+  "      ok('a share link does not open the gallery over its scene', $('galdlg').classList.contains('hidden'), location.hash);",
+  "      ok('...the linked scene is the one up', cur && cur.name === 'Coral Reef Dawn', cur && cur.name);",
+  "      ok('...and the link is gone from the address bar', location.hash === '', location.hash);",
+  "      ok('...and it asks for an audio source, held open', !$('syncpop').classList.contains('hidden') && $('sync-later').hidden);",
   "      done();",
   "    });",
   "    run(); return;",
@@ -1221,7 +1235,7 @@ function build(c) {
   fs.writeFileSync(path.join(outDir, c + ".html"), html);
   console.log("wrote " + c + ".html");
 }
-const CASES = { "case-out": "", "case-hold": "", "case-favcycle": "", "case-weight": "", "case-in": "", "case-admin": "", "case-errors": "","case-lazy": "", "case-render": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
+const CASES = { "case-out": "", "case-hold": "", "case-favcycle": "", "case-weight": "", "case-in": "", "case-admin": "", "case-errors": "","case-lazy": "", "case-render": "", "case-link-b": "#g=builtin:neon-reef", "case-link-s": "#g=srv-7", "case-link-gone": "#g=srv-99", "case-home": "#gallery", "case-door": "?frontdoor", "case-door-link": "?frontdoor#g=srv-7", "case-picked": "?frontdoor", "case-armed": "?frontdoor",
   "case-cred-new": "", "case-cred-recent": "", "case-cred-old": "", "case-cred-hook": "?credits=4",
   "case-sync-anon": "?api=http://127.0.0.1:9", "case-sync-in": "?api=http://127.0.0.1:9", "case-sync-off": "" };
 for (const c in CASES) build(c);

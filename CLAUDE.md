@@ -955,8 +955,10 @@ delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs i
   fragments (`g|c|zp|sp=`) — it installs nothing. `#galbtn` (▦) leads `#toprow`, hidden with no
   API.
 - **THE FRONT DOOR** (boot-globals): `frontDoorOn()` = http(s) or `?frontdoor` (the dev hook) —
-  NEVER file://, which every headless tool loads. There, `frontDoorUrl()` (no hash, no query but
-  `frontdoor`/`api`) opens the gallery at startup, except when `scenePicked`: the one-shot
+  NEVER file://, which every headless tool loads. There, `frontDoorBare` (`frontDoorUrl()`, no hash,
+  no query but `frontdoor`/`api`, **asked at boot**: `applyShared` wipes a link from the address bar
+  before anything later could read it, and every share link then opened UNDER the gallery; case-door-link)
+  opens the gallery at startup, except when `scenePicked`: the one-shot
   sessionStorage `kt.picked` that `applyRestore` sets before its reload, read and cleared at boot.
   The tutorial waits on `frontModalUp()` (gallery/restore/help/tutorial visible, looked up by id).
 - Hover/focus → muted looping `<video preload=none>`, shown on `playing`; **touch: first tap

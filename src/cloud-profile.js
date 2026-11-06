@@ -2010,7 +2010,7 @@
   // A #gallery link: at startup, and pasted into a tab that is already open.
   // ...and the FRONT DOOR: a visit to the bare address opens on the gallery, except on the
   // reload that lands a scene just picked from it (scenePicked).
-  if (cloudOn() && (location.hash === GAL_HASH || (frontDoorOn() && frontDoorUrl() && !scenePicked)))
+  if (cloudOn() && (location.hash === GAL_HASH || (frontDoorOn() && frontDoorBare && !scenePicked)))
     Promise.resolve().then(() => galOpen(true));
   window.addEventListener("hashchange", () => {
     if (cloudOn() && location.hash === GAL_HASH && el("galdlg").classList.contains("hidden")) galOpen(true);
