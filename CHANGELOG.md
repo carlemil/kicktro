@@ -15,6 +15,13 @@ numbers follow [Semantic Versioning](https://semver.org/):
 The version shown at the foot of the menu is `CONFIG.version` in `src/config.js`, which is
 the single source of truth; `/deploy` bumps it and adds the section below in the same commit.
 
+## [1.104.2] — 2026-11-06
+
+### Changed
+- **Your scenes upload to the Gallery 4 seconds after your last change again** (it was 20 s in
+  1.104.1). When others see it is unchanged: a changed scene still goes public an hour after its
+  last edit.
+
 ## [1.104.1] — 2026-11-01
 
 ### Changed
