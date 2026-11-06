@@ -908,7 +908,7 @@ LOADS: a src-less img draws a light frame + broken icon, a white flash per card 
 the SERVER answered with (an API without `sort=name` answers `favs`). Virtual time never
 delivers an IntersectionObserver callback, so gallery-check's `case-lazy` runs in REAL time.
 - **EVERY OWN SCENE IS A CARD; there is no publish button and no private** (by request). The
-  page UPLOADS, the server HIDES: `gsyncSoon` (20 s, one burst of edits = one upload) → `gsyncPush` sends the
+  page UPLOADS, the server HIDES: `gsyncSoon` (4 s, one drag = one upload) → `gsyncPush` sends the
   whole own library (no `collection`) to `PUT /api/me/gallery`, each scene with `sid` + `edited`;
   `server/gallery-sync.js` keeps a changed scene in `pend*` and `promote()`s it lazily on every
   read once `edited` is an hour old (`PENDING_MS`); each further edit restarts the hour. A scene

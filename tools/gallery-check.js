@@ -49,7 +49,7 @@
 //   stops, no "paused" note) and runs again once it closes (NEGATIVE).
 // case-sync-anon / case-sync-in (?api=, so the upload path is live on file://): a first visit
 //   (stock scenes only) uploads nothing and mints no anonymous account; New stamps a sid and
-//   an edit time and goes up about 20 s later -- signed out as a freshly minted anonymous
+//   an edit time and goes up within seconds -- signed out as a freshly minted anonymous
 //   account with no name, signed in with your session and profile name -- your scenes only,
 //   each with a sid; a slider edit moves the stamp and goes up once more; the NEGATIVE: an
 //   input that changes nothing moves no stamp and uploads nothing. My scenes shows the card
@@ -375,7 +375,7 @@ const tail = [
   "      var all = Array.prototype.slice.call(document.querySelectorAll('#breakout .ctl.poppable[data-slot] input[type=range][data-k]'));",
   "      return all.filter(function (r) { return r.offsetParent !== null && !r.disabled && +r.max > +r.min; })[0];",
   "    };",
-  "    then(27000, function () {",
+  "    then(11000, function () {",
   "      window.__p0 = puts().length;",
   "      if (ANON || OFF) ok('a first visit (stock scenes only) uploads nothing', window.__p0 === 0, window.__p0);",
   "      else ok('signed in, the first visit mirrors the library once, with your session', window.__p0 === 1 && puts()[0].auth === 'Bearer tok-1', window.__p0);",
@@ -390,17 +390,14 @@ const tail = [
   "      var c = cur();",
   "      ok('New stamps the scene: a sid and when it changed', c.name === 'Sync Test' && /^[A-Za-z0-9]{16}$/.test(c.sid || '') && c.edited >= window.__t0,",
   "        JSON.stringify({ n: c.name, s: c.sid, e: c.edited }));",
-  "      ok('...and does not upload at once (one burst of edits = one upload)', puts().length === window.__p0, puts().length);",
+  "      ok('...and does not upload at once (one drag = one upload)', puts().length === window.__p0, puts().length);",
   "    });",
-  "    then(10000, function () {",
-  "      ok('...nor ten seconds on (the wait is 20 s)', puts().length === window.__p0, puts().length);",
-  "    });",
-  "    then(10500, function () {",
+  "    then(4500, function () {",
   "      var p = puts();",
   "      if (OFF) {",
   "        ok('NEGATIVE: with no API (file://, no ?api=) nothing goes up', p.length === 0 && mints().length === 0, p.length + '/' + mints().length);",
   "      } else {",
-  "        ok('about 20 s on, the library goes up', p.length === window.__p0 + 1, p.length);",
+  "        ok('within seconds the library goes up', p.length === window.__p0 + 1, p.length);",
   "        p = p.slice(window.__p0);",
   "        if (ANON) {",
   "          ok('...as a freshly minted anonymous account', mints().length === 1 && p[0] && p[0].auth === 'Bearer anon-tok', mints().length + ' ' + (p[0] && p[0].auth));",
@@ -443,7 +440,7 @@ const tail = [
   "    then(300, function () {",
   "      ok('a slider edit moves the scene stamp', cur().edited > window.__e0, cur().edited + ' vs ' + window.__e0);",
   "    });",
-  "    then(20500, function () {",
+  "    then(4500, function () {",
   "      var p = puts();",
   "      if (OFF) ok('NEGATIVE: ...and still nothing goes up', p.length === 0 && mints().length === 0, p.length);",
   "      else {",
@@ -460,7 +457,7 @@ const tail = [
   "      window.__e1 = cur().edited; window.__n1 = puts().length;",
   "      window.__r.dispatchEvent(new Event('input', { bubbles: true }));",
   "    });",
-  "    then(20700, function () {",
+  "    then(4700, function () {",
   "      ok('NEGATIVE: an input that changes nothing moves no stamp', cur().edited === window.__e1, cur().edited + ' vs ' + window.__e1);",
   "      ok('NEGATIVE: ...and uploads nothing', puts().length === window.__n1, puts().length + ' vs ' + window.__n1);",
   "      if (OFF) { done(); return; }",
@@ -499,7 +496,7 @@ const tail = [
   "      ok('...the card leaves the tab', !card('syn-1'));",
   "      ok('...and the scene leaves your own list', lib().length > 0 && !lib().some(function (p) { return p.name === 'Sync Test'; }), lib().map(function (p) { return p.name; }).join(','));",
   "    });",
-  "    then(20600, function () {",
+  "    then(4600, function () {",
   "      if (OFF) return;",
   "      ok('...which goes up without it', puts().length === window.__n2 + 1, puts().length + ' vs ' + window.__n2);",
   "      window.__dec = null; lastScene();",
@@ -1232,6 +1229,6 @@ const abs = path.resolve(outDir).split(path.sep).join("/");
 console.log(NL + "run each with:");
 for (const c in CASES) {
   console.log('  msedge --headless=new --disable-extensions --enable-logging=stderr --v=0'
-    + (c === "case-lazy" || c === "case-render" || c === "case-favcycle" ? "" : /^case-sync-/.test(c) ? ' --virtual-time-budget=120000' : ' --virtual-time-budget=20000') + ' --user-data-dir="' + abs + '/ud-' + c + '"'
+    + (c === "case-lazy" || c === "case-render" || c === "case-favcycle" ? "" : /^case-sync-/.test(c) ? ' --virtual-time-budget=35000' : ' --virtual-time-budget=20000') + ' --user-data-dir="' + abs + '/ud-' + c + '"'
     + ' "file:///' + abs + '/' + c + '.html' + CASES[c] + '" 2>&1 | grep -oE ' + Q + '"(PASS|FAIL|DONE)[^"]*"' + Q);
 }
